@@ -10,7 +10,9 @@ controller: x86
 # nessuna chiave `remote`: esecuzione locale
 
 freq:
-  default: {governor: performance, restore: true}
+  # Il ripristino non e' un'opzione: `tuned()` rimette lo stato com'era in ogni
+  # caso, anche quando la misura solleva.
+  default: {governor: performance}
 
 compute:
   gpu: {device: cuda}

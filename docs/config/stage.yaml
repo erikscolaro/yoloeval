@@ -1,0 +1,44 @@
+# Riferimento dei campi di conf/stage/<nome>.yaml
+#
+# Lo stadio decide cosa fa run.py. I campi sotto `name` valgono solo per
+# alcuni stadi, come indicato.
+
+name: benchmark
+  # OBBLIGATORIO. Valori: train | export | benchmark | provision
+  #   train     -> allena e mette i pesi in artifacts/weights/
+  #   export    -> esporta (e quantizza) in artifacts/exports/
+  #   benchmark -> misura, e scrive un JSON per cella in results/
+  #   provision -> prepara la board e verifica che sia usabile
+
+force: false
+  # Solo stage=provision. true | false (default: false).
+  # true -> ignora la sentinella .env_hash e riprovisiona comunque.
+
+# --- solo stage=benchmark --------------------------------------------------
+
+thermal:
+  # Cooldown condizionale prima di ogni cella: se la board e' gia' sotto
+  # soglia non aspetta niente.
+  threshold_c: 45
+    # Float. Temperatura sotto la quale si parte. Se la board non ha sensori
+    # leggibili, l'attesa viene saltata.
+  timeout_s: 300
+    # Intero. Oltre questo tempo si procede comunque, con un warning: la cella
+    # resta utilizzabile perche' temp_start_c e order_index finiscono nel
+    # risultato e in analisi si vede se il termico stava sporcando le misure.
+  poll_s: 10
+    # Intero. Ogni quanto rileggere la temperatura.
+
+scheduling:
+  rt_priority: 80
+    # Intero 1-99, oppure null per disattivare. Diventa `chrt -f <n>` davanti
+    # al comando di misura e riduce il jitter. Richiede CAP_SYS_NICE: se non
+    # c'e', la misura viene fatta lo stesso e il risultato riporta
+    # rt_scheduling: false. Non viene applicato ai comandi che passano dal
+    # container, dove finirebbe sul client docker invece che sul processo.
+  drop_caches: true
+    # true | false. Svuota la page cache prima di ogni cella, cosi' il primo
+    # caricamento del modello e' confrontabile fra celle.
+  swap_off: true
+    # true | false. Disattiva lo swap per la durata della cella e lo rimette
+    # com'era dopo. Meglio un OOM visibile che una cella in swap.

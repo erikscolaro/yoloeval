@@ -1,0 +1,25 @@
+# Riferimento dei campi di conf/eval/<nome>.yaml
+#
+# Due coppie di soglie, e la distinzione e' sostanziale: una serve a misurare
+# quanto il modello e' bravo, l'altra a misurare quanto ci mette.
+
+map_conf: 0.001
+  # Confidence per il calcolo della mAP. Va tenuta BASSA: la mAP integra su
+  # tutte le soglie, e alzandola si tronca la coda della curva
+  # precision-recall, facendo scendere la metrica artificialmente.
+
+map_iou: 0.7
+  # IoU dell'NMS durante la validazione.
+
+bench_conf: 0.25
+  # Confidence usata durante la misura di latenza. Va tenuta FISSA e
+  # operativa: dove l'NMS c'e', il suo costo dipende da quante box superano il
+  # filtro, quindi soglie diverse fra celle significano carichi di
+  # post-processing diversi.
+
+bench_iou: 0.45
+  # IoU dell'NMS durante la misura.
+
+max_det: 300
+  # Massimo numero di detection per immagine. Vale per entrambe: e' anche la
+  # dimensione dell'output della testa one-to-one, [1, max_det, 6].

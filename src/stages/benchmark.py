@@ -353,7 +353,11 @@ def _wrap_command(conn, cfg, cmd: str, ct, n_cores) -> str:
     if affinity:
         cmd = f"taskset -c {affinity} {cmd}"
     prio = cfg.stage.get("scheduling", {}).get("rt_priority")
-    if prio and _has_rt(conn):
+    if prio and cmd.startswith("docker exec"):
+        # Il prefisso finirebbe sul client docker, non sul processo dentro il
+        # container: nessun effetto sullo scheduling di chi misura davvero.
+        log.debug("comando nel container: scheduling FIFO non applicabile")
+    elif prio and _has_rt(conn):
         cmd = f"chrt -f {int(prio)} {cmd}"
     return shell_env(env) + cmd
 

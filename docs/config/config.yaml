@@ -1,0 +1,112 @@
+# Riferimento di conf/config.yaml — le impostazioni globali.
+#
+# Quasi tutte si possono cambiare da riga di comando. Quelle marcate "flag"
+# accettano sia `nome=true` sia `+nome=true`.
+
+defaults:
+  # La lista dei gruppi attivi e la loro opzione di default. L'ordine conta
+  # per le interpolazioni; `_self_` va per ultimo, cosi' quello che scrivi in
+  # questo file vince sui gruppi.
+  - stage: benchmark
+  - model: yolo26n
+  - train: default
+  - dataset: aod4
+  - quantization: fp32
+  - backend: onnxruntime
+  - hardware: wks4_rtx6000
+  - eval: default
+  - logging: local
+  - _self_
+
+freq_target: default
+  # Quale chiave di `hardware.freq` usare. I valori ammessi dipendono dalla
+  # board: `default` esiste solo sulla workstation, la Jetson ha
+  # maxn|w30|w15, il Pi max|mid|low. Sulle board va sempre indicato.
+
+compute_target: null
+  # Quale chiave di `hardware.compute` usare.
+  #   null -> tutte quelle dichiarate dalla board, una cella per ciascuna
+  #   una stringa -> solo quella. Una chiave inesistente non produce una cella
+  #                  saltata: solleva subito, perche' e' un refuso
+
+seed: 42
+  # Intero. Usato come seed di riserva dove un gruppo non ne dichiara uno suo
+  # (per esempio la calibrazione, se le manca shuffle_seed).
+
+project_root: ${hydra:runtime.cwd}
+  # La directory da cui hai lanciato il comando. Hydra sposta la cwd dentro la
+  # cartella di output del job, quindi tutti i path relativi del tool partono
+  # da qui. Cambialo solo se sai cosa stai facendo.
+
+artifacts_dir: ${project_root}/artifacts
+  # Dove finiscono pesi (weights/) e modelli esportati (exports/).
+results_dir: ${project_root}/results
+  # Dove finisce un JSON per cella, piu' il .raw.txt con lo stdout del tool di
+  # misura. Piatto e indicizzato per cell_id, separato dalle cartelle di Hydra
+  # che sono indicizzate per timestamp e quindi non stabili fra sweep.
+
+training_key_fields: [model, train, dataset]
+  # Quali gruppi entrano nella chiave del training. NON aggiungere backend,
+  # hardware, freq_target o compute_target: lo stesso modello verrebbe
+  # riallenato per ogni cella della matrice.
+
+cell_key_fields: [model, train, dataset, quantization, backend,
+                  hardware, freq_target, compute_target, eval]
+  # Quali gruppi identificano una cella. Toglierne uno significa che due celle
+  # diverse si sovrascrivono il risultato; il training_key viene aggiunto in
+  # automatico, cosi' un riallenamento non passa per una cella gia' fatta.
+
+# --- flag ------------------------------------------------------------------
+
+dry_run: false
+  # true -> stampa quali celle verrebbero eseguite, con l'esito previsto, e
+  #         non esegue niente. Non scrive risultati.
+force: false
+  # true -> rifa' le celle anche se in results/ c'e' gia' un esito.
+retry_failed: false
+  # true -> riprova anche le celle il cui ultimo esito era "failed". Senza,
+  #         vengono saltate (un errore riproducibile non migliora ritentandolo
+  #         a ogni rilancio).
+force_retrain: false
+  # true -> riallena anche se i pesi con quel training_key esistono gia'.
+force_reexport: false
+  # true -> riesporta anche se l'artefatto con quell'export_key esiste gia'.
+  #         Serve dopo un aggiornamento di TensorRT o del Voyager SDK.
+allow_reboot: false
+  # true -> autorizza il tool a riavviare la board quando il cambio di profilo
+  #         nvpmodel lo richiede. Default false: uno sweep notturno non deve
+  #         poter riavviare una macchina mentre nessuno guarda. Con false, una
+  #         transizione che vuole il riavvio si ferma con un messaggio.
+skip_invalid: true
+  # true  -> una cella non applicabile diventa un risultato "skipped" con la
+  #          motivazione, e lo sweep continua
+  # false -> si ferma alla prima. Utile per verificare che la matrice che hai
+  #          scritto sia davvero tutta eseguibile
+continue_on_error: true
+  # true  -> una cella fallita viene registrata e lo sweep prosegue
+  # false -> si ferma alla prima. Il record della cella viene scritto lo
+  #          stesso, prima di fermarsi
+
+hydra:
+  # Configurazione di Hydra. Da cambiare raramente.
+  run:
+    dir: outputs/${now:%Y-%m-%d_%H-%M-%S}
+      # Dove finiscono log e config risolta di una run singola.
+  sweep:
+    dir: multirun/${now:%Y-%m-%d_%H-%M-%S}
+    subdir: ${hydra.job.num}
+      # Idem per il multirun, una sottocartella per job.
+  job:
+    chdir: true
+      # Sposta la cwd dentro la cartella del job. Il tool ci conta: e' per
+      # questo che i path assoluti si costruiscono da project_root.
+  job_logging:
+    handlers:
+      console: {level: INFO}
+      file: {level: DEBUG}
+        # Console sintetica, file completo: lo stdout dei comandi remoti
+        # finisce solo nel file.
+    loggers:
+      paramiko: {level: WARNING}
+      ultralytics: {level: WARNING}
+        # Silenziati: altrimenti coprono le righe del tool.

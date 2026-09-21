@@ -1,0 +1,64 @@
+# Riferimento dei campi di conf/quantization/<nome>.yaml
+#
+# Solo quantizzazione post-training: la QAT e' fuori scope.
+
+name: int8
+  # OBBLIGATORIO. Compare nei risultati e nell'export_key.
+  # Quelli che esistono: fp32 | fp16 | int8
+
+precision: int8
+  # OBBLIGATORIO. Valori: fp32 | fp16 | int8
+  # Guida l'export: fp32 esporta e basta, fp16 fa il cast del grafo, int8
+  # attiva la calibrazione. Confrontato anche con build.quantize del backend.
+
+method: ptq
+  # Descrittivo. Valori in uso: null (fp32) | cast (fp16) | ptq (int8)
+
+calibration:
+  # null per fp32 e fp16. Obbligatorio per int8.
+  n_samples: 512
+    # Intero: quante immagini per la calibrazione. Per Axelera 100-400, oltre
+    # non cambia niente.
+  source: val
+    # Quale split del data yaml usare: val | train | test
+  shuffle_seed: 42
+    # Intero FISSO. La lista viene ordinata e poi mescolata con questo seed,
+    # cosi' il calibration set e' identico per ogni artefatto: cambiarlo fra
+    # due quantizzazioni significa attribuire alla quantizzazione differenze
+    # che dipendono dalle immagini scelte. Se lo ometti viene usato `seed` di
+    # config.yaml.
+  cache: true
+    # true | false. La lista usata viene comunque salvata in calibration.json
+    # accanto all'artefatto, quindi e' ispezionabile.
+
+validation:
+  # null per fp32: e' il riferimento, non c'e' niente da validare.
+  max_abs_diff: 0.05
+    # Float. Differenza massima ammessa fra l'output dell'artefatto e quello
+    # FP32 sullo stesso batch fisso. Oltre, l'artefatto e' `degraded`: resta
+    # in tabella, segnalato, perche' i suoi numeri di latenza non sono
+    # confrontabili con gli altri.
+  map50_drop_tolerance: 0.02
+    # Float. Calo di mAP@50 ammesso rispetto al modello allenato. Oltre,
+    # `degraded`.
+
+backend_args:
+  # Come la precisione viene chiesta a ciascun backend. La chiave e' il `name`
+  # del backend; un backend assente da qui riceve i suoi default.
+  tensorrt: ["--int8"]
+    # Lista di flag aggiunti alla riga di trtexec in fase di build.
+    # Per int8 l'ONNX di partenza e' gia' QDQ, quindi trtexec non calibra da
+    # solo con dati casuali: usa le scale che ci sono nel grafo.
+  onnxruntime:
+    quant_format: QDQ
+      # QDQ | QOperator. QDQ perche' lo digeriscono tutti (ORT, TensorRT,
+      # OpenVINO) e lo stesso file resta confrontabile fra backend.
+    per_channel: true
+      # true | false. Scale per canale invece che per tensore: piu' preciso,
+      # praticamente sempre quello che vuoi sulle conv.
+    reduce_range: false
+      # true | false. true usa 7 bit invece di 8, serve solo su CPU x86
+      # vecchie senza VNNI.
+  openvino:
+    preset: performance
+      # performance | mixed
