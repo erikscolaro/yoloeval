@@ -1,0 +1,18 @@
+board: wks4_rtx6000
+arch: x86_64
+os: ubuntu22
+n_cores_total: 24
+gpu: rtx6000_ada
+trt_available: true
+axelera_available: false
+power_sensors: false
+controller: x86
+# nessuna chiave `remote`: esecuzione locale
+
+freq:
+  default: {governor: performance, restore: true}
+
+compute:
+  gpu: {device: cuda}
+  cpu_1: {device: cpu, n_cores: 1}
+  cpu_all: {device: cpu, n_cores: 24}

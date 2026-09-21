@@ -1,0 +1,25 @@
+name: onnxruntime
+export_format: onnx
+supports_gpu: true
+requires:
+  arch: [x86_64, aarch64]
+
+build:
+  on_target: false             # l'ONNX e' portabile, si builda una volta
+  opset: 17
+
+benchmark:
+  tool: onnxruntime_perf_test
+  cmd: >
+    onnxruntime_perf_test
+      -m {model}
+      -e {ep}
+      -I
+      -r {iters}
+      -c {warmup_iters}
+      -i "intra_op_num_threads|{threads}"
+  iters: 200
+  warmup_iters: 50
+  parse: ort_perf_test
+  scope: end_to_end_with_transfers
+  metrics: [mean_ms, median_ms, p90_ms, p99_ms, throughput_qps]

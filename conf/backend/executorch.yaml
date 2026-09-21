@@ -1,0 +1,22 @@
+name: executorch
+export_format: pte
+supports_gpu: false
+requires:
+  arch: [x86_64, aarch64]
+
+build:
+  on_target: false
+  from_format: torch
+
+benchmark:
+  tool: executor_runner        # runner C++ della build ExecuTorch
+  cmd: >
+    executor_runner
+      --model_path={model}
+      --num_executions={iters}
+      --warmup={warmup_iters}
+  iters: 200
+  warmup_iters: 50
+  parse: executor_runner
+  scope: end_to_end_with_transfers
+  metrics: [mean_ms, median_ms, p90_ms, p99_ms]

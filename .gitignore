@@ -1,0 +1,28 @@
+# artefatti e risultati: pesano e si rigenerano
+artifacts/**
+!artifacts/.gitkeep
+results/**
+!results/.gitkeep
+reports/**
+!reports/.gitkeep
+multirun/
+outputs/
+*.parquet
+
+# ambienti
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+
+# modelli scaricati da Ultralytics nella cwd
+*.pt
+*.onnx
+*.engine
+*.axm
+
+# locale
+.DS_Store

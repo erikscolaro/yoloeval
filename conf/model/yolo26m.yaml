@@ -1,0 +1,7 @@
+name: yolo26m
+source: pretrained
+weights: yolo26m.pt
+cfg: null
+scale: m
+imgsz: 640
+nc: 4

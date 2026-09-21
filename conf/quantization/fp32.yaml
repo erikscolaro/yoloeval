@@ -1,0 +1,12 @@
+name: fp32
+precision: fp32
+method: null
+
+calibration: null
+
+validation: null               # e' il riferimento, non c'e' nulla da validare
+
+backend_args:
+  tensorrt: []
+  onnxruntime: {}
+  openvino: {}

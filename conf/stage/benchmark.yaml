@@ -1,0 +1,15 @@
+name: benchmark
+
+# Attesa termica prima di ogni cella. Condizionale: se la board e' gia'
+# sotto soglia non aspetta.
+thermal:
+  threshold_c: 45
+  timeout_s: 300
+  poll_s: 10
+
+# Wrapping del comando di misura. chrt richiede privilegi: se non
+# disponibili il comando viene eseguito senza, e il fatto e' registrato.
+scheduling:
+  rt_priority: 80         # chrt -f <n>; null per disabilitare
+  drop_caches: true
+  swap_off: true

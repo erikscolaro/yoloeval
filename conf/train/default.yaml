@@ -1,0 +1,18 @@
+# I nomi delle chiavi coincidono 1:1 con gli argomenti di model.train()
+# di Ultralytics: lo splat funziona senza mapping.
+epochs: 300
+batch: 16
+imgsz: 640
+optimizer: auto
+lr0: 0.01
+lrf: 0.01
+momentum: 0.937
+weight_decay: 0.0005
+warmup_epochs: 3
+patience: 50
+seed: 42
+mosaic: 1.0
+mixup: 0.0
+hsv_h: 0.015
+hsv_s: 0.7
+hsv_v: 0.4

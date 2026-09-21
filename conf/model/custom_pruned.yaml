@@ -1,0 +1,7 @@
+name: custom_pruned
+source: local
+weights: null                                      # oppure .pt di partenza
+cfg: ${project_root}/models/custom_pruned.yaml     # formato Ultralytics nativo
+scale: null
+imgsz: 640
+nc: 4

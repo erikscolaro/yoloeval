@@ -1,0 +1,7 @@
+# Mirror opzionale. La fonte di verita' resta il JSON locale.
+backend: wandb
+wandb:
+  project: yolo-bench
+  entity: null
+  mode: online          # online | offline | disabled
+  tags: []

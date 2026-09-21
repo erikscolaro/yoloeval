@@ -1,0 +1,7 @@
+Session creation time cost: 0.0857536 s
+First inference time cost: 9 ms
+Total inference time cost: 1.03469 s
+Total inference requests: 200
+Average inference time cost: 5.17251 ms
+Number of inferences per second: 193.296
+Avg CPU usage: 98 %

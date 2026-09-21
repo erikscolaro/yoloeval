@@ -1,0 +1,33 @@
+board: jetson_orin_nx
+arch: aarch64
+os: ubuntu22
+jetpack: "6.2"
+soc: orin
+n_cores_total: 8
+trt_available: true
+axelera_available: false
+power_sensors: true            # tegrastats
+controller: jetson
+
+remote:
+  host: jetson-orin            # alias di ~/.ssh/config
+  workdir: /home/bench/bench
+  python: /home/bench/bench/.venv/bin/python
+
+provision:
+  script: scripts/provision/jetson_jp62.sh
+  requirements: scripts/requirements/aarch64-jp62.txt
+
+# ID e cores_online DA VERIFICARE sulla board con `sudo nvpmodel -q --verbose`:
+# variano per variante di modulo (8GB / 16GB) e per versione di JetPack.
+freq:
+  maxn: {nvpmodel_id: 0, governor: performance, cores_online: 8}
+  w30: {nvpmodel_id: 1, governor: performance, cores_online: 8}
+  w15: {nvpmodel_id: 2, governor: performance, cores_online: 4}
+
+compute:
+  gpu: {device: cuda}
+  cpu_1: {device: cpu, n_cores: 1}
+  cpu_2: {device: cpu, n_cores: 2}
+  cpu_4: {device: cpu, n_cores: 4}
+  cpu_8: {device: cpu, n_cores: 8, requires_freq: [maxn, w30]}

@@ -1,0 +1,100 @@
+# yolo-bench — risultati
+
+Generato automaticamente il {{ generated_at }}. I riferimenti alle immagini
+sono relativi: questa cartella e' autoconsistente e si puo' spostare o
+comprimere cosi' com'e'.
+
+## 1. Copertura della matrice
+
+| | celle |
+|---|---|
+| totali | {{ facts.n_total }} |
+| misurate (`ok`) | {{ facts.n_ok }} |
+| non applicabili (`skipped`) | {{ facts.n_skipped }} |
+| fallite (`failed`) | {{ facts.n_failed }} |
+
+{% if tables.stato_celle %}{{ tables.stato_celle }}{% endif %}
+
+{% if tables.celle_saltate %}
+### Perche' sono state saltate
+
+{{ tables.celle_saltate }}
+{% endif %}
+
+## 2. Stato degli artefatti
+
+Un artefatto `degraded` ha superato le soglie di `quantization.validation`:
+resta in tabella ma i suoi numeri di latenza non sono confrontabili con gli
+altri, perche' il modello non predice le stesse cose.
+
+{% if facts.n_degraded is defined %}
+Artefatti degradati: **{{ facts.n_degraded }}**.
+{% endif %}
+{% if facts.n_e2e_fallback is defined %}
+Artefatti esportati con la testa one-to-many nonostante fosse richiesto il
+percorso end-to-end: **{{ facts.n_e2e_fallback }}**. La differenza di latenza
+di queste celle include il costo dell'NMS, e non va attribuita alla
+quantizzazione.
+{% endif %}
+
+{% if tables.artefatti %}{{ tables.artefatti }}{% endif %}
+
+## 3. Latenza
+
+{% if figures.latency_by_backend %}![Latenza mediana per backend e quantizzazione]({{ figures.latency_by_backend }}){% endif %}
+
+{% if facts.speedup_vs_fp32 %}
+Guadagno rispetto a FP32 (mediana su tutte le celle del backend):
+
+| backend / precisione | speedup |
+|---|---|
+{% for key, value in facts.speedup_vs_fp32.items() %}| {{ key }} | {{ value }}x |
+{% endfor %}
+{% endif %}
+
+{% if facts.fastest %}
+Cella piu' veloce: `{{ facts.fastest.model }}` {{ facts.fastest.quantization }}
+su {{ facts.fastest.backend }} / {{ facts.fastest.board }}
+({{ facts.fastest.compute_target }}), {{ facts.fastest.lat_median_ms }} ms mediani.
+{% endif %}
+
+## 4. Latenza e accuratezza
+
+{% if figures.pareto %}![Fronte di Pareto]({{ figures.pareto }}){% endif %}
+
+## 5. Contesto termico
+
+{% if facts.n_throttled is defined %}
+Celle con throttling rilevato: **{{ facts.n_throttled }}**. Vanno lette
+insieme al profilo di potenza: su MAXN il throttling hardware interviene
+quando la potenza del modulo supera il budget TDP, quindi quelle celle non
+sono un limite superiore pulito.
+{% endif %}
+
+{% if figures.order_drift %}![Latenza rispetto all'ordine di esecuzione]({{ figures.order_drift }})
+
+Se i punti salgono con l'indice, il cooldown non e' bastato e le ultime celle
+sono sistematicamente piu' lente delle prime.
+{% endif %}
+
+{% if tables.celle_throttled %}{{ tables.celle_throttled }}{% endif %}
+
+## 6. Machine hours
+
+{% if tables.machine_hours %}{{ tables.machine_hours }}
+
+Il tempo e' diviso per macchina: un'ora di workstation e un'ora di Pi 5 non
+sono equivalenti.
+{% endif %}
+
+## 7. Celle misurate
+
+{% if tables.celle_ok %}{{ tables.celle_ok }}{% endif %}
+
+## Discussione
+
+<!-- da scrivere a mano: l'interpretazione non si genera -->
+
+## Limitazioni
+
+<!-- da scrivere a mano -->

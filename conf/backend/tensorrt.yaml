@@ -1,0 +1,28 @@
+name: tensorrt
+export_format: engine
+supports_gpu: true
+supports_cpu: false
+requires:
+  trt: true
+  arch: [x86_64, aarch64]
+
+build:
+  on_target: true
+  from_format: onnx
+  workspace_mb: 4096
+  timeout_s: 1800
+
+benchmark:
+  tool: trtexec
+  # --noDataTransfers=false e' obbligatorio: al default trtexec esclude i
+  # trasferimenti host<->device e il tempo non e' confrontabile con perf_test.
+  cmd: >
+    trtexec --loadEngine={engine}
+            --iterations={iters} --warmUp={warmup_ms}
+            --avgRuns={iters} --duration=0
+            --useSpinWait --noDataTransfers=false
+  iters: 200
+  warmup_ms: 2000
+  parse: trtexec
+  scope: end_to_end_with_transfers
+  metrics: [mean_ms, median_ms, p90_ms, p99_ms, gpu_compute_ms, throughput_qps]

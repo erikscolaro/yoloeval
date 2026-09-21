@@ -1,0 +1,24 @@
+[project]
+name = "yolo-bench"
+version = "0.1.0"
+description = "Training, export e benchmark sistematico di YOLO26 su hardware edge"
+requires-python = ">=3.10"
+readme = "README.md"
+
+# Le dipendenze vere stanno in scripts/requirements/, una per architettura:
+# su Jetson torch e onnxruntime vanno presi dall'indice NVIDIA, non da PyPI,
+# e un unico elenco qui dentro farebbe installare i wheel sbagliati.
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-q"
+filterwarnings = ["ignore::DeprecationWarning"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B"]
+ignore = ["E501"]
