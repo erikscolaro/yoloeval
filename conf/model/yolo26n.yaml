@@ -1,0 +1,7 @@
+name: yolo26n
+source: pretrained        # pretrained | local
+weights: yolo26n.pt
+cfg: null
+scale: n
+imgsz: 640
+nc: 4

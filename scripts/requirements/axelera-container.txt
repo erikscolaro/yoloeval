@@ -1,0 +1,15 @@
+# Dentro il container Ubuntu 22.04.
+#
+# Indice extra richiesto per i pacchetti Axelera:
+#   --extra-index-url https://software.axelera.ai/artifactory/api/pypi/axelera-pypi/simple
+#
+# Vincoli di piattaforma dichiarati da Axelera: Linux (Ubuntu 22.04 o 24.04),
+# Python 3.10-3.13, torch>=2.8,<2.13, Voyager SDK 1.8.0, metis-dkms >= 1.6.2,
+# libgl1 come dipendenza di sistema.
+
+ultralytics>=8.3
+torch>=2.8,<2.13
+axelera-devkit==1.8.0     # VERIFICARE: deve corrispondere a metis-dkms
+axelera-rt==1.8.0
+numpy<2.3
+opencv-python-headless

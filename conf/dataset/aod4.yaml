@@ -1,0 +1,5 @@
+name: aod4
+local_path: /data/aod4                # path sulla workstation
+yaml: /data/aod4/aod4.yaml            # data yaml in formato Ultralytics
+nc: 4
+names: [airplane, bird, drone, helicopter]

@@ -1,0 +1,9 @@
+[Step 11/11] Dumping statistics report
+[ INFO ] Count:            2000 iterations
+[ INFO ] Duration:         60011.23 ms
+[ INFO ] Latency:
+[ INFO ]    Median:        29.55 ms
+[ INFO ]    Average:       29.85 ms
+[ INFO ]    Min:           27.77 ms
+[ INFO ]    Max:           40.44 ms
+[ INFO ] Throughput:   33.85 FPS

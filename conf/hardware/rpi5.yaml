@@ -1,0 +1,31 @@
+board: rpi5
+arch: aarch64
+os: raspbian12
+cpu: cortex_a76
+n_cores_total: 4
+shared_clock_domain: true      # i 4 core condividono il clock
+trt_available: false
+axelera_available: true
+power_sensors: false
+controller: rpi5
+
+remote:
+  host: rpi5
+  workdir: /home/bench/bench
+  python: /home/bench/bench/.venv/bin/python
+
+provision:
+  script: scripts/provision/rpi5_axelera.sh
+  requirements: scripts/requirements/aarch64-rpi5.txt
+  container: true
+
+freq:
+  max: {khz: 2400000, governor: performance}
+  mid: {khz: 1500000, governor: userspace}
+  low: {khz: 1000000, governor: userspace}
+
+compute:                       # nessun requires_freq: i 4 core sono sempre online
+  cpu_1: {device: cpu, n_cores: 1}
+  cpu_2: {device: cpu, n_cores: 2}
+  cpu_4: {device: cpu, n_cores: 4}
+  axelera: {device: metis}

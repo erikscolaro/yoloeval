@@ -1,0 +1,5 @@
+&&&& RUNNING TensorRT.trtexec [TensorRT v100300] # trtexec --loadEngine=yolo26n_int8.engine
+[I] === Model Options ===
+[I] Format: *
+[E] Error[1]: [stdArchiveReader.cpp::StdArchiveReader::40] Error Code 1: Serialization (Serialization assertion magicTagRead == kMAGIC_TAG failed)
+&&&& FAILED TensorRT.trtexec

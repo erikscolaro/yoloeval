@@ -1,0 +1,53 @@
+# Entry point della configurazione Hydra.
+# Un gruppo per asse dell'esperimento; la matrice si costruisce in multirun.
+defaults:
+  - stage: benchmark
+  - model: yolo26n
+  - train: default
+  - dataset: aod4
+  - quantization: fp32
+  - backend: onnxruntime
+  - hardware: wks4_rtx6000
+  - eval: default
+  - logging: local
+  - _self_
+
+freq_target: default            # chiave dentro hardware.freq
+compute_target: null            # chiave dentro hardware.compute; null = tutte
+
+seed: 42
+project_root: ${hydra:runtime.cwd}
+artifacts_dir: ${project_root}/artifacts
+results_dir: ${project_root}/results
+
+training_key_fields: [model, train, dataset]
+cell_key_fields: [model, train, dataset, quantization, backend,
+                  hardware, freq_target, compute_target, eval]
+
+skip_invalid: true
+continue_on_error: true
+force: false
+retry_failed: false
+force_retrain: false
+force_reexport: false
+dry_run: false
+allow_reboot: false             # riavvio automatico della board per cambio profilo
+
+hydra:
+  run:
+    dir: outputs/${now:%Y-%m-%d_%H-%M-%S}
+  sweep:
+    dir: multirun/${now:%Y-%m-%d_%H-%M-%S}
+    subdir: ${hydra.job.num}
+  job:
+    chdir: true
+  job_logging:
+    formatters:
+      simple:
+        format: '[%(asctime)s][%(levelname)s][%(name)s] %(message)s'
+    handlers:
+      console: {level: INFO}
+      file: {level: DEBUG}
+    loggers:
+      paramiko: {level: WARNING}
+      ultralytics: {level: WARNING}

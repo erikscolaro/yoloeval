@@ -1,0 +1,2 @@
+name: provision
+force: false              # ignora la sentinella .env_hash e riprovisiona

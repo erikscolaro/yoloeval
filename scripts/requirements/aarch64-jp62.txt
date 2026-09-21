@@ -1,0 +1,15 @@
+# Jetson Orin, JetPack 6.2 (L4T R36).
+#
+# NON installare torch, torchvision o onnxruntime-gpu da PyPI su Jetson:
+# servono i wheel NVIDIA per la specifica versione di JetPack, che lo script
+# jetson_jp62.sh scarica dall'indice NVIDIA.
+#
+# TensorRT e' preinstallato con JetPack: si usa quello, non si installa da pip.
+# Per questo il venv va creato con --system-site-packages.
+
+ultralytics>=8.3
+hydra-core>=1.3
+omegaconf>=2.3
+numpy<2.3
+pyyaml
+opencv-python-headless

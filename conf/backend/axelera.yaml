@@ -1,0 +1,23 @@
+name: axelera
+export_format: axelera
+supports_gpu: false
+requires:
+  axelera: true
+  arch: [aarch64, x86_64]
+  os: [ubuntu22, ubuntu24]      # Raspberry Pi OS non supportato -> container
+
+build:
+  on_target: true               # richiede la scheda Metis presente
+  quantize: 8                   # forzato dall'AIPU, non e' un asse
+  calib_fraction: 400           # 100-400 raccomandato
+  sdk_version: "1.8.0"          # ENTRA NELLA CHIAVE DI CACHE
+  container: true
+  image: yolo-bench-axelera:ubuntu22
+
+benchmark:
+  tool: ultralytics_predict     # nessun perf_test nativo equivalente
+  iters: 200
+  warmup_iters: 50
+  parse: ultralytics
+  scope: end_to_end_with_transfers
+  metrics: [mean_ms, median_ms, p90_ms, p99_ms]

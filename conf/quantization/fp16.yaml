@@ -1,0 +1,14 @@
+name: fp16
+precision: fp16
+method: cast                   # nessuna calibrazione
+
+calibration: null
+
+validation:
+  max_abs_diff: 0.01
+  map50_drop_tolerance: 0.005
+
+backend_args:
+  tensorrt: ["--fp16"]
+  onnxruntime: {}              # ORT usa fp16 via graph optimization
+  openvino: {preset: performance}

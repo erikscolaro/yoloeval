@@ -1,0 +1,26 @@
+name: openvino
+export_format: openvino
+supports_gpu: false
+requires:
+  arch: [x86_64]
+
+build:
+  on_target: false
+  from_format: onnx
+
+benchmark:
+  tool: benchmark_app
+  cmd: >
+    benchmark_app
+      -m {model}
+      -d {device}
+      -b 1
+      -hint latency
+      -niter {iters}
+      -nthreads {threads}
+      -report_type no_counters
+  iters: 200
+  warmup_iters: 50
+  parse: benchmark_app
+  scope: end_to_end_with_transfers
+  metrics: [mean_ms, median_ms, p90_ms, p99_ms, throughput_qps]

@@ -1,0 +1,17 @@
+Session creation time cost: 0.0857536 s
+First inference time cost: 9 ms
+Total inference time cost: 1.03469 s
+Total inference requests: 200
+Average inference time cost: 5.17251 ms
+Total inference run time: 1.03469 s
+Number of inferences per second: 193.296
+Avg CPU usage: 98 %
+Peak working set size: 243269632 bytes
+Runs: 200
+Min Latency: 0.00485 s
+Max Latency: 0.00723 s
+P50 Latency: 0.00512 s
+P90 Latency: 0.00551 s
+P95 Latency: 0.00578 s
+P99 Latency: 0.00659 s
+P999 Latency: 0.00723 s
