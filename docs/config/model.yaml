@@ -1,0 +1,31 @@
+# Riferimento dei campi di conf/model/<nome>.yaml
+
+name: yolo26n
+  # OBBLIGATORIO. Compare nei risultati, nell'export_key e nel nome delle
+  # cartelle degli artefatti.
+
+source: pretrained
+  # OBBLIGATORIO. Valori: pretrained | local
+  #   pretrained -> si parte da `weights`, che Ultralytics scarica se non c'e'
+  #   local      -> si parte da `cfg`, un'architettura descritta in YAML
+
+weights: yolo26n.pt
+  # Con source: pretrained e' obbligatorio. Nome di un checkpoint Ultralytics
+  # (yolo26n.pt, yolo26s.pt, yolo26m.pt...) oppure path a un .pt tuo.
+  # Con source: local puo' essere null, o un .pt da cui partire.
+
+cfg: ${project_root}/models/custom_pruned.yaml
+  # Con source: local e' obbligatorio. Path a un YAML di architettura in
+  # formato Ultralytics nativo. null con source: pretrained.
+
+scale: n
+  # Facoltativo, descrittivo. n | s | m | l | x
+
+imgsz: 640
+  # Intero. Risoluzione usata per export, mAP e confronto numerico.
+  # Nota: il training usa `train.imgsz`, che e' un campo diverso. Se li tieni
+  # diversi, esporti a una risoluzione a cui non hai allenato.
+
+nc: 4
+  # Numero di classi. Deve coincidere con `dataset.nc`. Serve anche a
+  # riconoscere la testa one-to-many dalla forma dell'output (4 + nc).

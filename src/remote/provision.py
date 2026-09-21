@@ -11,6 +11,7 @@ requirements: se l'ambiente e' gia' presente e coerente, non fa nulla.
 from __future__ import annotations
 
 import logging
+import shlex
 import time
 from pathlib import Path
 
@@ -67,12 +68,22 @@ def ensure_env(conn, cfg, force: bool = False) -> bool:
     log.info("provisioning di %s con %s", cfg.hardware.board, script.name)
     conn.put(str(script), "/tmp/provision.sh")
     conn.put(str(req), "/tmp/requirements.txt")
-    r = conn.run(
-        f"BENCH_WORKDIR={workdir} BENCH_REQUIREMENTS=/tmp/requirements.txt "
-        f"bash /tmp/provision.sh",
-        pty=True,
-        warn=True,
-    )
+    # I campi della board che lo script deve conoscere viaggiano come
+    # variabili d'ambiente: senza, jetson_jp62.sh userebbe il proprio default
+    # e il controllo su /etc/nv_tegra_release confronterebbe la versione
+    # sbagliata.
+    env = {
+        "BENCH_WORKDIR": workdir,
+        "BENCH_REQUIREMENTS": "/tmp/requirements.txt",
+    }
+    if cfg.hardware.get("jetpack"):
+        env["BENCH_JETPACK"] = cfg.hardware.jetpack
+    if cfg.backend.get("build", {}).get("sdk_version"):
+        env["BENCH_SDK_VERSION"] = cfg.backend.build.sdk_version
+    if cfg.backend.get("build", {}).get("image"):
+        env["BENCH_AXELERA_IMAGE"] = cfg.backend.build.image
+    prefix = " ".join(f"{k}={shlex.quote(str(v))}" for k, v in env.items())
+    r = conn.run(f"{prefix} bash /tmp/provision.sh", pty=True, warn=True)
     if r.failed:
         raise ProvisionFailed(
             f"provisioning di {cfg.hardware.board} fallito "

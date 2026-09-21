@@ -1,0 +1,168 @@
+# Riferimento dei campi di conf/hardware/<board>.yaml
+#
+# Una board = un file. Per aggiungerne una: copia questo file, togli i
+# commenti e i campi che non ti servono, salvalo in conf/hardware/.
+#
+# Non sta dentro conf/ di proposito: sarebbe una board selezionabile, e
+# finirebbe negli sweep scritti con glob(*).
+
+board: jetson_orin_nx
+  # OBBLIGATORIO. Stringa libera: e' il nome con cui la board compare nei
+  # risultati (axes.board) e nelle tabelle del report.
+  # Se ometti `controller`, il controller viene scelto dal prefisso di questo
+  # nome: jetson... / rpi5... / x86... Un nome che non inizia per uno di quei
+  # tre ricade su x86 con un warning.
+
+arch: aarch64
+  # OBBLIGATORIO. Valori in uso: x86_64 | aarch64
+  # Confrontato con `requires.arch` dei backend: se non e' nella loro lista,
+  # la cella diventa "skipped". Entra anche nell'export_key, quindi un ONNX
+  # esportato per una arch non viene riusato per l'altra.
+
+os: ubuntu22
+  # Valori in uso: ubuntu22 | ubuntu24 | raspbian12
+  # Confrontato con `requires.os` dei backend (solo axelera lo dichiara).
+  # Se il backend prevede un container e la board pure, il requisito lo
+  # soddisfa il container e questo campo non blocca niente: e' il caso del Pi,
+  # dove il Voyager SDK gira in un Ubuntu 22.04 sopra Raspberry Pi OS.
+
+controller: jetson
+  # Facoltativo (default: dedotto da `board`). Valori: jetson | rpi5 | x86
+  #   jetson -> nvpmodel, jetson_clocks, tegrastats, temperatura dalle
+  #             thermal_zone, throttling dai contatori cdev
+  #   rpi5   -> cpufreq via sysfs, vcgencmd measure_temp, vcgencmd get_throttled
+  #   x86    -> solo governor: niente temperatura affidabile, niente potenza
+
+trt_available: true
+  # Facoltativo (default: false). true | false
+  # false -> ogni cella con backend=tensorrt diventa "skipped"
+
+axelera_available: false
+  # Facoltativo (default: false). true | false
+  # false -> ogni cella con backend=axelera diventa "skipped"
+
+power_sensors: true
+  # Facoltativo (default: false). true | false
+  #   true  -> prima della misura parte tegrastats e il risultato ha il blocco
+  #            `energy` con mean_power_w, max_power_w ed energy_j
+  #   false -> il blocco `energy` non c'e'. Assente, non a zero
+
+jetpack: "6.2"
+  # Solo Jetson. Stringa fra virgolette: senza, 6.2 diventa un float e il
+  # confronto testuale non torna. Arriva allo script di provisioning come
+  # BENCH_JETPACK, che la verifica contro /etc/nv_tegra_release e si ferma se
+  # non corrisponde.
+
+# --- descrittivi: il codice non li legge -----------------------------------
+# Restano perche' aprendo il file si capisce di che macchina si parla.
+
+n_cores_total: 8            # il numero vero viene letto dalla board a runtime
+soc: orin
+cpu: cortex_a76
+gpu: rtx6000_ada
+shared_clock_domain: true   # vero sul Pi 5: i 4 core condividono il clock,
+                            # quindi scrivere su cpu0 li muove tutti
+
+# --- remote ----------------------------------------------------------------
+# La PRESENZA di questo blocco e' l'unico discriminante fra esecuzione locale
+# e remota. La workstation non lo dichiara e tutto gira qui, senza SSH.
+
+remote:
+  host: jetson-orin
+    # OBBLIGATORIO dentro `remote`. Solo un alias di ~/.ssh/config: non un IP,
+    # non user@host. Host, utente e chiave stanno nel file SSH, cosi' non
+    # finiscono nella config risolta che Hydra copia in ogni cartella di
+    # output.
+  workdir: /home/bench/bench
+    # OBBLIGATORIO. Path assoluto sulla board. Ci finiscono dentro:
+    #   data/<dataset>/     il dataset sincronizzato
+    #   data/<dataset>/bench_input/   le immagini per i backend che misurano
+    #                                 su file veri (Axelera)
+    #   exports/<export_key>/   engine e modelli compilati li'
+    #   weights/<training_key>/ i .pt di riferimento
+    #   tools/              gli helper Python del tool
+    # Su NVMe se puoi: da microSD l'I/O sporca le misure.
+  python: /home/bench/bench/.venv/bin/python
+    # Facoltativo (default: python3). Interprete usato sulla board per il
+    # calcolo della mAP e il confronto numerico.
+
+provision:
+  script: scripts/provision/jetson_jp62.sh
+    # Path relativo alla radice del repo. Quelli che ci sono:
+    #   jetson_jp62.sh   wheel NVIDIA, venv --system-site-packages, trtexec
+    #   rpi5_axelera.sh  metis-dkms, axdevice, container Ubuntu 22.04
+    #   x86_local.sh     venv locale e verifica dei tool di misura
+  requirements: scripts/requirements/aarch64-jp62.txt
+    # Path relativo alla radice. Lo sha di questo file e' la sentinella del
+    # provisioning: finche' non cambia, lo script non rigira.
+  container: true
+    # true | false (default: false). true sul Pi.
+    #   true  -> le celle del backend con build.container girano dentro il
+    #            container; per tutte le altre il container viene FERMATO
+    #            prima della misura, perche' anche da inattivo daemon e
+    #            processi interni competono per CPU e memoria
+    #   false -> tutto sull'host
+
+# --- freq ------------------------------------------------------------------
+# Le chiavi di questo dizionario sono i valori ammessi per `freq_target` sulla
+# riga di comando. Non e' un gruppo Hydra separato: cosi' `freq_target=w15` su
+# una board che non lo dichiara solleva subito, invece di richiedere una
+# tabella di compatibilita' scritta a mano.
+#
+# Per le board va sempre indicato: il `default` di config.yaml esiste per la
+# workstation e sulle altre non c'e'.
+
+freq:
+  maxn:                       # <- freq_target=maxn
+    nvpmodel_id: 0
+      # Solo Jetson. Intero, preso da `sudo nvpmodel -q --verbose` SULLA TUA
+      # board: gli id cambiano fra varianti di modulo e versioni di JetPack.
+      # Assente -> il profilo non viene toccato.
+    governor: performance
+      # Valori tipici: performance | userspace | schedutil | ondemand
+      #   performance -> frequenza al massimo consentito dal profilo, nessuna
+      #                  transizione durante la misura
+      #   userspace   -> serve per fissare una frequenza precisa con `khz`
+      # Verificato contro scaling_available_governors: se non c'e', la cella
+      # fallisce invece di misurare a una frequenza diversa da quella chiesta.
+    khz: 1500000
+      # Solo con governor: userspace. Intero in kHz, scritto su
+      # scaling_setspeed. I valori validi stanno in
+      # /sys/devices/system/cpu/cpu0/cpufreq/scaling_available_frequencies;
+      # uno fuori lista viene arrotondato in silenzio, e nel risultato trovi
+      # freq_requested_khz e freq_actual_khz separati apposta.
+    cores_online: 8
+      # Descrittivo: quanti core porta online questo profilo. Il numero vero
+      # viene riletto a ogni cella e finisce in runtime_state.cores_online.
+    jetson_clocks: true
+      # Solo Jetson. true (default) | false. true fissa al massimo del profilo
+      # anche GPU, DLA ed EMC: per i test su GPU conta quanto fissare la CPU.
+
+# --- compute ---------------------------------------------------------------
+# Le chiavi sono i valori ammessi per `compute_target`. Se ometti
+# compute_target sulla riga di comando, vengono eseguiti tutti.
+
+compute:
+  gpu:                        # <- compute_target=gpu
+    device: cuda
+      # OBBLIGATORIO. Valori: cuda | cpu | metis
+      #   cuda  -> ammessa solo per backend con supports_gpu: true
+      #   cpu   -> attiva taskset, OMP_NUM_THREADS e i thread intra-op
+      #   metis -> solo backend=axelera; con qualsiasi altro backend la cella
+      #            diventa "skipped"
+  cpu_2:
+    device: cpu
+    n_cores: 2
+      # Obbligatorio con device: cpu. Intero, oppure `all` per "tutti quelli
+      # online al momento". Un numero solo che diventa tre cose: maschera di
+      # taskset, OMP_NUM_THREADS e thread intra-op del runtime. Vanno insieme:
+      # pinnare su 2 core senza limitare i thread da' 8 thread su 2 core, piu'
+      # lento del monocore.
+  cpu_8:
+    device: cpu
+    n_cores: 8
+    requires_freq: [maxn, w30]
+      # Facoltativo. Lista di chiavi di `freq`. Se c'e', la cella e' valida
+      # solo in quei profili; negli altri diventa "skipped" con la motivazione.
+      # Serve per un caso solo: su Jetson il profilo decide quanti core sono
+      # online, quindi cpu_8 esiste ma non e' disponibile ovunque.

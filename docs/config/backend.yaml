@@ -1,0 +1,119 @@
+# Riferimento dei campi di conf/backend/<nome>.yaml
+#
+# Un backend = un file qui + una classe in src/backends/ registrata con lo
+# stesso `name`. Il file dice COSA lanciare, la classe COME leggerne l'output.
+
+name: onnxruntime
+  # OBBLIGATORIO. Deve coincidere col `name` della classe registrata.
+  # Quelli che esistono: onnxruntime | onnxruntime_py | tensorrt | openvino |
+  #                      executorch | axelera
+
+export_format: onnx
+  # OBBLIGATORIO. Decide che file si cerca dentro la cartella dell'export.
+  #   onnx     -> *.onnx
+  #   engine   -> *.engine, *.plan
+  #   openvino -> *.xml (o la cartella *_openvino_model)
+  #   pte      -> *.pte
+  #   axelera  -> *.axm
+  #   torch    -> *.pt
+
+supports_gpu: true
+  # Facoltativo (default: true). true | false
+  # false -> le celle con compute device: cuda diventano "skipped"
+
+supports_cpu: false
+  # Facoltativo (default: true). true | false
+  # false -> le celle con compute device: cpu diventano "skipped".
+  # E' il caso di tensorrt: esiste solo su GPU.
+
+requires:
+  # Requisiti confrontati con i campi della board. Ognuno che non torna
+  # produce una cella "skipped" con la motivazione, non un errore.
+  arch: [x86_64, aarch64]
+    # OBBLIGATORIO. Lista delle arch supportate; `hardware.arch` deve esserci.
+  trt: true
+    # Facoltativo. true -> serve hardware.trt_available: true
+  axelera: true
+    # Facoltativo. true -> serve hardware.axelera_available: true
+  os: [ubuntu22, ubuntu24]
+    # Facoltativo. Lista di sistemi ammessi, confrontata con hardware.os.
+    # Soddisfatto anche dal container, se build.container e
+    # hardware.provision.container sono entrambi true.
+
+build:
+  on_target: false
+    # OBBLIGATORIO. true | false. E' la domanda "dove si costruisce".
+    #   false -> l'artefatto e' portabile: si costruisce sulla workstation e
+    #            si copia sulla board. Anche la validazione numerica di primo
+    #            livello resta qui
+    #   true  -> si costruisce SULLA BOARD, ci resta, e li' viene anche
+    #            validato. Obbligatorio per engine TensorRT (legati a GPU,
+    #            architettura e versione della libreria) e per Axelera
+    #            (richiede la scheda Metis fisicamente presente)
+  from_format: onnx
+    # Facoltativo. Formato di partenza della build on-target: onnx | torch.
+    # Dice cosa viene sincronizzato sulla board prima di compilare.
+  opset: 17
+    # Solo per gli export ONNX. Intero, passato a Ultralytics.
+  workspace_mb: 4096
+    # Solo tensorrt. Intero, diventa --memPoolSize=workspace:<n>.
+  timeout_s: 1800
+    # Solo per le build on-target. Secondi oltre i quali la build viene
+    # interrotta e la cella risulta fallita invece di restare appesa.
+  quantize: 8
+    # Solo axelera. Intero: i bit che il backend impone comunque. Se c'e', una
+    # cella con quantization diversa da int<n> diventa "skipped", perche'
+    # misurerebbe un modello INT8 con l'etichetta sbagliata.
+  calib_fraction: 400
+    # Solo axelera. Numero di immagini di calibrazione (100-400 consigliate).
+  sdk_version: "1.8.0"
+    # Solo axelera. Stringa fra virgolette. ENTRA NELL'EXPORT_KEY: cambiando
+    # SDK i .axm compilati prima non vengono piu' caricati, e con la versione
+    # nella chiave vengono ricompilati invece che riusati.
+  container: true
+    # true | false (default: false). true -> export e misura girano dentro il
+    # container dichiarato da `image`, se anche la board ha
+    # provision.container: true.
+  image: yolo-bench-axelera:ubuntu22
+    # Nome dell'immagine docker, costruita dallo script di provisioning.
+
+benchmark:
+  tool: onnxruntime_perf_test
+    # OBBLIGATORIO. Nome dell'eseguibile, a scopo di log e messaggi d'errore.
+    # Quelli in uso: onnxruntime_perf_test | trtexec | benchmark_app |
+    #                executor_runner | ultralytics_predict | python_timer
+  cmd: >
+    onnxruntime_perf_test -m times -r {iters} -e {ep} -x {threads} -I -s {model}
+    # Template della riga di comando. I segnaposto disponibili dipendono dal
+    # backend, perche' li sostituisce la sua classe:
+    #   tutti       {iters}
+    #   onnxruntime {model} {ep} {threads}
+    #   tensorrt    {engine} {warmup_ms}
+    #   openvino    {model} {device} {threads}
+    #   executorch  {model} {warmup_iters}
+    # axelera e onnxruntime_py non usano il template: compongono il comando
+    # nella classe, perche' devono passare dal container o dall'interprete
+    # della board.
+    # Un segnaposto che il backend non conosce fa fallire la sostituzione, e
+    # la cella risulta fallita invece di misurare qualcosa a caso.
+  iters: 200
+    # OBBLIGATORIO. Intero. Deve essere lo stesso in tutti i backend che vuoi
+    # confrontare.
+  warmup_ms: 2000
+    # Riscaldamento in millisecondi (trtexec: --warmUp).
+  warmup_iters: 50
+    # Riscaldamento in iterazioni. Usa la forma che il tool accetta davvero:
+    # onnxruntime_perf_test non espone nessuna delle due, e infatti nel suo
+    # file warmup_iters e' null.
+  parse: ort_perf_test
+    # Etichetta descrittiva del parser usato dalla classe. Il parser vero e'
+    # il metodo parse() del backend: questo campo non lo seleziona.
+  scope: end_to_end_with_transfers
+    # Valori: end_to_end_with_transfers | compute_only
+    # E' il perimetro della misura, e finisce nel risultato. Va allineato fra
+    # backend prima di confrontarli: trtexec di default escluderebbe i
+    # trasferimenti host-device, e infatti la sua riga di comando ha
+    # --noDataTransfers=false apposta.
+  metrics: [mean_ms, median_ms, p90_ms, p99_ms, throughput_qps]
+    # Descrittivo: quali metriche il tool sa produrre. Quelle che non riporta
+    # restano null nel risultato, mai ricostruite da media e deviazione.

@@ -78,6 +78,11 @@ run.py       unico entry point
 `artifacts/` tiene i pesi e i modelli esportati, `results/` un JSON per cella,
 `reports/` i report generati.
 
+Se devi scrivere un file di configurazione nuovo (una board, un backend), in
+[`docs/config/`](docs/config/) c'è un riferimento per gruppo: ogni campo, i
+valori che accetta e cosa fa ognuno. Un test verifica che restino allineati ai
+file veri.
+
 ## Prepararsi
 
 Sulla workstation:

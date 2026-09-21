@@ -1,0 +1,49 @@
+# Riferimento dei campi di conf/train/<nome>.yaml
+#
+# I nomi delle chiavi coincidono 1:1 con gli argomenti di model.train() di
+# Ultralytics: il file viene passato con lo splat, senza nessun mapping. Puoi
+# quindi aggiungere QUALSIASI argomento accettato da Ultralytics, anche se qui
+# non e' elencato; l'elenco completo e i default stanno nella loro
+# documentazione, alla pagina "Train Settings".
+#
+# Quello che NON va messo qui: `data` (arriva da dataset.yaml), `project` e
+# `name` (li decide la cache degli artefatti).
+#
+# Attenzione: ogni campo di questo file entra nel training_key. Cambiarne uno
+# vuol dire un modello nuovo e un riallenamento.
+
+epochs: 300
+  # Intero. Con `patience` attiva Ultralytics puo' fermarsi prima: nel
+  # meta.json trovi epochs_completed accanto al tempo.
+batch: 16
+  # Intero (immagini per batch), oppure un float fra 0 e 1 per la frazione di
+  # VRAM da usare, oppure -1 per l'auto-batch.
+imgsz: 640
+  # Intero. Risoluzione di training.
+optimizer: auto
+  # auto | SGD | Adam | AdamW | NAdam | RAdam | RMSProp
+  # auto sceglie in base al numero di iterazioni.
+lr0: 0.01
+  # Learning rate iniziale.
+lrf: 0.01
+  # Learning rate finale, come frazione di lr0.
+momentum: 0.937
+weight_decay: 0.0005
+warmup_epochs: 3
+  # Puo' essere frazionario.
+patience: 50
+  # Epoche senza miglioramento prima dello stop anticipato. 0 lo disattiva.
+seed: 42
+  # Intero. Riproducibilita' del training.
+
+# --- augmentation ----------------------------------------------------------
+# Valori da 0 a 1 se non indicato altrimenti; 0 disattiva.
+mosaic: 1.0
+  # Probabilita' del mosaico a 4 immagini.
+mixup: 0.0
+hsv_h: 0.015
+  # Variazione di tinta (frazione della ruota dei colori).
+hsv_s: 0.7
+  # Saturazione.
+hsv_v: 0.4
+  # Luminosita'.

@@ -11,6 +11,7 @@ Due comportamenti diversi, ed e' la distinzione che tiene pulita l'analisi:
 from __future__ import annotations
 
 import pytest
+from omegaconf import open_dict
 
 from src.measure.compute import compute_targets, resolve_compute, resolve_freq
 from src.validation.compat import is_valid
@@ -70,6 +71,27 @@ def test_axelera_int8_sull_aipu_e_valida():
     cfg = make_cfg("hardware=rpi5", "backend=axelera", "quantization=int8",
                    "freq_target=max", "compute_target=axelera")
     assert is_valid(cfg)[0]
+
+
+def test_axelera_sul_pi_passa_grazie_al_container():
+    """Raspberry Pi OS non e' supportato da Axelera, ma il Voyager SDK gira in
+    un container Ubuntu 22.04: la cella e' valida per quello."""
+    cfg = make_cfg("hardware=rpi5", "backend=axelera", "quantization=int8",
+                   "freq_target=max", "compute_target=axelera")
+    assert cfg.hardware.os == "raspbian12"
+    assert cfg.backend.requires.os == ["ubuntu22", "ubuntu24"]
+    assert is_valid(cfg)[0]
+
+
+def test_backend_con_os_incompatibile_e_senza_container_e_saltato():
+    cfg = make_cfg("hardware=rpi5", "backend=axelera", "quantization=int8",
+                   "freq_target=max", "compute_target=axelera")
+    with open_dict(cfg):
+        cfg.hardware.provision.container = False
+        cfg.backend.build.container = False
+    valid, reason = is_valid(cfg)
+    assert not valid
+    assert "raspbian12" in reason
 
 
 def test_gpu_su_pi_non_e_rappresentabile():

@@ -1,0 +1,21 @@
+# Riferimento dei campi di conf/logging/<nome>.yaml
+
+backend: local
+  # Valori: local | wandb
+  #   local -> niente, i risultati stanno in results/
+  #   wandb -> ogni cella viene copiata anche su Weights & Biases
+  # In ogni caso la fonte di verita' e' il JSON locale: il mirror non
+  # sostituisce niente, e se fallisce la cella resta valida.
+
+wandb:
+  # null con backend: local.
+  project: yolo-bench
+    # Nome del progetto su W&B.
+  entity: null
+    # Utente o team. null usa il default dell'account loggato.
+  mode: online
+    # online | offline | disabled
+    #   offline  -> scrive in locale, si sincronizza dopo con `wandb sync`.
+    #               Utile per uno sweep su una board senza rete
+  tags: []
+    # Lista di stringhe, per ritrovare lo sweep nella UI.

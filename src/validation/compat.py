@@ -32,6 +32,22 @@ def is_valid(cfg, conn=None) -> tuple[bool, str | None]:
         return False, "acceleratore Axelera non presente"
     if hw.arch not in be.requires.arch:
         return False, f"backend non supportato su {hw.arch}"
+    # Il sistema operativo richiesto dal backend puo' essere soddisfatto dal
+    # container invece che dall'host: e' il caso del Pi, dove Raspberry Pi OS
+    # non e' supportato da Axelera e per questo il Voyager SDK gira dentro un
+    # Ubuntu 22.04. Il container non e' un dettaglio di installazione, e'
+    # quello che rende la cella possibile.
+    required_os = be.requires.get("os")
+    if required_os:
+        in_container = bool(
+            be.get("build", {}).get("container")
+            and hw.get("provision", {}).get("container")
+        )
+        if not in_container and hw.get("os") not in required_os:
+            return False, (
+                f"{be.name} richiede {list(required_os)}, la board dichiara "
+                f"{hw.get('os')} e non prevede un container"
+            )
 
     # coerenza backend / device
     device = ct.get("device")
