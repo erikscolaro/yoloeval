@@ -82,6 +82,15 @@ class Backend(ABC):
     def build_cmd(self, cfg, artifact: Path) -> str:
         """Command line del tool nativo di misura, gia' sostituita."""
 
+    def prepare_input(self, conn, cfg) -> None:
+        """Prepara l'input della misura dove verra' eseguita.
+
+        `trtexec` e `onnxruntime_perf_test` si generano l'input da soli; il
+        predict di Ultralytics vuole una cartella di immagini che qualcuno
+        deve aver creato. Default: niente da fare.
+        """
+        return None
+
     @abstractmethod
     def parse(self, stdout: str) -> LatencyResult:
         """Estrae le metriche. Solleva ParseError se l'output non e'

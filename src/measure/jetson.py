@@ -50,6 +50,11 @@ def parse_active_profile(stdout: str) -> int | None:
 class JetsonController(BoardController):
     name = "jetson"
 
+    #: vero solo per la prima cella dopo un riavvio autorizzato. La board parte
+    #: da temperatura ambiente invece che dal cooldown condizionale, e in
+    #: analisi si vuole poter verificare che non ci sia un salto sistematico.
+    post_reboot = False
+
     # --- stato -----------------------------------------------------------
     def read_state(self, conn) -> dict:
         return {
@@ -157,6 +162,17 @@ class JetsonController(BoardController):
         if fq.get("nvpmodel_id") is None:
             return conn
 
+        # Il profilo e' proprieta' dello sweep, non della cella: se e' gia'
+        # quello richiesto non si riapplica. Riapplicarlo costerebbe SETTLE_S
+        # di attesa per ogni cella — su una matrice di diciotto celle sono
+        # nove minuti di sleep per non cambiare niente.
+        active = parse_active_profile(
+            _out(conn.run("sudo nvpmodel -q", hide=True, warn=True)) or ""
+        )
+        if active == fq.nvpmodel_id:
+            log.debug("profilo %s (nvpmodel %s) gia' attivo", target, active)
+            return conn
+
         # `nvpmodel` chiede conferma interattiva quando serve il riavvio:
         # pty + risposta automatica, altrimenti il comando resta appeso.
         r = conn.run(
@@ -176,7 +192,11 @@ class JetsonController(BoardController):
 
             conn = reboot_and_wait(conn, cfg)
             ensure_env(conn, cfg)  # lo stato post-reboot e' azzerato
-            cfg._post_reboot = True
+            # Non si scrive sul config: quello composto da Hydra e' in struct
+            # mode e una chiave nuova solleverebbe, proprio dopo aver pagato il
+            # costo del riavvio. Il flag viaggia sul controller, che e' anche
+            # dove `_runtime_state` lo va a leggere.
+            self.post_reboot = True
 
         time.sleep(SETTLE_S)
         active = parse_active_profile(

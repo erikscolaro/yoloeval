@@ -210,9 +210,18 @@ def _safe_state(bc, conn) -> dict | None:
         return None
 
 
+#: cio' che il tool imposta davvero, e che quindi deve tornare come prima.
+#: `freq_khz` e' esclusa apposta: e' `scaling_cur_freq`, la frequenza
+#: istantanea, che dopo duecento iterazioni di benchmark e' ancora in alto
+#: rispetto alla board a riposo. Confrontarla farebbe scattare l'avviso a ogni
+#: cella, seppellendo nel rumore l'unico segnale che deve restare visibile.
+RESTORED_KEYS = ("governor", "setspeed_khz", "swap_off", "nvpmodel_id")
+
+
 def _differs(a: dict, b: dict) -> bool:
-    keys = set(a) | set(b)
-    return any(a.get(k) != b.get(k) for k in keys if k not in ("temp_c",))
+    return any(
+        k in a and k in b and a.get(k) != b.get(k) for k in RESTORED_KEYS
+    )
 
 
 def target_state(cfg) -> dict:

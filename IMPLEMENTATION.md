@@ -2070,3 +2070,34 @@ restano vuote: preferibile a ricostruirli da media e deviazione standard.
 stadi), `src/timing.py` (blocco `timing` di `§8b`), `scripts/remote/` (gli
 helper Python che devono girare *dove vive l'artefatto*: mAP e confronto
 numerico contro FP32).
+
+**`cell_key` include il `training_key` (`§3.1`).** La formula della specifica
+hasha i `cell_key_fields`, e il gruppo `dataset` contiene solo path e nomi
+delle classi. Due dataset diversi allo stesso path davano quindi la stessa
+chiave: dopo un riallenamento, al rilancio la cella veniva saltata come già
+completata pur misurando un artefatto diverso. Il `training_key` porta dentro
+l'hash dei dati e chiude il buco.
+
+**`.dataset_hash` non è una cache.** La specifica dice di salvarlo accanto ai
+dati; l'implementazione lo riscrive ma ricalcola sempre. Rileggerlo invece di
+ricalcolare congelava l'hash al primo utilizzo, che è l'esatto contrario dello
+scopo del meccanismo.
+
+**Warm-up di `onnxruntime_perf_test`.** Il tool non espone un flag per il
+numero di iterazioni di riscaldamento: riporta a parte `First inference time
+cost`. `conf/backend/onnxruntime.yaml` dichiara quindi `warmup_iters: null`
+invece di scrivere un numero che nessuno applica. È l'unica asimmetria
+rispetto a `--warmUp` di `trtexec`, e va tenuta presente quando si confrontano
+i due backend.
+
+**`ensure_support_files`.** Sulla board arrivano solo gli artefatti e lo script
+di provisioning: tutto ciò che il tool invoca là sopra (gli helper Python di
+`scripts/remote/`, il Dockerfile del container Axelera) va materializzato
+esplicitamente. Viene fatto a ogni sweep, non solo al provisioning, così una
+modifica agli helper arriva senza dover riprovisionare.
+
+**`freq_target: default`.** Il valore di `config.yaml` esiste solo per la
+workstation. Su Jetson e Raspberry Pi il profilo va indicato esplicitamente;
+ometterlo solleva subito, con l'elenco di quelli disponibili. È coerente con
+la regola sulle chiavi inesistenti: un profilo sbagliato è un refuso, e un
+refuso deve fermare lo sweep invece di riempire `results/` di celle saltate.

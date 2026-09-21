@@ -10,16 +10,31 @@ build:
 
 benchmark:
   tool: onnxruntime_perf_test
+  # Il modello e' POSIZIONALE e va per ultimo. Gli altri flag:
+  #   -m times   modalita' a numero fisso di ripetizioni (l'alternativa,
+  #              `duration`, misura per N secondi e il conteggio cambia fra
+  #              celle veloci e lente)
+  #   -r         quante ripetizioni
+  #   -e         execution provider
+  #   -x         thread intra-op, coerente con compute.n_cores
+  #   -I         genera l'input invece di cercarlo in una cartella di test
+  #   -s         stampa il blocco di statistiche con i percentili: senza,
+  #              l'output non ha P50/P90/P99 e il parser solleva ParseError
   cmd: >
     onnxruntime_perf_test
-      -m {model}
-      -e {ep}
-      -I
+      -m times
       -r {iters}
-      -c {warmup_iters}
-      -i "intra_op_num_threads|{threads}"
+      -e {ep}
+      -x {threads}
+      -I
+      -s
+      {model}
   iters: 200
-  warmup_iters: 50
+  # perf_test non espone un flag di warm-up: riporta a parte "First inference
+  # time cost" e non c'e' modo di fissarne il numero da riga di comando. E'
+  # l'unica asimmetria rispetto a `--warmUp` di trtexec, ed e' dichiarata qui
+  # invece di essere nascosta scrivendo un numero che nessuno applica.
+  warmup_iters: null
   parse: ort_perf_test
   scope: end_to_end_with_transfers
   metrics: [mean_ms, median_ms, p90_ms, p99_ms, throughput_qps]

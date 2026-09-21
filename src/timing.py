@@ -33,8 +33,12 @@ class PhaseTimer:
     ad attendere il raffreddamento o un riavvio resta solo in `wall_s`.
     """
 
-    #: fasi che contribuiscono a compute_s
-    COMPUTE_PHASES = ("build", "calibration", "compute")
+    #: fasi che contribuiscono a compute_s. `validation` e `accuracy` ci stanno
+    #: perche' sono inferenza vera: una passata di mAP su una CPU ARM dura piu'
+    #: della misura di latenza che accompagna, e lasciarla fuori sottostima
+    #: l'occupazione della macchina proprio dove pesa di piu'.
+    COMPUTE_PHASES = ("build", "calibration", "compute", "validation",
+                      "accuracy")
 
     def __init__(self, device: str):
         self.device = device

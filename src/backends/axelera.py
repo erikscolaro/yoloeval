@@ -182,6 +182,14 @@ class AxeleraBackend(Backend):
         log.debug("axdevice: %s", r.stdout.strip())
 
     # --- misura ----------------------------------------------------------
+    def prepare_input(self, conn, cfg) -> None:
+        """Il predict di Ultralytics legge da una cartella: va creata."""
+        from ..remote.sync import ensure_bench_input
+
+        if container_enabled(cfg):
+            ensure_container(conn, cfg)
+        ensure_bench_input(conn, cfg, n=int(cfg.backend.benchmark.iters))
+
     def build_cmd(self, cfg, artifact: Path) -> str:
         source = (
             f"{cfg.hardware.remote.workdir}/data/{cfg.dataset.name}/bench_input"

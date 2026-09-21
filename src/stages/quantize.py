@@ -60,7 +60,9 @@ def calibration_files(cfg) -> list[Path]:
             f"(split {calib.get('source', 'val')})"
         )
 
-    rng = random.Random(calib.get("shuffle_seed", 42))
+    # Il seed della calibrazione e' fisso per costruzione; se il gruppo non lo
+    # dichiara si usa quello globale, mai un default diverso per chiamata.
+    rng = random.Random(calib.get("shuffle_seed") or cfg.get("seed", 42))
     rng.shuffle(images)
     n = int(calib.get("n_samples", 512))
     return images[:n]

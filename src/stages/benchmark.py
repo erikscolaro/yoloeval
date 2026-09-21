@@ -38,9 +38,18 @@ from ..measure.compute import (
     thread_env,
 )
 from ..measure.power import energy_sampler
+from ..mirror import mirror_result
 from ..remote.connection import LocalConnection, connection, shell_env
-from ..remote.sync import sync_artifact
-from ..schema import base_record, failed, latency_block, ok, skipped, validate_record
+from ..remote.sync import ensure_support_files, sync_artifact
+from ..schema import (
+    STATUS_FAILED,
+    base_record,
+    failed,
+    latency_block,
+    ok,
+    skipped,
+    validate_record,
+)
 from ..timing import PhaseTimer
 from ..validation.compat import is_valid
 from ..validation.numerical import grade_accuracy
@@ -122,21 +131,29 @@ def run_cell(cfg, cid: str, dest: Path) -> Path:
     try:
         valid, reason = is_valid(cfg)
         if not valid:
-            skipped(rec, reason)
+            _skip_or_raise(cfg, rec, reason)
         else:
             with connection(cfg) as conn:
                 valid, reason = is_valid(cfg, conn)      # dinamica: core online
                 if not valid:
-                    skipped(rec, reason)
+                    _skip_or_raise(cfg, rec, reason)
                 else:
                     rec["env"] = collect_versions(conn, cfg, cfg.project_root)
                     bc = board_controller(cfg)
-                    _ensure_profile(conn, cfg, bc)
-                    with timer.phase("setup"):
-                        _prepare_board_for_cell(conn, cfg)
-                    with tuned(conn, cfg, bc) as applied:
-                        payload = execute_benchmark(conn, cfg, dest, timer, bc,
-                                                    applied)
+                    # Dopo un riavvio autorizzato questa e' una connessione
+                    # nuova: riusare la vecchia significherebbe parlare con un
+                    # ControlPath stantio (errore 4c della specifica).
+                    live = _ensure_profile(conn, cfg, bc)
+                    try:
+                        with timer.phase("setup"):
+                            ensure_support_files(live, cfg)
+                            _prepare_board_for_cell(live, cfg)
+                        with tuned(live, cfg, bc) as applied:
+                            payload = execute_benchmark(live, cfg, dest, timer,
+                                                        bc, applied)
+                    finally:
+                        if live is not conn:
+                            live.close()
                     ok(rec, payload)
                     # Letti dopo il ripristino: se la cella lascia la macchina
                     # in uno stato diverso da come l'ha trovata, si vede qui
@@ -145,6 +162,8 @@ def run_cell(cfg, cid: str, dest: Path) -> Path:
                         "state_before": applied.get("state_before"),
                         "state_after_restore": applied.get("state_after_restore"),
                     })
+    except _CellSkipped:
+        raise
     except Exception as exc:  # noqa: BLE001 - la cella fallita e' un risultato
         log.exception("cella %s fallita", cid)
         failed(rec, exc)
@@ -154,10 +173,31 @@ def run_cell(cfg, cid: str, dest: Path) -> Path:
         problems = validate_record(rec)
         if problems:
             log.warning("record %s non conforme: %s", cid, "; ".join(problems))
+        mirror_result(cfg, rec)
+
+    if rec["status"] == STATUS_FAILED and not cfg.continue_on_error:
+        # Il record e' gia' su disco: si ferma lo sweep, non si perde la cella.
+        raise BenchmarkFailed(f"{cid}: {rec['error']}")
     return dest
 
 
-def _ensure_profile(conn, cfg, bc) -> None:
+class _CellSkipped(Exception):
+    """Cella non applicabile con `skip_invalid=false`: interrompe lo sweep."""
+
+
+def _skip_or_raise(cfg, rec: dict, reason: str) -> None:
+    """Di norma una cella non valida e' un record `skipped`, non un errore.
+
+    Con `skip_invalid=false` invece si ferma: serve quando si vuole essere
+    certi che la matrice richiesta sia interamente eseguibile, e scoprire
+    subito un asse sbagliato invece di ritrovarsi meta' celle saltate.
+    """
+    skipped(rec, reason)
+    if not cfg.skip_invalid:
+        raise _CellSkipped(reason)
+
+
+def _ensure_profile(conn, cfg, bc):
     """Verifica (e se serve applica) il profilo di potenza richiesto.
 
     Il cambio di profilo e' un'operazione di livello **superiore** allo sweep:
@@ -167,8 +207,8 @@ def _ensure_profile(conn, cfg, bc) -> None:
     risultati silenziosamente sbagliati.
     """
     if not hasattr(bc, "set_profile"):
-        return
-    bc.set_profile(conn, cfg, cfg.freq_target)
+        return conn
+    return bc.set_profile(conn, cfg, cfg.freq_target)
 
 
 def _prepare_board_for_cell(conn, cfg) -> None:
@@ -215,7 +255,8 @@ def resolve_artifact(conn, cfg, backend) -> tuple[str, Path]:
         return path, export_dir
 
     artifact = locate_artifact(export_dir, cfg.backend.export_format)
-    return str(sync_artifact(conn, cfg, artifact, subdir="exports")), export_dir
+    remote = sync_artifact(conn, cfg, artifact, subdir="exports", key=ekey)
+    return str(remote), export_dir
 
 
 def execute_benchmark(conn, cfg, raw_dest: Path, timer: PhaseTimer, bc,
@@ -233,6 +274,8 @@ def execute_benchmark(conn, cfg, raw_dest: Path, timer: PhaseTimer, bc,
             f"artefatto non validato numericamente ({why}): "
             f"non ammesso al benchmark"
         )
+
+    backend.prepare_input(conn, cfg)
 
     ct = resolve_compute(cfg)
     n_cores = _effective_cores(conn, cfg, bc, ct)
