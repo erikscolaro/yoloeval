@@ -11,8 +11,8 @@ facoltativi che nessun file usa oggi.
 
 from __future__ import annotations
 
-import yaml
 import pytest
+import yaml
 
 from tests.conftest import ROOT
 
