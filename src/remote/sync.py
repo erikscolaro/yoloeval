@@ -57,18 +57,96 @@ def ensure_dataset(conn, cfg) -> str:
     return remote
 
 
-def sync_artifact(conn, cfg, artifact: str | Path, subdir: str = "artifacts") -> str:
-    """Copia un artefatto sulla board e ritorna il path remoto."""
+#: cosa serve sulla board oltre agli artefatti: gli helper Python che devono
+#: girare dove vive il modello, e i file che gli script di provisioning
+#: costruiscono (Dockerfile del container Axelera, requirements).
+SUPPORT_FILES = (
+    ("scripts/remote", "tools"),
+    ("scripts/docker", "scripts/docker"),
+    ("scripts/requirements", "scripts/requirements"),
+)
+
+
+def ensure_support_files(conn, cfg) -> None:
+    """Copia sulla board gli helper e i file di supporto del tool.
+
+    Senza questo passo ogni funzione che invoca uno script sulla board compone
+    un path che non esiste: il timer di `onnxruntime_py`, il confronto
+    numerico, il Dockerfile che `rpi5_axelera.sh` passa a `docker build`.
+    Idempotente e piccolo: si rifa' a ogni sweep, cosi' una modifica agli
+    helper arriva senza dover riprovisionare.
+    """
+    if is_local_conn(conn) or not is_remote(cfg):
+        return
+    root = Path(cfg.project_root)
+    workdir = str(cfg.hardware.remote.workdir).rstrip("/")
+    for src_dir, dst_dir in SUPPORT_FILES:
+        local_dir = root / src_dir
+        if not local_dir.is_dir():
+            continue
+        remote_dir = f"{workdir}/{dst_dir}"
+        conn.run(f"mkdir -p {shlex.quote(remote_dir)}", hide=True)
+        for f in sorted(local_dir.iterdir()):
+            if f.is_file():
+                conn.put(str(f), f"{remote_dir}/{f.name}")
+    log.debug("file di supporto sincronizzati su %s", cfg.hardware.board)
+
+
+def sync_artifact(conn, cfg, artifact: str | Path, subdir: str = "artifacts",
+                  key: str | None = None) -> str:
+    """Copia un artefatto sulla board e ritorna il path remoto.
+
+    `key` e' obbligatorio nella pratica anche se opzionale nella firma: senza,
+    ogni `best.pt` finirebbe in `{workdir}/artifacts/best.pt`, lo stesso path
+    per yolo26n, yolo26s e per ogni riallenamento. Due export in parallelo
+    (che `run.py` consiglia via joblib) si sovrascriverebbero i pesi a vicenda
+    e l'engine verrebbe compilato dal modello sbagliato, senza che la
+    validazione numerica se ne accorga — confronta contro lo stesso file
+    scambiato.
+    """
     artifact = Path(artifact)
     if is_local_conn(conn) or not is_remote(cfg):
         return str(artifact)
 
     remote_dir = f"{cfg.hardware.remote.workdir}/{subdir}"
+    if key:
+        remote_dir = f"{remote_dir}/{key}"
     conn.run(f"mkdir -p {shlex.quote(remote_dir)}", hide=True)
     src = f"{artifact}/" if artifact.is_dir() else str(artifact)
     dst = f"{cfg.hardware.remote.host}:{remote_dir}/{artifact.name}"
     _rsync(src, dst + ("/" if artifact.is_dir() else ""))
     return f"{remote_dir}/{artifact.name}"
+
+
+#: quante immagini nel set fisso usato dai backend che misurano su file veri
+BENCH_INPUT_N = 200
+
+
+def ensure_bench_input(conn, cfg, n: int = BENCH_INPUT_N) -> str:
+    """Sottoinsieme fisso di immagini per i backend che non generano input.
+
+    `trtexec` e `onnxruntime_perf_test` si costruiscono l'input da soli; il
+    predict di Ultralytics no, gli serve una cartella di immagini. Il set e'
+    lo stesso in ogni cella — stesse immagini, stesso ordine — altrimenti si
+    confronterebbero carichi di post-processing diversi.
+    """
+    root = ensure_dataset(conn, cfg)
+    dest = f"{root}/bench_input"
+    if conn.run(f"test -f {shlex.quote(dest)}/.complete", hide=True, warn=True).ok:
+        return dest
+    conn.run(f"mkdir -p {shlex.quote(dest)}", hide=True)
+    # `sort` prima di `head`: l'ordine di find dipende dal filesystem, e senza
+    # il set cambierebbe da una board all'altra.
+    conn.run(
+        f"cd {shlex.quote(root)} && find . -path ./bench_input -prune -o "
+        f"-type f \\( -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' \\) "
+        f"-print | sort | head -n {int(n)} | "
+        f"xargs -I{{}} cp {{}} {shlex.quote(dest)}/",
+        hide=True,
+    )
+    conn.run(f"touch {shlex.quote(dest)}/.complete", hide=True)
+    log.info("set di input per la misura preparato in %s (%d immagini)", dest, n)
+    return dest
 
 
 def fetch(conn, cfg, remote_path: str, local_path: str | Path) -> Path:

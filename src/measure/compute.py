@@ -21,7 +21,10 @@ def resolve_freq(cfg):
     if cfg.freq_target not in freq:
         raise KeyError(
             f"freq_target={cfg.freq_target!r} non dichiarato da "
-            f"{cfg.hardware.board}: disponibili {list(freq.keys())}"
+            f"{cfg.hardware.board}: disponibili {list(freq.keys())}. "
+            f"Il default di config.yaml vale per la workstation; per le board "
+            f"il profilo va indicato, per esempio "
+            f"freq_target={next(iter(freq.keys()))}"
         )
     return freq[cfg.freq_target]
 

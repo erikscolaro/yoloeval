@@ -15,9 +15,11 @@ Questo modulo non conosce i backend: riceve il config e produce stringhe.
 
 from __future__ import annotations
 
+import fcntl
 import hashlib
 import json
 import logging
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
@@ -62,7 +64,13 @@ def compute_dataset_hash(root: str | Path) -> str:
 
 
 def read_dataset_hash(root: str | Path) -> str | None:
-    """Legge `.dataset_hash`, calcolandolo e salvandolo se manca.
+    """Hash corrente del dataset, ricalcolato a ogni chiamata.
+
+    Il file `.dataset_hash` accanto ai dati e' un promemoria leggibile, **non**
+    una cache: se lo si rileggesse invece di ricalcolare, aggiungere immagini
+    al dataset non cambierebbe piu' il `training_key` e il tool riuserebbe in
+    silenzio pesi allenati su un dataset diverso — esattamente cio' da cui
+    questo meccanismo deve proteggere.
 
     Se il dataset non e' presente su questa macchina ritorna None: gli stadi
     che ne hanno bisogno davvero (il training) falliranno esplicitamente, gli
@@ -72,14 +80,13 @@ def read_dataset_hash(root: str | Path) -> str | None:
     if not root.exists():
         log.debug("dataset non presente in %s, hash non calcolabile", root)
         return None
-    sentinel = root / DATASET_HASH_FILE
-    if sentinel.exists():
-        return sentinel.read_text(encoding="utf-8").strip()
     value = compute_dataset_hash(root)
+    sentinel = root / DATASET_HASH_FILE
     try:
-        sentinel.write_text(value + "\n", encoding="utf-8")
+        if not sentinel.exists() or sentinel.read_text().strip() != value:
+            sentinel.write_text(value + "\n", encoding="utf-8")
     except OSError:
-        log.warning("dataset in sola lettura, %s non scritto", sentinel)
+        log.debug("dataset in sola lettura, %s non aggiornato", sentinel)
     return value
 
 
@@ -97,20 +104,40 @@ def training_key(cfg: DictConfig) -> str:
     return _sha(payload)[:8]
 
 
-def export_key(cfg: DictConfig) -> str:
-    key = (
-        f"{cfg.model.name}_{training_key(cfg)}"
-        f"_{cfg.quantization.name}_{cfg.backend.name}_{cfg.hardware.arch}"
-    )
-    if cfg.backend.name == "axelera":
+def compose_export_key(model: str, tkey: str, quantization: str, backend: str,
+                       arch: str, sdk_version: str | None = None) -> str:
+    """Composizione dell'export_key da parti gia' note.
+
+    Sta qui e non duplicata altrove perche' `tools.artifacts prune` deve
+    ricostruire la stessa stringa dai risultati per sapere quali artefatti
+    sono ancora referenziati: se le due formule divergessero, prune
+    cancellerebbe engine e .axm che costano ore di compilazione sulla board.
+    """
+    key = f"{model}_{tkey}_{quantization}_{backend}_{arch}"
+    if backend == "axelera" and sdk_version:
         # Un aggiornamento dell'SDK invalida i .axm compilati in precedenza,
         # che vengono rifiutati al caricamento.
-        key += f"_sdk{cfg.backend.build.sdk_version}"
+        key += f"_sdk{sdk_version}"
     return key
+
+
+def export_key(cfg: DictConfig) -> str:
+    sdk = None
+    if cfg.backend.name == "axelera":
+        sdk = cfg.backend.build.sdk_version
+    return compose_export_key(
+        cfg.model.name, training_key(cfg), cfg.quantization.name,
+        cfg.backend.name, cfg.hardware.arch, sdk,
+    )
 
 
 def cell_key(cfg: DictConfig) -> str:
     payload = {k: _group(cfg, k) for k in cfg.cell_key_fields}
+    # Il gruppo `dataset` contiene solo path e nomi delle classi: due dataset
+    # diversi allo stesso path darebbero la stessa chiave, e al rilancio la
+    # cella verrebbe saltata come gia' completata pur misurando un modello
+    # diverso. Il training_key porta dentro l'hash dei dati.
+    payload["training_key"] = training_key(cfg)
     return _sha(payload)[:12]
 
 
@@ -197,8 +224,30 @@ def update_index(index_path: str | Path, key: str, meta: dict) -> None:
 
     Serve a `tools.artifacts ls`: senza, per sapere cosa c'e' in cache bisogna
     aprire un meta.json per volta.
+
+    Il lock non e' zelo: `run.py` consiglia il launcher joblib per il training,
+    e due job che leggono l'indice vuoto e lo riscrivono si cancellano a
+    vicenda l'entry. La scrittura atomica protegge dal file troncato, non
+    dall'aggiornamento perso.
     """
     index_path = Path(index_path)
+    index_path.parent.mkdir(parents=True, exist_ok=True)
+    with _index_lock(index_path):
+        _update_index_locked(index_path, key, meta)
+
+
+@contextmanager
+def _index_lock(index_path: Path):
+    lock = index_path.with_suffix(index_path.suffix + ".lock")
+    with open(lock, "w") as fh:
+        fcntl.flock(fh, fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(fh, fcntl.LOCK_UN)
+
+
+def _update_index_locked(index_path: Path, key: str, meta: dict) -> None:
     index = read_json(index_path, default={}) or {}
     cfg = meta.get("config", {})
     index[key] = {

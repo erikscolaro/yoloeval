@@ -64,7 +64,8 @@ def run_export(cfg) -> Path:
                 if cfg.quantization.get("calibration") or cfg.backend.name == "axelera":
                     ensure_dataset(conn, cfg)  # serve per la calibrazione INT8
                 portable = backend.prepare(cfg, src_pt, dst_dir)
-                remote_src = sync_artifact(conn, cfg, portable, subdir="artifacts")
+                remote_src = sync_artifact(conn, cfg, portable,
+                                           subdir="artifacts", key=ekey)
             with timer.phase("build"):
                 artifact = backend.export(conn, cfg, Path(remote_src), dst_dir)
             with timer.phase("validation"):
@@ -128,4 +129,7 @@ def _reference_for(conn, cfg, src_pt: Path, backend):
     """
     if not backend.builds_on_target or not is_remote(cfg):
         return src_pt
-    return sync_artifact(conn, cfg, src_pt, subdir="artifacts")
+    # Sotto il training_key: due modelli diversi hanno entrambi un `best.pt`,
+    # e in una cartella piatta il secondo export sovrascriverebbe il primo.
+    return sync_artifact(conn, cfg, src_pt, subdir="weights",
+                         key=training_key(cfg))

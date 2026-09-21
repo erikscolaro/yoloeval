@@ -47,12 +47,16 @@ fi
 say "axdevice: $(axdevice | head -3 | tr '\n' ' ')"
 
 # 4. Container Ubuntu 22.04 con il Voyager SDK.
+#    Il Dockerfile e i requirements arrivano nel workdir da ensure_support_files:
+#    sulla board esiste solo questo script, non l'albero del repo.
+DOCKERFILE="$WORKDIR/scripts/docker/axelera.Dockerfile"
 if ! docker image inspect "$IMAGE" >/dev/null 2>&1; then
+  [[ -f "$DOCKERFILE" ]] || { echo "Dockerfile non trovato in $DOCKERFILE" >&2; exit 1; }
   say "costruisco l'immagine $IMAGE"
   docker build -t "$IMAGE" \
     --build-arg SDK_VERSION="$SDK_VERSION" \
-    -f "$(dirname "${BASH_SOURCE[0]}")/../docker/axelera.Dockerfile" \
-    "$(dirname "${BASH_SOURCE[0]}")/.."
+    -f "$DOCKERFILE" \
+    "$WORKDIR"
 fi
 
 # 5-6. Verifica end-to-end dentro il container.

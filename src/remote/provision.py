@@ -22,6 +22,7 @@ from .connection import (
     connection,
     is_remote,
 )
+from .sync import ensure_support_files
 
 log = logging.getLogger(__name__)
 
@@ -46,6 +47,11 @@ def ensure_env(conn, cfg, force: bool = False) -> bool:
         return False
 
     workdir = cfg.hardware.remote.workdir
+    conn.run(f"mkdir -p {workdir}", hide=True)
+    # Prima della sentinella: gli helper e il Dockerfile devono stare sulla
+    # board anche quando l'ambiente e' gia' a posto e il provisioning non gira.
+    ensure_support_files(conn, cfg)
+
     want = env_hash(cfg)
     if not force:
         r = conn.run(f"cat {workdir}/.env_hash", hide=True, warn=True)
@@ -59,7 +65,6 @@ def ensure_env(conn, cfg, force: bool = False) -> bool:
         raise ProvisionFailed(f"script di provisioning non trovato: {script}")
 
     log.info("provisioning di %s con %s", cfg.hardware.board, script.name)
-    conn.run(f"mkdir -p {workdir}", hide=True)
     conn.put(str(script), "/tmp/provision.sh")
     conn.put(str(req), "/tmp/requirements.txt")
     r = conn.run(

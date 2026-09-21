@@ -10,6 +10,7 @@ che si vuole misurare (per quantificarlo esiste il backend `onnxruntime_py`).
 from __future__ import annotations
 
 import logging
+import shlex
 import shutil
 from pathlib import Path
 
@@ -102,10 +103,9 @@ class OnnxRuntimeBackend(Backend):
         threads = int(ct.get("n_cores") or 1)
         template = " ".join(str(bench.cmd).split())
         return template.format(
-            model=artifact,
+            model=shlex.quote(str(artifact)),
             ep=ep,
             iters=int(bench.iters),
-            warmup_iters=int(bench.warmup_iters),
             threads=threads,
         )
 
@@ -125,7 +125,7 @@ class OnnxRuntimeBackend(Backend):
             r"Runs:\s*(\d+)", stdout
         )
         median = pct("P50")
-        require(median, "P50 Latency (serve -I in command line)", stdout)
+        require(median, "P50 Latency (serve -s in command line)", stdout)
         return LatencyResult(
             mean_ms=float(mean),
             median_ms=median,
