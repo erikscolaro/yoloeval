@@ -77,7 +77,12 @@ def read_dataset_hash(root: str | Path) -> str | None:
     altri (benchmark su board remota) non devono averlo.
     """
     root = Path(root)
-    if not root.exists():
+    try:
+        present = root.exists()
+    except PermissionError:
+        # un genitore non attraversabile (es. /data di un altro utente)
+        present = False
+    if not present:
         log.debug("dataset non presente in %s, hash non calcolabile", root)
         return None
     value = compute_dataset_hash(root)
