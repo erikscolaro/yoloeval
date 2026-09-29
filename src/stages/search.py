@@ -15,8 +15,9 @@ from pathlib import Path
 
 from omegaconf import OmegaConf
 
-from ..cache import (find_weights, is_baseline, read_dataset_hash, search_dir, search_key,
-                     strategy_name, training_key, update_index, yolopit_version)
+from ..cache import (find_weights, is_baseline, read_dataset_hash, resolve_n, search_dir,
+                     search_key, strategy_name, training_key, update_index,
+                     yolopit_version)
 from ..env import collect_versions
 from ..errors import MissingWeights
 from ..jsonio import atomic_write_json
@@ -43,6 +44,11 @@ def search_args(cfg) -> dict:
     conf.setdefault("imgsz", int(cfg.train.imgsz))
     pit = dict(conf.get("pit") or {})
     pit.setdefault("trace_imgsz", int(cfg.model.imgsz))
+    if str(pit.get("n")) == "auto":
+        pit["n"] = resolve_n(cfg)
+        log.info("pit.n: auto -> N=%d dal probe (board %s, compute %s, %s, %s)", pit["n"],
+                 cfg.hardware.board, cfg.strategy.get("n_source") or cfg.compute_target,
+                 cfg.quantization.name, cfg.backend.name)
     conf["pit"] = pit
     return conf
 

@@ -6,6 +6,8 @@
 name: benchmark
   # OBBLIGATORIO. Valori: train | search | finetune | export | benchmark | provision
   #   train     -> allena e mette i pesi in artifacts/weights/
+  #   probe     -> misura con reti dummy quale N (canali a blocchi) premia la board:
+  #                results/probe/, usato dalle strategie con pit.n: auto
   #   search    -> solo strategie pit: ricerca PIT, modello potato in artifacts/search/
   #   finetune  -> solo strategie pit: fine-tuning del potato in artifacts/finetune/
   #   export    -> esporta (e quantizza) in artifacts/exports/
@@ -16,7 +18,7 @@ force: false
   # Solo stage=provision. true | false (default: false).
   # true -> ignora la sentinella .env_hash e riprovisiona comunque.
 
-# --- solo stage=benchmark --------------------------------------------------
+# --- solo stage=benchmark e stage=probe -----------------------------------
 
 thermal:
   # Cooldown condizionale prima di ogni cella: se la board e' gia' sotto
@@ -44,3 +46,31 @@ scheduling:
   swap_off: true
     # true | false. Disattiva lo swap per la durata della cella e lo rimette
     # com'era dopo. Meglio un OOM visibile che una cella in swap.
+
+# --- solo stage=probe -------------------------------------------------------
+
+plot: true
+  # true | false. Un PNG per probe: latenza e throughput in funzione di C, con le linee ai
+  # multipli dell'N trovato.
+
+sweep:
+  # Reti dummy: L blocchi conv + SiLU + residual, tutti a C canali, input [1, C, hw, hw].
+  # Per ogni forma si misura la latenza per C da c_min a c_max; N e' il blocco piu' grande
+  # dentro cui nessun C intermedio e' piu' veloce del multiplo successivo (oltre la
+  # tolleranza). N globale = il minimo fra le forme.
+  c_min: 32
+    # Intero. Il range deve contenere almeno un blocco intero dell'N piu' grande da provare.
+  c_max: 128
+  c_step: 1
+    # Intero. 1: con passi piu' grandi i C intermedi di un blocco non vengono misurati.
+  n_candidates: null
+    # null -> 1, 2, 4, ... finche' c'e' un blocco intero nel range; oppure una lista [8, 16].
+  tolerance: 0.03
+    # Float. Guadagno relativo minimo perche' un C intermedio conti. Si usa il massimo fra
+    # questo e 3 volte il rumore stimato (la stessa misura ripetuta all'inizio e alla fine).
+  seed: 0
+    # Intero. Ordine casuale delle misure: la deriva termica non sembra un effetto di C.
+  shapes:
+    # Lista di forme. Ognuna: kernel (intero), hw (lato della feature map), depthwise
+    # (true | false), layers (numero di blocchi).
+    - {kernel: 3, hw: 40, depthwise: false, layers: 8}

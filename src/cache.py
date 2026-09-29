@@ -144,7 +144,25 @@ def search_key(cfg: DictConfig) -> str:
         "yolopit": yolopit_version(),
         "cost_imgsz": int(cfg.model.imgsz),
     }
+    if auto_n(cfg):
+        # entra il VALORE di N misurato, non la board: due board con lo stesso N
+        # condividono la ricerca
+        payload["n_resolved"] = resolve_n(cfg)
     return _sha(payload)[:8]
+
+
+def auto_n(cfg: DictConfig) -> bool:
+    pit = ((cfg.get("strategy") or {}).get("search") or {}).get("pit") or {}
+    return str(pit.get("n", "")) == "auto"
+
+
+def resolve_n(cfg: DictConfig) -> int:
+    """`pit.n: auto` -> N ottimo del probe per board, precisione e backend di questa config,
+    sul compute target `strategy.n_source` (default: quello della config)."""
+    from .stages.probe import find_n
+
+    n, _ = find_n(cfg, cfg.strategy.get("n_source"))
+    return n
 
 
 def finetune_key(cfg: DictConfig) -> str:

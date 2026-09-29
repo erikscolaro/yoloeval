@@ -75,6 +75,12 @@ def main(cfg: DictConfig) -> None:
         run_finetune(cfg)
         return
 
+    if stage == "probe":
+        from src.stages.probe import run_probe
+
+        run_probe(cfg)
+        return
+
     if stage == "export":
         from src.stages.export import run_export
 
@@ -89,7 +95,7 @@ def main(cfg: DictConfig) -> None:
 
     raise ValueError(
         f"stadio sconosciuto: {stage!r} "
-        f"(stage=train|search|finetune|export|benchmark|provision)"
+        f"(stage=train|search|finetune|probe|export|benchmark|provision)"
     )
 
 

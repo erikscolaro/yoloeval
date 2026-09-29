@@ -14,6 +14,9 @@ name: pit_duccio
   # (yolo26n-pit_duccio_...).
 method: pit
   # OBBLIGATORIO. ultralytics | pit
+n_source: cpu_1
+  # Facoltativo, solo con search.pit.n: auto. Da quale compute target del probe prendere N
+  # (default: il compute_target della config). Su CPU cpu_1 e' il caso peggiore.
 
 search:
   # Solo method: pit. Argomenti di PITYOLO di yolopit: quelli di model.train() di Ultralytics
@@ -32,7 +35,8 @@ search:
   pit:
     # Spazio di ricerca.
     n: 16
-      # Intero. Canali potati a blocchi di N: sceglilo sulla larghezza SIMD del target.
+      # Intero, oppure `auto`: N dal probe (stage=probe) per board, precisione e backend della
+      # config. Entra nella chiave il valore misurato, non la board.
     remainder: true
       # true | false. Con C non multiplo di N tiene un blocco da C % N, potato per primo.
     warmup_epochs: 0

@@ -14,7 +14,7 @@ Branch `pit-integration`. Aggiornato a ogni commit: se il lavoro si interrompe, 
    - [x] export dai pesi finali della strategia, `tools.artifacts` consapevole dei nuovi artefatti
    - [x] README e IMPLEMENTATION.md
    - [x] prova end-to-end su coco8 (train -> search -> finetune -> export ONNX): funziona
-6. [ ] stadio `probe` per N e `n: auto`
+6. [x] stadio `probe` per N e `n: auto` (backend onnxruntime / onnxruntime_py; prova reale in corso)
 7. [ ] verifica finale
 
 ## Decisioni prese da solo (da rivedere con Erik)
@@ -27,6 +27,13 @@ Branch `pit-integration`. Aggiornato a ogni commit: se il lavoro si interrompe, 
 - Le MAC della ricerca sono calcolate alla risoluzione di deploy (`model.imgsz`); il training
   della ricerca usa `train.imgsz` se la strategia non dice altro.
 - La versione di yolopit entra nella chiave della ricerca: aggiornare yolopit rifa' la ricerca.
+- Probe: N globale = il MINIMO fra le forme misurate (non si perde nulla in nessuna forma).
+  N per forma e' comunque nel summary.
+- Probe: supporta solo i backend che misurano un ONNX portabile (onnxruntime, onnxruntime_py).
+  TensorRT/OpenVINO/Axelera compilano sulla board: da aggiungere. I compute target `metis`
+  vengono saltati.
+- `pit.n: auto` cerca il probe con stessa board, precisione e backend, sul compute target
+  `strategy.n_source` (pit_auto: cpu_1). Se ce ne sono piu' d'uno prende il piu' recente.
 
 ## Osservazioni
 

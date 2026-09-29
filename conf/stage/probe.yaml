@@ -1,0 +1,24 @@
+name: probe
+
+# Stesso tuning della board del benchmark (vedi stage/benchmark.yaml).
+thermal:
+  threshold_c: 45
+  timeout_s: 300
+  poll_s: 10
+scheduling:
+  rt_priority: 80
+  drop_caches: true
+  swap_off: true
+
+plot: true                # latenza e throughput in funzione dei canali, un PNG per probe
+
+sweep:
+  c_min: 32               # canali misurati: da c_min a c_max
+  c_max: 128
+  c_step: 1
+  n_candidates: null      # null -> 1, 2, 4, ... finche' c'e' un blocco intero nel range
+  tolerance: 0.03         # guadagno relativo sotto cui un C intermedio "non conta"
+  seed: 0                 # ordine casuale delle misure
+  shapes:                 # forme dei layer delle reti dummy (N per forma, poi il minimo)
+    - {kernel: 3, hw: 40, depthwise: false, layers: 8}
+    - {kernel: 1, hw: 80, depthwise: false, layers: 8}
