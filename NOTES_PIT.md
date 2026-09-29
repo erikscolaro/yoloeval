@@ -8,11 +8,11 @@ Branch `pit-integration`. Aggiornato a ogni commit: se il lavoro si interrompe, 
 2. [x] yolopit come pacchetto (repo `erikscolaro/yolopit`)
 3. [x] Versioni fissate (torch 2.12.1, ultralytics 8.4.165, numpy 2.2.6, PLiNIO 3d6b5e0)
 4. [x] yolopit 0.2.0: config a gruppi, costi del modello intero, standard/duccio, EMA spenta
-5. [ ] yoloeval: asse `strategy`, stadi `search` e `finetune`
+5. [x] yoloeval: asse `strategy`, stadi `search` e `finetune`
    - [x] chiavi a catena + gruppi `strategy/` e `finetune/` + test sulle chiavi + docs/config
    - [x] stadi `search` e `finetune` + dispatch in run.py
    - [x] export dai pesi finali della strategia, `tools.artifacts` consapevole dei nuovi artefatti
-   - [ ] README e IMPLEMENTATION.md
+   - [x] README e IMPLEMENTATION.md
    - [x] prova end-to-end su coco8 (train -> search -> finetune -> export ONNX): funziona
 6. [ ] stadio `probe` per N e `n: auto`
 7. [ ] verifica finale

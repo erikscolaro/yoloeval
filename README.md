@@ -12,15 +12,17 @@ dataframe, dei grafici e un report.
 
 Dataset: **AOD4**, quattro classi (airplane, bird, drone, helicopter).
 
-> Niente a che vedere con la pipeline di compressione PLiNIO. Qui si usano
-> solo le API standard di Ultralytics e la quantizzazione post-training nativa
-> di ogni backend. Il confronto fra le due pipeline è un altro lavoro.
+Oltre ai modelli allenati con Ultralytics, il tool misura anche modelli potati
+con [yolopit](https://github.com/erikscolaro/yolopit) (ricerca PIT di PLiNIO,
+canali a blocchi di N): è l'asse `strategy`. La quantizzazione resta la
+post-training nativa di ogni backend.
 
-## Le sei variabili
+## Le variabili
 
 | | valori |
 |---|---|
 | `model` | yolo26n, yolo26s, yolo26m, varianti custom |
+| `strategy` | `baseline` (solo Ultralytics), `pit_standard`, `pit_duccio` (yolopit) |
 | `quantization` | fp32, fp16, int8 (solo PTQ) |
 | `backend` | ONNX Runtime, TensorRT, OpenVINO, ExecuTorch, Axelera |
 | `hardware` | workstation x86, Jetson Orin, Raspberry Pi 5 |
@@ -61,7 +63,7 @@ fermi lo sweep e lo rilanci, riprende da dove era.
 conf/        un gruppo per asse: stage, model, train, dataset, quantization,
              backend, hardware, eval, logging
 src/
-  stages/    train, export, benchmark, quantize
+  stages/    train, search, finetune, export, benchmark, quantize
   backends/  un adapter per backend: come esportare, come misurare, come
              leggere l'output
   remote/    SSH, provisioning, rsync
@@ -137,9 +139,16 @@ Gli stadi vanno in ordine e ognuno salta quello che trova già in cache.
 # 1. training, una volta per modello, sulla workstation
 python run.py -m stage=train model=yolo26n,yolo26s,yolo26m
 
+# 1b. solo per le strategie pit: ricerca e fine-tuning, sulla workstation.
+#     Il training di partenza e' lo stesso della baseline (stesso training_key).
+python run.py -m stage=search strategy=pit_duccio \
+  strategy.search.regularizer.target.ops=30%,40%,50%
+python run.py -m stage=finetune strategy=pit_duccio \
+  strategy.search.regularizer.target.ops=30%,40%,50%
+
 # 2. export: l'ONNX si fa qui, gli engine TensorRT e i modelli Axelera
 #    si compilano sulla board di destinazione
-python run.py -m stage=export \
+python run.py -m stage=export strategy=baseline,pit_duccio \
   model=glob\(*\) quantization=fp32,fp16,int8 backend=onnxruntime,tensorrt
 
 # 3. benchmark, la matrice vera

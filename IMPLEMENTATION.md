@@ -13,10 +13,10 @@ Leggere prima `README.md` per il contesto generale.
 | Tema | Decisione |
 |---|---|
 | Framework di configurazione | Hydra, gruppi per asse, multirun per la matrice |
-| Training | API standard Ultralytics. Nessuna pipeline custom |
+| Training | API standard Ultralytics. La compressione (asse `strategy`) sta in un pacchetto separato, yolopit |
 | Quantizzazione | Solo post-training (PTQ). QAT fuori scope |
 | Misura della latenza | Solo tool nativi dei vendor (C++). Mai timer in Python |
-| Confronto con PLiNIO | Fuori scope. Progetto separato |
+| Confronto con PLiNIO | Asse `strategy`: `baseline` contro le strategie PIT di yolopit (`search` + `finetune`) |
 | Formato per cella | Un file JSON |
 | Formato aggregato | Parquet, prodotto da uno script di aggregazione |
 | Credenziali SSH | Mai nel repo. Solo alias in `~/.ssh/config` |
@@ -33,7 +33,9 @@ Leggere prima `README.md` per il contesto generale.
 
 ```
 stage=train      model                                     → artifacts/weights/
-stage=export     model × quantization × backend × arch     → artifacts/exports/
+stage=search     training × strategy (solo pit)            → artifacts/search/
+stage=finetune   search × finetune (solo pit)              → artifacts/finetune/
+stage=export     pesi finali × quantization × backend × arch → artifacts/exports/
 stage=benchmark  export × hardware × freq_target × compute_target → results/
 ```
 
@@ -554,6 +556,17 @@ contro il riuso silenzioso di pesi allenati su un dataset diverso.
 `export_key` include la versione dell'SDK per Axelera: un aggiornamento SDK
 invalida i modelli `.axm` compilati in precedenza, che vengono rifiutati al
 caricamento.
+
+**Strategie (`strategy.method: pit`).** La catena si allunga di due chiavi:
+`search_key` = training_key + gruppo `strategy` + versione di yolopit +
+`model.imgsz` (niente hardware: la stessa ricerca vale per ogni board) e
+`finetune_key` = search_key + gruppo `finetune`. I pesi che vanno all'export
+sono quelli della chiave `weights_key`: il training_key per la baseline, il
+finetune_key per le strategie. Nell'`export_key` il modello diventa
+`<model>-<strategy>` e al posto del training_key c'è il weights_key; nel
+`cell_key` entrano weights_key e strategia. Con `strategy=baseline` nessuna di
+queste aggiunte si applica: le chiavi restano quelle di prima e le cache
+esistenti restano valide (lo verifica `tests/test_keys.py`).
 
 ### 3.2 Naming degli artefatti
 
