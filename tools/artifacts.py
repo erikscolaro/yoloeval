@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Ispezione della cache di artefatti.
 
-    python -m tools.artifacts ls [--kind weights|exports] [--json]
+    python -m tools.artifacts ls [--kind weights|search|finetune|exports] [--json]
     python -m tools.artifacts show <slug>
     python -m tools.artifacts prune [--apply]
 
@@ -17,6 +17,13 @@ import json
 import shutil
 import sys
 from pathlib import Path
+
+from src.cache import model_label
+
+
+#: tipi di artefatto e il campo del meta.json che ne e' la chiave
+KINDS = {"weights": "training_key", "search": "search_key", "finetune": "finetune_key",
+         "exports": "export_key"}
 
 
 def _read(path: Path):
@@ -34,7 +41,7 @@ def _dirs(artifacts: Path, kind: str) -> list[Path]:
 
 
 def cmd_ls(args) -> int:
-    kinds = [args.kind] if args.kind else ["weights", "exports"]
+    kinds = [args.kind] if args.kind else list(KINDS)
     payload = []
     for kind in kinds:
         for d in _dirs(args.artifacts, kind):
@@ -43,7 +50,8 @@ def cmd_ls(args) -> int:
             payload.append({
                 "kind": kind,
                 "slug": d.name,
-                "key": meta.get("training_key") or meta.get("export_key"),
+                "key": meta.get(KINDS[kind]),
+                "strategy": meta.get("strategy"),
                 "model": (cfg.get("model") or {}).get("name"),
                 "quantization": (cfg.get("quantization") or {}).get("name"),
                 "backend": (cfg.get("backend") or {}).get("name"),
@@ -72,7 +80,7 @@ def cmd_ls(args) -> int:
 
 
 def cmd_show(args) -> int:
-    for kind in ("weights", "exports"):
+    for kind in KINDS:
         d = args.artifacts / kind / args.slug
         if d.is_dir():
             print(json.dumps(_read(d / "meta.json"), indent=2, ensure_ascii=False))
@@ -97,9 +105,14 @@ def referenced_keys(results_dir: Path) -> set[str]:
         if not tkey:
             continue
         keys.add(tkey)
+        # pesi arrivati all'export: il training_key per la baseline (e per i risultati
+        # scritti prima delle strategie), il finetune_key per le strategie
+        wkey = axes.get("weights_key") or tkey
+        keys.add(wkey)
         if axes.get("backend"):
+            label = model_label(axes.get("model"), axes.get("strategy"))
             ekey = (
-                f"{axes.get('model')}_{tkey}_{axes.get('quantization')}"
+                f"{label}_{wkey}_{axes.get('quantization')}"
                 f"_{axes.get('backend')}_{axes.get('arch')}"
             )
             if axes.get("backend") == "axelera":
@@ -122,12 +135,17 @@ def cmd_prune(args) -> int:
         )
         return 1
 
+    # una ricerca e' referenziata se lo e' un fine-tuning che parte da lei
+    for d in _dirs(args.artifacts, "finetune"):
+        meta = _read(d / "meta.json") or {}
+        if meta.get("finetune_key") in keys and meta.get("search_key"):
+            keys.add(meta["search_key"])
+
     victims = []
-    for kind in ("weights", "exports"):
+    for kind, field in KINDS.items():
         for d in _dirs(args.artifacts, kind):
             meta = _read(d / "meta.json") or {}
-            key = meta.get("training_key") if kind == "weights" \
-                else meta.get("export_key")
+            key = meta.get(field)
             if key is None:
                 print(f"? {d} senza meta.json: lasciato dov'e'")
                 continue
@@ -152,7 +170,7 @@ def main(argv=None) -> int:
     sub = ap.add_subparsers(dest="cmd", required=True)
 
     p_ls = sub.add_parser("ls")
-    p_ls.add_argument("--kind", choices=["weights", "exports"])
+    p_ls.add_argument("--kind", choices=list(KINDS))
     p_ls.add_argument("--json", action="store_true")
     p_ls.set_defaults(func=cmd_ls)
 

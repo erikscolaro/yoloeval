@@ -445,10 +445,14 @@ def _validation_block(cfg, validation: dict, export_meta: dict,
     validation["head"] = inspection.get("head")
 
     ref_map50 = None
+    # riferimento: il modello che e' andato all'export (per le strategie, il fine-tuning)
+    baseline = export_meta.get("strategy", "baseline") == "baseline"
+    index = "weights" if baseline else "finetune"
+    key = export_meta.get("training_key") if baseline else export_meta.get("weights_key")
     weights_meta = read_json(
-        Path(cfg.artifacts_dir) / "weights" / "index.json", default={}
+        Path(cfg.artifacts_dir) / index / "index.json", default={}
     ) or {}
-    entry = weights_meta.get(export_meta.get("training_key"))
+    entry = weights_meta.get(key)
     if entry and entry.get("metrics"):
         ref_map50 = entry["metrics"].get("map50")
     return grade_accuracy(

@@ -2,6 +2,7 @@
 """yolo-bench — unico entry point.
 
     python run.py stage=train model=yolo26n
+    python run.py stage=search strategy=pit_duccio      # poi stage=finetune
     python run.py -m stage=benchmark hardware=jetson_orin freq_target=maxn,w15
 
 Il dispatch avviene per `cfg.stage.name`: ogni stadio ha il suo entry point e
@@ -62,6 +63,18 @@ def main(cfg: DictConfig) -> None:
         run_training(cfg)
         return
 
+    if stage == "search":
+        from src.stages.search import run_search
+
+        run_search(cfg)
+        return
+
+    if stage == "finetune":
+        from src.stages.finetune import run_finetune
+
+        run_finetune(cfg)
+        return
+
     if stage == "export":
         from src.stages.export import run_export
 
@@ -76,7 +89,7 @@ def main(cfg: DictConfig) -> None:
 
     raise ValueError(
         f"stadio sconosciuto: {stage!r} "
-        f"(stage=train|export|benchmark|provision)"
+        f"(stage=train|search|finetune|export|benchmark|provision)"
     )
 
 

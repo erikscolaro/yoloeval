@@ -10,10 +10,10 @@ Branch `pit-integration`. Aggiornato a ogni commit: se il lavoro si interrompe, 
 4. [x] yolopit 0.2.0: config a gruppi, costi del modello intero, standard/duccio, EMA spenta
 5. [ ] yoloeval: asse `strategy`, stadi `search` e `finetune`
    - [x] chiavi a catena + gruppi `strategy/` e `finetune/` + test sulle chiavi + docs/config
-   - [ ] stadi `search` e `finetune` + dispatch in run.py
-   - [ ] export dai pesi finali della strategia, `tools.artifacts` consapevole dei nuovi artefatti
+   - [x] stadi `search` e `finetune` + dispatch in run.py
+   - [x] export dai pesi finali della strategia, `tools.artifacts` consapevole dei nuovi artefatti
    - [ ] README e IMPLEMENTATION.md
-   - [ ] prova end-to-end su coco8 (train -> search -> finetune -> export ONNX)
+   - [x] prova end-to-end su coco8 (train -> search -> finetune -> export ONNX): funziona
 6. [ ] stadio `probe` per N e `n: auto`
 7. [ ] verifica finale
 
@@ -27,3 +27,13 @@ Branch `pit-integration`. Aggiornato a ogni commit: se il lavoro si interrompe, 
 - Le MAC della ricerca sono calcolate alla risoluzione di deploy (`model.imgsz`); il training
   della ricerca usa `train.imgsz` se la strategia non dice altro.
 - La versione di yolopit entra nella chiave della ricerca: aggiornare yolopit rifa' la ricerca.
+
+## Osservazioni
+
+- Con Ultralytics 8.4.165 il `yolo26n.pt` ufficiale si carica con `end2end=False`: l'export
+  ONNX ha la testa one-to-many anche per la BASELINE (warning "motivo non fra quelli noti").
+  Non dipende da yolopit; da capire se e' voluto.
+- Il backend Axelera esporta dal `.pt` DENTRO il container sulla board: per un modello potato
+  serve yolopit installato nel container (manca nei requisiti axelera-container.txt).
+- `yolopit` nei requisiti e' fissato al commit 64ed4e8 (0.2.0), non al tag: da qui i tag non si
+  pubblicano.

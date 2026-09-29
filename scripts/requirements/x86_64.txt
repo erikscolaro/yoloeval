@@ -31,8 +31,8 @@ markdown
 jinja2
 
 # ricerca PIT e fine-tuning dei modelli potati (porta con se' PLiNIO a un commit fisso).
-# Commit invece del tag v0.1.0: i tag non si pubblicano da questa sessione.
-yolopit @ git+https://github.com/erikscolaro/yolopit.git@707f39062d0d822725d221e11817b531f65c3c2f
+# yolopit 0.2.0; commit invece del tag: i tag non si pubblicano da questa sessione.
+yolopit @ git+https://github.com/erikscolaro/yolopit.git@64ed4e85211893be22e0e54f5b27193732ea3e0a
 
 # test
 pytest>=8

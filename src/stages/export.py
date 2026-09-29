@@ -16,7 +16,8 @@ from omegaconf import OmegaConf
 
 from ..backends import get_backend
 from ..cache import export_dir as export_dir_for
-from ..cache import export_key, find_weights, training_key
+from ..cache import (export_key, final_weights, is_baseline, strategy_name, training_key,
+                     weights_key)
 from ..env import collect_versions
 from ..errors import MissingWeights
 from ..jsonio import atomic_write_json
@@ -31,13 +32,15 @@ log = logging.getLogger(__name__)
 
 def run_export(cfg) -> Path:
     tkey = training_key(cfg)
-    weights = find_weights(cfg.artifacts_dir, tkey)
-    if weights is None:
+    # baseline: best.pt del training; strategie (pit): best.pt del fine-tuning
+    src_pt, wkey = final_weights(cfg)
+    if src_pt is None:
+        prima = ("`stage=train`" if is_baseline(cfg)
+                 else "`stage=train`, `stage=search` e `stage=finetune`")
         raise MissingWeights(
-            f"nessun artefatto con training_key={tkey}: eseguire prima "
-            f"`stage=train` per {cfg.model.name}"
+            f"nessun peso per {cfg.model.name} con strategy={strategy_name(cfg)} "
+            f"(chiave {wkey}): eseguire prima {prima}"
         )
-    src_pt = weights / "best.pt"
 
     ekey = export_key(cfg)
     dst_dir = export_dir_for(cfg)
@@ -102,6 +105,8 @@ def run_export(cfg) -> Path:
     meta = {
         "export_key": ekey,
         "training_key": tkey,
+        "weights_key": wkey,
+        "strategy": strategy_name(cfg),
         "artifact": {
             "path": str(artifact),
             "name": Path(str(artifact)).name,
@@ -129,7 +134,9 @@ def _reference_for(conn, cfg, src_pt: Path, backend):
     """
     if not backend.builds_on_target or not is_remote(cfg):
         return src_pt
-    # Sotto il training_key: due modelli diversi hanno entrambi un `best.pt`,
-    # e in una cartella piatta il secondo export sovrascriverebbe il primo.
+    # Sotto la chiave dei pesi: due modelli diversi hanno entrambi un `best.pt`,
+    # e in una cartella piatta il secondo export sovrascriverebbe il primo. Per la
+    # baseline e' il training_key; un modello potato ha lo stesso training_key della
+    # sua baseline, quindi serve la chiave del fine-tuning.
     return sync_artifact(conn, cfg, src_pt, subdir="weights",
-                         key=training_key(cfg))
+                         key=weights_key(cfg))
