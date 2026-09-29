@@ -15,7 +15,8 @@ Branch `pit-integration`. Aggiornato a ogni commit: se il lavoro si interrompe, 
    - [x] README e IMPLEMENTATION.md
    - [x] prova end-to-end su coco8 (train -> search -> finetune -> export ONNX): funziona
 6. [x] stadio `probe` per N e `n: auto` (backend onnxruntime / onnxruntime_py)
-7. [ ] verifica finale
+7. [x] verifica finale: test di yolopit (44) e yoloeval tutti verdi; su coco8 girano
+   baseline e pit_duccio fino all'export ONNX, e pit_auto prende N=16 dal probe
 
 ## Decisioni prese da solo (da rivedere con Erik)
 
@@ -52,3 +53,12 @@ Branch `pit-integration`. Aggiornato a ogni commit: se il lavoro si interrompe, 
   serve yolopit installato nel container (manca nei requisiti axelera-container.txt).
 - `yolopit` nei requisiti e' fissato al commit 64ed4e8 (0.2.0), non al tag: da qui i tag non si
   pubblicano.
+
+## Punti aperti per Erik
+
+1. Merge di `pit-integration` nel branch principale di yoloeval: da fare quando hai
+   sincronizzato le tue modifiche locali (non l'ho toccato).
+2. Tag `v0.2.0` di yolopit sul commit 64ed4e8 (da qui i tag non si pubblicano).
+3. Axelera: per i modelli potati serve yolopit nel container della board.
+4. Probe: aggiungere TensorRT/OpenVINO (compilano sulla board); prova su RPi5 vera.
+5. DUCCIO su GPU e su AOD-4: provato solo su CPU e coco8.
