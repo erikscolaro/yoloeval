@@ -55,19 +55,28 @@ plot: true
 
 sweep:
   # Reti dummy: L blocchi conv + SiLU + residual, tutti a C canali, input [1, C, hw, hw].
-  # Per ogni forma si misura la latenza per C da c_min a c_max; N e' il blocco piu' grande
-  # dentro cui nessun C intermedio e' piu' veloce del multiplo successivo (oltre la
-  # tolleranza). N globale = il minimo fra le forme.
+  # Per ogni forma si misura la latenza per C da c_min a c_max. Efficienza = MAC / latenza.
+  # Un C e' "allineato" se la sua efficienza e' entro `tolerance` dalla migliore vista nei
+  # `window` canali precedenti. N = il piu' piccolo fra 1, 2, 4, ... i cui multipli sono
+  # allineati (tranne al piu' una frazione max_violations). N globale = il piu' grande fra
+  # le forme (i suoi multipli sono multipli anche degli altri).
   c_min: 32
-    # Intero. Il range deve contenere almeno un blocco intero dell'N piu' grande da provare.
+    # Intero. Il range deve contenere almeno due multipli dell'N piu' grande da provare.
   c_max: 128
   c_step: 1
-    # Intero. 1: con passi piu' grandi i C intermedi di un blocco non vengono misurati.
+    # Intero. 1: con passi piu' grandi si perdono i C non allineati che fanno da confronto.
+  repeats: 3
+    # Intero. Passate complete, ognuna in ordine casuale; per ogni C si usa la mediana. La
+    # dispersione fra le passate stima il rumore.
   n_candidates: null
-    # null -> 1, 2, 4, ... finche' c'e' un blocco intero nel range; oppure una lista [8, 16].
-  tolerance: 0.03
-    # Float. Guadagno relativo minimo perche' un C intermedio conti. Si usa il massimo fra
-    # questo e 3 volte il rumore stimato (la stessa misura ripetuta all'inizio e alla fine).
+    # null -> 1, 2, 4, ... finche' ci sono almeno due multipli nel range; oppure [8, 16].
+  tolerance: 0.1
+    # Float. Si usa il massimo fra questo e il rumore stimato.
+  window: 32
+    # Intero. Quanti canali indietro guardare per l'efficienza migliore.
+  max_violations: 0.2
+    # Float 0-1. Frazione di multipli non allineati tollerata (una misura sporca isolata non
+    # boccia un N).
   seed: 0
     # Intero. Ordine casuale delle misure: la deriva termica non sembra un effetto di C.
   shapes:

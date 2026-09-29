@@ -14,7 +14,7 @@ Branch `pit-integration`. Aggiornato a ogni commit: se il lavoro si interrompe, 
    - [x] export dai pesi finali della strategia, `tools.artifacts` consapevole dei nuovi artefatti
    - [x] README e IMPLEMENTATION.md
    - [x] prova end-to-end su coco8 (train -> search -> finetune -> export ONNX): funziona
-6. [x] stadio `probe` per N e `n: auto` (backend onnxruntime / onnxruntime_py; prova reale in corso)
+6. [x] stadio `probe` per N e `n: auto` (backend onnxruntime / onnxruntime_py)
 7. [ ] verifica finale
 
 ## Decisioni prese da solo (da rivedere con Erik)
@@ -27,8 +27,16 @@ Branch `pit-integration`. Aggiornato a ogni commit: se il lavoro si interrompe, 
 - Le MAC della ricerca sono calcolate alla risoluzione di deploy (`model.imgsz`); il training
   della ricerca usa `train.imgsz` se la strategia non dice altro.
 - La versione di yolopit entra nella chiave della ricerca: aggiornare yolopit rifa' la ricerca.
-- Probe: N globale = il MINIMO fra le forme misurate (non si perde nulla in nessuna forma).
-  N per forma e' comunque nel summary.
+- Probe, criterio: efficienza = MAC/latenza; N = il piu' PICCOLO fra 1, 2, 4, ... i cui
+  multipli sono tutti (tranne il 20%) entro la tolleranza dall'efficienza migliore dei 32
+  canali precedenti. N globale = il piu' GRANDE fra le forme concluse (i suoi multipli vanno
+  bene per tutte). 3 passate in ordine casuale, mediana per C, tolleranza = max(10%, rumore).
+  Il primo criterio che avevo scritto (nessun C intermedio piu' veloce del multiplo) era
+  sbagliato: con pochi canali un C non allineato puo' essere piu' veloce del multiplo
+  successivo pur essendo molto meno efficiente.
+- Prova reale sulla CPU di questa sessione (VM condivisa, ORT Python, 1 thread, fp32):
+  conv3x3 -> N=16 (coerente con N=16 trovato a mano sul modello vero), conv1x1 -> non
+  concluso (rumore 17%), N globale 16.
 - Probe: supporta solo i backend che misurano un ONNX portabile (onnxruntime, onnxruntime_py).
   TensorRT/OpenVINO/Axelera compilano sulla board: da aggiungere. I compute target `metis`
   vengono saltati.

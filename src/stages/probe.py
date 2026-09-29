@@ -85,7 +85,7 @@ def run_probe(cfg) -> list[Path]:
         if cfg.dry_run:
             sw = cfg.stage.sweep
             n_meas = len(shapes(cfg)) * len(range(int(sw.c_min), int(sw.c_max) + 1,
-                                                   int(sw.c_step)))
+                                                   int(sw.c_step))) * int(sw.get("repeats", 3))
             log.info("[dry-run] probe %s: %d misure", pid, n_meas)
             continue
         written.append(_run_one(cfg, pid, summary_path))
@@ -104,14 +104,15 @@ def _run_one(cfg, pid: str, summary_path: Path) -> Path:
 
     with timer.phase("setup"):
         files = {(s, c): dummy.artifact(s, c, precision, onnx_dir, int8_args) for s, c in plan}
-    # ordine casuale: la deriva (termica, carico) si distribuisce su tutti i C invece di
-    # sembrare un effetto dei canali
+    # `repeats` passate, ognuna in ordine casuale: la deriva (termica, carico) si distribuisce
+    # su tutti i C invece di sembrare un effetto dei canali, e la dispersione fra le passate
+    # stima il rumore
     rng = random.Random(int(sw.get("seed", 0)))
-    order = plan[:]
-    rng.shuffle(order)
-    # la stessa misura ripetuta all'inizio e alla fine stima il rumore e la deriva
-    ref = plan[len(cs) - 1]
-    order = [ref] + order + [ref]
+    order = []
+    for rep in range(int(sw.get("repeats", 3))):
+        passata = plan[:]
+        rng.shuffle(passata)
+        order += [(rep, s, c) for s, c in passata]
 
     out_dir = probe_dir(cfg)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -127,7 +128,7 @@ def _run_one(cfg, pid: str, summary_path: Path) -> Path:
             with tuned(live, cfg, bc) as applied, timer.phase("compute"):
                 ct = resolve_compute(cfg)
                 n_cores = _effective_cores(live, cfg, bc, ct)
-                for i, (s, c) in enumerate(order):
+                for i, (rep, s, c) in enumerate(order):
                     remote = sync_artifact(live, cfg, files[(s, c)], subdir="probe",
                                            key=pid)
                     cmd = _wrap_command(live, cfg, backend.build_cmd(cfg, Path(remote)),
@@ -146,7 +147,7 @@ def _run_one(cfg, pid: str, summary_path: Path) -> Path:
                         "backend": cfg.backend.name, "shape": s.name, "c": c, **k,
                         "median_ms": med, "mean_ms": lat.mean_ms, "p90_ms": lat.p90_ms,
                         "p99_ms": lat.p99_ms, "gmacs_per_s": k["macs"] / (med * 1e-3) / 1e9,
-                        "repeat": i in (0, len(order) - 1), "sequence": i,
+                        "repeat": rep, "sequence": i,
                         "timestamp": now_iso(), "order_index": order_index(),
                     })
                 state = {"temp_start_c": applied.get("temp_start_c"),
@@ -171,24 +172,44 @@ def _run_one(cfg, pid: str, summary_path: Path) -> Path:
     return summary_path
 
 
+def point_latency(records: list[dict]) -> dict:
+    """{(forma, C): mediana delle passate}."""
+    from statistics import median
+
+    by = {}
+    for r in records:
+        by.setdefault((r["shape"], r["c"]), []).append(r["median_ms"])
+    return {k: median(v) for k, v in by.items()}, by
+
+
 def summarize(records: list[dict], cfg, pid: str) -> dict:
-    """N ottimo per forma e globale. Tolleranza = max(stage.sweep.tolerance, 3 x rumore)."""
-    rep = [r["median_ms"] for r in records if r["repeat"]]
-    noise = abs(rep[0] - rep[-1]) / min(rep) if len(rep) == 2 else 0.0
-    tol = max(float(cfg.stage.sweep.tolerance), 3 * noise)
-    given = cfg.stage.sweep.get("n_candidates")
+    """N ottimo per forma e globale. Tolleranza = max(stage.sweep.tolerance, rumore), con il
+    rumore = mediana della dispersione relativa (max - min) / mediana fra le passate."""
+    from statistics import median
+
+    sw = cfg.stage.sweep
+    lat, by = point_latency(records)
+    spreads = [(max(v) - min(v)) / median(v) for v in by.values() if len(v) > 1]
+    noise = median(spreads) if spreads else 0.0
+    tol = max(float(sw.tolerance), noise)
+    given = sw.get("n_candidates")
     per_shape = {}
     for name in dict.fromkeys(r["shape"] for r in records):
-        lat = {r["c"]: r["median_ms"] for r in records if r["shape"] == name and not r["repeat"]}
-        res = analysis.best_n(lat, tol, list(given) if given else None)
+        pts = {c: v for (sh, c), v in lat.items() if sh == name}
+        macs = {r["c"]: r["macs"] for r in records if r["shape"] == name}
+        res = analysis.best_n(pts, macs, tol, float(sw.get("max_violations", 0.2)),
+                              int(sw.get("window", 32)), list(given) if given else None)
         res["tested"] = {str(k): v for k, v in res["tested"].items()}
         per_shape[name] = res
     n_opt = analysis.global_n(per_shape)
+    if n_opt is None:
+        log.warning("probe %s non concluso: nessun N passa (misure troppo rumorose? prova "
+                    "piu' repeats o un range di canali piu' ampio)", pid)
     return {
         "schema": SCHEMA, "probe_id": pid, "board": cfg.hardware.board,
         "freq_target": cfg.freq_target, "compute_target": cfg.compute_target,
         "quantization": cfg.quantization.name, "backend": cfg.backend.name,
-        "sweep": OmegaConf.to_container(cfg.stage.sweep, resolve=True),
+        "sweep": OmegaConf.to_container(sw, resolve=True),
         "noise_rel": noise, "tolerance": tol, "per_shape": per_shape, "n_opt": n_opt,
         "created_at": now_iso(),
     }
@@ -202,22 +223,23 @@ def plot(records: list[dict], summary: dict, path: Path) -> Path:
     names = list(summary["per_shape"])
     fig, axes = plt.subplots(2, len(names), figsize=(6 * len(names), 7), squeeze=False)
     for j, name in enumerate(names):
-        rows = sorted((r for r in records if r["shape"] == name and not r["repeat"]),
-                      key=lambda r: r["c"])
-        cs = [r["c"] for r in rows]
+        lat, _ = point_latency([r for r in records if r["shape"] == name])
+        macs = {r["c"]: r["macs"] for r in records if r["shape"] == name}
+        cs = sorted(c for _, c in lat)
+        ms = [lat[(name, c)] for c in cs]
+        series = (ms, [macs[c] / (m * 1e-3) / 1e9 for c, m in zip(cs, ms)])
         n = summary["per_shape"][name]["n_opt"]
-        for i, (key, label) in enumerate((("median_ms", "latency [ms]"),
-                                          ("gmacs_per_s", "throughput [GMAC/s]"))):
+        for i, label in enumerate(("latency [ms], median of the passes",
+                                   "throughput [GMAC/s]")):
             a = axes[i][j]
-            a.plot(cs, [r[key] for r in rows], marker=".", linewidth=1)
-            for m in range(-(-cs[0] // n) * n, cs[-1] + 1, n):
+            a.plot(cs, series[i], marker=".", linewidth=1)
+            for m in (range(-(-cs[0] // n) * n, cs[-1] + 1, n) if n else []):
                 a.axvline(m, color="grey", alpha=.25, linewidth=.8)
             a.set_xlabel("channels C")
             a.set_ylabel(label)
             a.grid(alpha=.3)
             if i == 0:
-                a.set_title(f"{name}: N = {n}" +
-                            (" (at least)" if summary["per_shape"][name]["at_least"] else ""))
+                a.set_title(f"{name}: N = {n if n else 'not found'}")
     fig.suptitle(f"{summary['board']} {summary['compute_target']} {summary['quantization']} "
                  f"{summary['backend']} — N = {summary['n_opt']}")
     fig.tight_layout()
@@ -249,4 +271,7 @@ def find_n(cfg, source: str | None = None) -> tuple[int, Path]:
             f"quantization={cfg.quantization.name} backend={cfg.backend.name}: eseguire prima "
             f"`stage=probe` con questi valori")
     _, s, p = max(found, key=lambda t: t[0])       # il piu' recente
+    if not s.get("n_opt"):
+        raise ValueError(f"il probe {p.name} non e' concluso (nessun N passa): rifallo con "
+                         f"piu' repeats o un range di canali piu' ampio")
     return int(s["n_opt"]), p
