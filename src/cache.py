@@ -10,6 +10,15 @@ Tre chiavi distinte, con dipendenze deliberatamente diverse:
   gia' compilati.
 * `cell_key` identifica la singola misura e include tutti gli assi.
 
+Con una strategia di compressione (`strategy.method: pit`) la catena si allunga:
+
+* `search_key` = training_key + gruppo `strategy` + versione di yolopit + risoluzione dei
+  costi. Niente hardware: la stessa ricerca vale per ogni board.
+* `finetune_key` = search_key + gruppo `finetune`.
+* `weights_key` e' la chiave dei pesi che arrivano all'export: il training_key per la
+  baseline, il finetune_key per le strategie. Con `strategy=baseline` nessuna chiave cambia
+  rispetto a prima, quindi le cache e i risultati esistenti restano validi.
+
 Questo modulo non conosce i backend: riceve il config e produce stringhe.
 """
 
@@ -104,6 +113,55 @@ def training_key(cfg: DictConfig) -> str:
     return _sha(payload)[:8]
 
 
+def is_baseline(cfg: DictConfig) -> bool:
+    """Senza gruppo `strategy` (config vecchie) o con method != pit: solo Ultralytics."""
+    strategy = cfg.get("strategy")
+    return strategy is None or strategy.get("method", "ultralytics") != "pit"
+
+
+def strategy_name(cfg: DictConfig) -> str:
+    strategy = cfg.get("strategy")
+    return "baseline" if strategy is None else str(strategy.name)
+
+
+def yolopit_version() -> str | None:
+    """Versione installata di yolopit, None se non c'e' (basta per la baseline)."""
+    from importlib.metadata import PackageNotFoundError, version
+
+    try:
+        return version("yolopit")
+    except PackageNotFoundError:
+        return None
+
+
+def search_key(cfg: DictConfig) -> str:
+    """training_key + strategia + yolopit + risoluzione dei costi. Niente hardware."""
+    if is_baseline(cfg):
+        raise ValueError("search_key non esiste per strategy=baseline")
+    payload = {
+        "training_key": training_key(cfg),
+        "strategy": _group(cfg, "strategy"),
+        "yolopit": yolopit_version(),
+        "cost_imgsz": int(cfg.model.imgsz),
+    }
+    return _sha(payload)[:8]
+
+
+def finetune_key(cfg: DictConfig) -> str:
+    return _sha({"search_key": search_key(cfg), "finetune": _group(cfg, "finetune")})[:8]
+
+
+def weights_key(cfg: DictConfig) -> str:
+    """Chiave dei pesi che vanno all'export: training_key per la baseline."""
+    return training_key(cfg) if is_baseline(cfg) else finetune_key(cfg)
+
+
+def model_label(model: str, strategy: str | None) -> str:
+    """Nome del modello negli export: `yolo26n` per la baseline, `yolo26n-pit_duccio` per le
+    strategie. Sta qui perche' `tools.artifacts prune` lo ricostruisce dai risultati."""
+    return model if strategy in (None, "baseline") else f"{model}-{strategy}"
+
+
 def compose_export_key(model: str, tkey: str, quantization: str, backend: str,
                        arch: str, sdk_version: str | None = None) -> str:
     """Composizione dell'export_key da parti gia' note.
@@ -126,8 +184,8 @@ def export_key(cfg: DictConfig) -> str:
     if cfg.backend.name == "axelera":
         sdk = cfg.backend.build.sdk_version
     return compose_export_key(
-        cfg.model.name, training_key(cfg), cfg.quantization.name,
-        cfg.backend.name, cfg.hardware.arch, sdk,
+        model_label(cfg.model.name, strategy_name(cfg)), weights_key(cfg),
+        cfg.quantization.name, cfg.backend.name, cfg.hardware.arch, sdk,
     )
 
 
@@ -138,6 +196,10 @@ def cell_key(cfg: DictConfig) -> str:
     # cella verrebbe saltata come gia' completata pur misurando un modello
     # diverso. Il training_key porta dentro l'hash dei dati.
     payload["training_key"] = training_key(cfg)
+    if not is_baseline(cfg):
+        # solo per le strategie: con la baseline la chiave resta quella di prima
+        payload["weights_key"] = weights_key(cfg)
+        payload["strategy"] = _group(cfg, "strategy")
     return _sha(payload)[:12]
 
 
@@ -152,6 +214,40 @@ def weights_dir(cfg: DictConfig) -> Path:
         / "weights"
         / f"{training_slug(cfg)}_{training_key(cfg)}"
     )
+
+
+def search_dir(cfg: DictConfig) -> Path:
+    return (Path(cfg.artifacts_dir) / "search"
+            / f"{cfg.model.name}_{cfg.dataset.name}_{strategy_name(cfg)}_{search_key(cfg)}")
+
+
+def finetune_dir(cfg: DictConfig) -> Path:
+    return (Path(cfg.artifacts_dir) / "finetune"
+            / f"{cfg.model.name}_{cfg.dataset.name}_{strategy_name(cfg)}_{finetune_key(cfg)}")
+
+
+def find_by_key(artifacts_dir: str | Path, kind: str, field: str, key: str) -> Path | None:
+    """Cartella di artifacts/<kind>/ il cui meta.json ha <field> == key."""
+    root = Path(artifacts_dir) / kind
+    if not root.is_dir():
+        return None
+    for d in sorted(root.iterdir()):
+        meta = read_json(d / "meta.json")
+        if meta and meta.get(field) == key:
+            return d
+    return None
+
+
+def final_weights(cfg: DictConfig) -> tuple[Path | None, str]:
+    """(pesi che vanno all'export, chiave). Baseline: best.pt del training; strategie:
+    best.pt del fine-tuning."""
+    if is_baseline(cfg):
+        tkey = training_key(cfg)
+        d = find_weights(cfg.artifacts_dir, tkey)
+        return (d / "best.pt" if d else None), tkey
+    fkey = finetune_key(cfg)
+    d = find_by_key(cfg.artifacts_dir, "finetune", "finetune_key", fkey)
+    return (d / "best.pt" if d else None), fkey
 
 
 def export_dir(cfg: DictConfig) -> Path:

@@ -1,0 +1,30 @@
+# Riferimento dei campi di conf/finetune/<nome>.yaml
+#
+# Fine-tuning del modello potato dalla ricerca (PrunedTrainer di yolopit). Usato solo dalle
+# strategie con method: pit; la baseline lo ignora e il gruppo non entra nelle sue chiavi.
+# I nomi coincidono con gli argomenti di model.train() di Ultralytics (vedi train.yaml): puoi
+# aggiungere qualsiasi argomento accettato da Ultralytics.
+#
+# Quello che NON va messo qui: `data` (arriva da dataset.yaml), `project` e `name` (li decide
+# la cache). `imgsz`, se manca, e' train.imgsz.
+#
+# Ogni campo entra nella chiave del fine-tuning (finetune_key).
+
+epochs: 50
+batch: 16
+optimizer: SGD
+  # yolopit usa SGD di default: il modello parte gia' allenato.
+lr0: 0.001
+lrf: 0.01
+momentum: 0.937
+weight_decay: 0.0005
+warmup_epochs: 0
+patience: 20
+seed: 42
+mosaic: 1.0
+mixup: 0.0
+hsv_h: 0.015
+hsv_s: 0.7
+hsv_v: 0.4
+imgsz: 640
+  # Facoltativo. Se manca, train.imgsz.

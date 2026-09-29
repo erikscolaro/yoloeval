@@ -1,0 +1,29 @@
+# Ricerca PIT (yolopit) con il termine di costo classico: si pota finche' lambda pesa piu'
+# della perdita di accuratezza. Poi fine-tuning (gruppo finetune/).
+name: pit_standard
+method: pit
+
+# Argomenti di PITYOLO: quelli di model.train() di Ultralytics piu' i gruppi pit, nas,
+# regularizer di yolopit. `data` arriva da dataset.yaml; imgsz, se manca, da train.imgsz.
+search:
+  epochs: 30
+  batch: 16
+  optimizer: SGD
+  lr0: 0.001
+  lrf: 0.01
+  warmup_epochs: 0
+  seed: 42
+  pit:
+    n: 16                 # canali potati a blocchi di N
+    remainder: true
+    warmup_epochs: 0
+    ema: false
+  nas:
+    optimizer: AdamW
+    lr0: 0.01
+    lrf: 1.0
+    cos_lr: false
+    weight_decay: 0.0
+  regularizer:
+    mode: standard
+    lambda: {ops: 1.0}

@@ -25,7 +25,8 @@ log = logging.getLogger("yolo-bench")
 
 #: flag dichiarati in conf/config.yaml con un default
 RUN_FLAGS = (
-    "dry_run", "force", "retry_failed", "force_retrain", "force_reexport",
+    "dry_run", "force", "retry_failed", "force_retrain", "force_search", "force_finetune",
+    "force_reexport",
     "allow_reboot", "skip_invalid", "continue_on_error",
 )
 

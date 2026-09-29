@@ -4,8 +4,10 @@
 # alcuni stadi, come indicato.
 
 name: benchmark
-  # OBBLIGATORIO. Valori: train | export | benchmark | provision
+  # OBBLIGATORIO. Valori: train | search | finetune | export | benchmark | provision
   #   train     -> allena e mette i pesi in artifacts/weights/
+  #   search    -> solo strategie pit: ricerca PIT, modello potato in artifacts/search/
+  #   finetune  -> solo strategie pit: fine-tuning del potato in artifacts/finetune/
   #   export    -> esporta (e quantizza) in artifacts/exports/
   #   benchmark -> misura, e scrive un JSON per cella in results/
   #   provision -> prepara la board e verifica che sia usabile

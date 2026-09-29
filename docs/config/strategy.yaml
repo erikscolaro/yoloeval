@@ -1,0 +1,65 @@
+# Riferimento dei campi di conf/strategy/<nome>.yaml
+#
+# La strategia decide come si arriva ai pesi che vanno all'export:
+#   baseline -> il modello di stage=train, nient'altro (solo Ultralytics)
+#   pit      -> stage=search (ricerca PIT con yolopit) e stage=finetune sul modello potato
+# E' un asse della matrice: `-m strategy=baseline,pit_duccio` confronta le due.
+#
+# Con method: pit il gruppo entra nella chiave della ricerca (search_key) insieme al
+# training_key, alla versione di yolopit e a model.imgsz: cambiare un campo vuol dire una
+# ricerca nuova. Con la baseline non entra in nessuna chiave.
+
+name: pit_duccio
+  # OBBLIGATORIO. Stringa. Finisce nei risultati (axes.strategy) e nel nome degli export
+  # (yolo26n-pit_duccio_...).
+method: pit
+  # OBBLIGATORIO. ultralytics | pit
+
+search:
+  # Solo method: pit. Argomenti di PITYOLO di yolopit: quelli di model.train() di Ultralytics
+  # piu' i gruppi pit, nas, regularizer. Non mettere `data` (arriva da dataset.yaml), `project`
+  # e `name` (li decide la cache). `imgsz`, se manca, e' train.imgsz. Le MAC e i target sono
+  # calcolati a model.imgsz (la risoluzione di deploy).
+  epochs: 30
+  batch: 16
+  optimizer: SGD
+    # Pesi. Qualsiasi optimizer di Ultralytics, anche auto: le maschere hanno il loro.
+  lr0: 0.001
+  lrf: 0.01
+  warmup_epochs: 0
+    # Il modello di partenza e' gia' allenato: warmup sconsigliato (yolopit avvisa).
+  seed: 42
+  pit:
+    # Spazio di ricerca.
+    n: 16
+      # Intero. Canali potati a blocchi di N: sceglilo sulla larghezza SIMD del target.
+    remainder: true
+      # true | false. Con C non multiplo di N tiene un blocco da C % N, potato per primo.
+    warmup_epochs: 0
+      # Epoche con le maschere ferme prima della ricerca.
+    ema: false
+      # true | false. EMA dei pesi durante la ricerca (spenta: si valida il modello corrente).
+    trace_imgsz: 640
+      # Facoltativo. Risoluzione dei costi; se manca, model.imgsz.
+  nas:
+    # Optimizer e scheduler delle maschere, separati da quelli dei pesi.
+    optimizer: AdamW
+      # AdamW | Adam | SGD
+    lr0: 0.01
+    lrf: 1.0
+      # lr finale = lr0 * lrf; 1.0 -> costante.
+    cos_lr: false
+    weight_decay: 0.0
+  regularizer:
+    # Il termine di costo nella loss. Costi del modello INTERO: ops = MAC, params.
+    mode: duccio
+      # standard | duccio
+    lambda:
+      # Solo mode: standard. Peso di ogni costo (come frazione del valore iniziale).
+      ops: 1.0
+      params: 0.0
+    target:
+      # Solo mode: duccio. Budget per costo, assoluto (1.2G, 800M, 2e6) o in % del modello
+      # di partenza. Sotto il minimo raggiungibile la ricerca si ferma con un errore.
+      ops: 50%
+      params: 1.5M

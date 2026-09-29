@@ -24,7 +24,8 @@ from pathlib import Path
 from omegaconf import read_write
 
 from ..backends import get_backend
-from ..cache import cell_key, export_key, find_export, locate_artifact, training_key
+from ..cache import (cell_key, export_key, find_export, locate_artifact, training_key,
+                     weights_key)
 from ..env import collect_versions
 from ..errors import BenchmarkFailed, MissingExport
 from ..jsonio import atomic_write_json, atomic_write_text, read_json
@@ -127,7 +128,7 @@ def run_cell(cfg, cid: str, dest: Path) -> Path:
     occupato la macchina sparirebbe dalle machine hours.
     """
     timer = PhaseTimer(device=cfg.hardware.board)
-    rec = base_record(cfg, cid, training_key=training_key(cfg))
+    rec = base_record(cfg, cid, training_key=training_key(cfg), weights_key=weights_key(cfg))
     try:
         valid, reason = is_valid(cfg)
         if not valid:
