@@ -2,8 +2,11 @@
 #   sudo apt install pandoc
 
 # core
-ultralytics>=8.3
-torch>=2.8,<2.13
+# torch, torchvision, ultralytics e numpy: le stesse versioni esatte di yolopit (che modifica
+# parti interne di Ultralytics e PLiNIO). Sotto i limiti dell'SDK Axelera: torch<2.13, numpy<2.3.
+ultralytics==8.4.165
+torch==2.12.1
+torchvision==0.27.1
 onnx>=1.16
 onnxsim
 onnxconverter-common        # cast fp16 sul grafo ONNX
@@ -18,7 +21,7 @@ fabric>=3.2
 # dati e analisi
 pandas>=2.2
 pyarrow>=16
-numpy<2.3
+numpy==2.2.6
 matplotlib>=3.8
 seaborn
 tabulate                    # tabelle markdown nel report
@@ -26,6 +29,10 @@ tabulate                    # tabelle markdown nel report
 # report
 markdown
 jinja2
+
+# ricerca PIT e fine-tuning dei modelli potati (porta con se' PLiNIO a un commit fisso).
+# Commit invece del tag v0.1.0: i tag non si pubblicano da questa sessione.
+yolopit @ git+https://github.com/erikscolaro/yolopit.git@707f39062d0d822725d221e11817b531f65c3c2f
 
 # test
 pytest>=8

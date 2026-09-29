@@ -1763,9 +1763,10 @@ riuscito, non indovinate.
 ### 14.1 `scripts/requirements/x86_64.txt`
 
 ```
-# core
-ultralytics>=8.3
-torch>=2.8,<2.13
+# core (torch, torchvision, ultralytics, numpy: stesse versioni esatte di yolopit)
+ultralytics==8.4.165
+torch==2.12.1
+torchvision==0.27.1
 onnx>=1.16
 onnxsim
 onnxruntime-gpu          # CPU-only: onnxruntime
@@ -1778,13 +1779,16 @@ fabric>=3.2
 # dati e analisi
 pandas>=2.2
 pyarrow>=16
-numpy<2.3
+numpy==2.2.6
 matplotlib>=3.8
 seaborn
 
 # report
 markdown
 jinja2
+
+# ricerca PIT e fine-tuning (porta con se' PLiNIO a un commit fisso)
+yolopit @ git+https://github.com/erikscolaro/yolopit.git@<commit o tag>
 
 # opzionali
 hydra-joblib-launcher
