@@ -63,6 +63,9 @@ def test_nessun_n_se_tutto_rumore():
 def test_n_globale_e_il_massimo_delle_forme_concluse():
     assert analysis.global_n({"a": {"n_opt": 16}, "b": {"n_opt": 8},
                               "c": {"n_opt": None}}) == 16
+    # le forme informative (es. i lineari) non entrano nell'N globale
+    assert analysis.global_n({"conv": {"n_opt": 16, "in_global": True},
+                              "linear": {"n_opt": 64, "in_global": False}}) == 16
     assert analysis.global_n({"a": {"n_opt": None}}) is None
 
 
@@ -83,6 +86,14 @@ def test_rete_dummy_e_costi(tmp_path):
         sess = ort.InferenceSession(str(p), providers=["CPUExecutionProvider"])
         out = sess.run(None, {"input": np.zeros((1, 12, 8, 8), np.float32)})[0]
         assert out.shape == (1, 12, 8, 8)
+    lin = dummy.Shape(kind="linear", hw=10, layers=2)
+    assert lin.name == "linear@10x2"
+    assert dummy.costs(lin, 12) == {"macs": 2 * 12 * 13 * 10, "params": 2 * 12 * 13}
+    for precision in ("fp32", "fp16", "int8"):
+        sess = ort.InferenceSession(str(dummy.artifact(lin, 12, precision, tmp_path)),
+                                    providers=["CPUExecutionProvider"])
+        out = sess.run(None, {"input": np.zeros((1, 10, 12), np.float32)})[0]
+        assert out.shape == (1, 10, 12)
     dw = dummy.Shape(kernel=3, hw=8, layers=1, depthwise=True)
     assert onnx.load(str(dummy.artifact(dw, 12, "fp32", tmp_path))).graph.node[0] \
         .attribute[0].i in (12, 1)

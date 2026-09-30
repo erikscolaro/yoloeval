@@ -23,6 +23,8 @@ sweep:
   window: 32
   max_violations: 0.2     # frazione di multipli non allineati tollerata (misure sporche)
   seed: 0
-  shapes:                 # forme dei layer delle reti dummy (N per forma, poi il minimo)
-    - {kernel: 3, hw: 40, depthwise: false, layers: 8}
-    - {kernel: 1, hw: 80, depthwise: false, layers: 8}
+  shapes:                 # forme dei layer delle reti dummy: N per forma; l'N globale
+                          #   viene solo da quelle con in_global: true (qui la conv 3x3)
+    - {kind: conv, kernel: 3, hw: 40, depthwise: false, layers: 8, in_global: true}
+    - {kind: conv, kernel: 1, hw: 80, depthwise: false, layers: 8, in_global: false}
+    - {kind: linear, hw: 400, layers: 8, in_global: false}   # C = neuroni, 400 righe

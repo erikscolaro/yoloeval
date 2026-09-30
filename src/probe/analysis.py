@@ -72,7 +72,9 @@ def best_n(lat: dict, macs: dict, tol: float, max_violations: float = 0.2,
 
 
 def global_n(per_shape: dict) -> int | None:
-    """N unico per la rete: il PIU' GRANDE fra le forme concluse, cosi' i multipli sono
-    allineati per tutte (i multipli di 16 lo sono anche di 8). None se nessuna e' conclusa."""
-    ns = [v["n_opt"] for v in per_shape.values() if v.get("n_opt")]
+    """N unico per la rete: il PIU' GRANDE fra le forme concluse che contano per l'N globale
+    (`in_global`), cosi' i multipli sono allineati per tutte (i multipli di 16 lo sono anche
+    di 8). Le forme informative (es. i lineari) restano solo nel summary. None se nessuna
+    forma globale e' conclusa."""
+    ns = [v["n_opt"] for v in per_shape.values() if v.get("n_opt") and v.get("in_global", True)]
     return max(ns) if ns else None

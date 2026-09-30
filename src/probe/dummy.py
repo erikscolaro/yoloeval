@@ -1,4 +1,6 @@
-"""Reti dummy in ONNX per il probe: L blocchi conv + SiLU + residual, tutti a C canali.
+"""Reti dummy in ONNX per il probe: L blocchi (conv o lineare) + SiLU + residual, a C canali.
+
+Per i layer lineari C e' il numero di neuroni: input [1, righe, C], pesi [C, C].
 
 Una catena e non una conv isolata: con canali non allineati il costo vero spesso e' nelle
 conversioni di layout FRA un layer e l'altro, che una conv da sola non mostra. Il grafo si
@@ -22,18 +24,30 @@ class Shape:
     """Forma dei layer della rete dummy."""
 
     kernel: int = 3
-    hw: int = 40                 # lato della feature map (40 = P4 di YOLO a 640)
+    hw: int = 40                 # conv: lato della feature map (40 = P4 di YOLO a 640);
+                                 # linear: righe dell'input (token o batch)
     depthwise: bool = False
     layers: int = 8
+    kind: str = "conv"           # conv | linear
+    in_global: bool = True       # conta per l'N globale (false: solo informativa)
 
     @property
     def name(self) -> str:
+        if self.kind == "linear":
+            return f"linear@{self.hw}x{self.layers}"
         kind = "dw" if self.depthwise else "conv"
         return f"{kind}{self.kernel}x{self.kernel}@{self.hw}x{self.layers}"
+
+    def input_dims(self, c: int) -> list[int]:
+        return [1, self.hw, c] if self.kind == "linear" else [1, c, self.hw, self.hw]
 
 
 def costs(shape: Shape, c: int) -> dict:
     """MAC e parametri della rete dummy (stessa formula di PLiNIO, bias compreso)."""
+    if shape.kind == "linear":
+        per_out = c + 1
+        return {"macs": int(shape.layers * c * per_out * shape.hw),
+                "params": int(shape.layers * c * per_out)}
     k2 = shape.kernel * shape.kernel
     per_out = (k2 if shape.depthwise else c * k2) + 1
     macs = shape.layers * c * per_out * shape.hw * shape.hw
@@ -42,11 +56,15 @@ def costs(shape: Shape, c: int) -> dict:
 
 
 def build(shape: Shape, c: int, seed: int = 0):
-    """ModelProto fp32 con input [1, C, hw, hw]."""
+    """ModelProto fp32 con input [1, C, hw, hw] (conv) o [1, hw, C] (linear)."""
     import onnx
     from onnx import TensorProto, helper, numpy_helper
 
     rng = np.random.default_rng(seed)
+    if shape.kind == "linear":
+        return _build_linear(shape, c, rng)
+    if shape.kind != "conv":
+        raise ValueError(f"shape.kind deve essere conv o linear, non {shape.kind!r}")
     groups = c if shape.depthwise else 1
     fan_in = (1 if shape.depthwise else c) * shape.kernel * shape.kernel
     nodes, inits = [], []
@@ -70,6 +88,36 @@ def build(shape: Shape, c: int, seed: int = 0):
     graph = helper.make_graph(
         nodes, f"probe_{shape.name}_c{c}", [
             helper.make_tensor_value_info("input", TensorProto.FLOAT, dims)],
+        [helper.make_tensor_value_info("output", TensorProto.FLOAT, dims)], inits)
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", OPSET)])
+    model.ir_version = 8
+    onnx.checker.check_model(model)
+    return model
+
+
+def _build_linear(shape: Shape, c: int, rng):
+    import onnx
+    from onnx import TensorProto, helper, numpy_helper
+
+    nodes, inits = [], []
+    x = "input"
+    for i in range(shape.layers):
+        w = rng.normal(0, 1 / np.sqrt(c), (c, c))
+        inits += [numpy_helper.from_array(w.astype(np.float32), f"w{i}"),
+                  numpy_helper.from_array(np.zeros(c, np.float32), f"b{i}")]
+        nodes += [
+            helper.make_node("MatMul", [x, f"w{i}"], [f"m{i}"], name=f"matmul{i}"),
+            helper.make_node("Add", [f"m{i}", f"b{i}"], [f"c{i}"], name=f"bias{i}"),
+            helper.make_node("Sigmoid", [f"c{i}"], [f"s{i}"], name=f"sigmoid{i}"),
+            helper.make_node("Mul", [f"c{i}", f"s{i}"], [f"a{i}"], name=f"silu{i}"),
+            helper.make_node("Add", [f"a{i}", x], [f"y{i}"], name=f"residual{i}"),
+        ]
+        x = f"y{i}"
+    nodes.append(helper.make_node("Identity", [x], ["output"], name="output"))
+    dims = shape.input_dims(c)
+    graph = helper.make_graph(
+        nodes, f"probe_{shape.name}_c{c}",
+        [helper.make_tensor_value_info("input", TensorProto.FLOAT, dims)],
         [helper.make_tensor_value_info("output", TensorProto.FLOAT, dims)], inits)
     model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", OPSET)])
     model.ir_version = 8
@@ -120,7 +168,7 @@ def artifact(shape: Shape, c: int, precision: str, out_dir: Path, int8_args: dic
         fp32 = path.with_suffix(".fp32.onnx")
         onnx.save(model, str(fp32))
         quantize_static(
-            str(fp32), str(path), _RandomReader([1, c, shape.hw, shape.hw]),
+            str(fp32), str(path), _RandomReader(shape.input_dims(c)),
             quant_format=QuantFormat.QDQ if str(args.get("quant_format", "QDQ")).upper()
             == "QDQ" else QuantFormat.QOperator,
             per_channel=bool(args.get("per_channel", True)),

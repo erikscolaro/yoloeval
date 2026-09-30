@@ -38,6 +38,10 @@ Branch `pit-integration`. Aggiornato a ogni commit: se il lavoro si interrompe, 
 - Prova reale sulla CPU di questa sessione (VM condivisa, ORT Python, 1 thread, fp32):
   conv3x3 -> N=16 (coerente con N=16 trovato a mano sul modello vero), conv1x1 -> non
   concluso (rumore 17%), N globale 16.
+- Probe sui layer lineari (C = neuroni): forma `kind: linear`, di default solo informativa
+  (`in_global: false`); l'N globale viene dalla conv 3x3. Prova sulla stessa CPU: conv3x3
+  N=16; linear N=1 ma al limite (20% dei C sotto l'inviluppo, 11% con N=8, 0% con N=16): i
+  lineari sono molto meno sensibili all'allineamento.
 - Probe: supporta solo i backend che misurano un ONNX portabile (onnxruntime, onnxruntime_py).
   TensorRT/OpenVINO/Axelera compilano sulla board: da aggiungere. I compute target `metis`
   vengono saltati.

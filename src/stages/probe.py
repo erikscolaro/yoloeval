@@ -59,8 +59,10 @@ def probe_id(cfg) -> str:
 
 
 def shapes(cfg) -> list[dummy.Shape]:
-    return [dummy.Shape(kernel=int(s.kernel), hw=int(s.hw), depthwise=bool(s.depthwise),
-                        layers=int(s.layers)) for s in cfg.stage.sweep.shapes]
+    return [dummy.Shape(kernel=int(s.get("kernel", 1)), hw=int(s.hw),
+                        depthwise=bool(s.get("depthwise", False)), layers=int(s.layers),
+                        kind=str(s.get("kind", "conv")), in_global=bool(s.get("in_global", True)))
+            for s in cfg.stage.sweep.shapes]
 
 
 def run_probe(cfg) -> list[Path]:
@@ -194,12 +196,14 @@ def summarize(records: list[dict], cfg, pid: str) -> dict:
     tol = max(float(sw.tolerance), noise)
     given = sw.get("n_candidates")
     per_shape = {}
+    in_global = {sh.name: sh.in_global for sh in shapes(cfg)}
     for name in dict.fromkeys(r["shape"] for r in records):
         pts = {c: v for (sh, c), v in lat.items() if sh == name}
         macs = {r["c"]: r["macs"] for r in records if r["shape"] == name}
         res = analysis.best_n(pts, macs, tol, float(sw.get("max_violations", 0.2)),
                               int(sw.get("window", 32)), list(given) if given else None)
         res["tested"] = {str(k): v for k, v in res["tested"].items()}
+        res["in_global"] = in_global.get(name, True)
         per_shape[name] = res
     n_opt = analysis.global_n(per_shape)
     if n_opt is None:
@@ -235,11 +239,13 @@ def plot(records: list[dict], summary: dict, path: Path) -> Path:
             a.plot(cs, series[i], marker=".", linewidth=1)
             for m in (range(-(-cs[0] // n) * n, cs[-1] + 1, n) if n else []):
                 a.axvline(m, color="grey", alpha=.25, linewidth=.8)
-            a.set_xlabel("channels C")
+            a.set_xlabel("neurons C" if name.startswith("linear") else "channels C")
             a.set_ylabel(label)
             a.grid(alpha=.3)
             if i == 0:
-                a.set_title(f"{name}: N = {n if n else 'not found'}")
+                a.set_title(f"{name}: N = {n if n else 'not found'}" + (
+                    "" if summary["per_shape"][name].get("in_global", True)
+                    else " (informative)"))
     fig.suptitle(f"{summary['board']} {summary['compute_target']} {summary['quantization']} "
                  f"{summary['backend']} — N = {summary['n_opt']}")
     fig.tight_layout()
