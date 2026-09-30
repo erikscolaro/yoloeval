@@ -4,13 +4,13 @@ name: aod4
   # OBBLIGATORIO. Compare nei nomi delle cartelle degli artefatti e decide
   # dove il dataset viene copiato sulla board: <workdir>/data/<name>/
 
-local_path: /data/aod4
+local_path: ${project_root}/data/aod4
   # OBBLIGATORIO. Path assoluto sulla WORKSTATION, alla radice del dataset.
   # Da qui vengono: l'hash dei dati (lista ordinata dei file con le loro
   # dimensioni, salvata in .dataset_hash e RICALCOLATA a ogni chiamata) e
   # l'rsync verso le board.
 
-yaml: /data/aod4/aod4.yaml
+yaml: ${dataset.local_path}/dataset.yaml
   # OBBLIGATORIO. Path assoluto al data yaml in formato Ultralytics, quello
   # con path/train/val/names. Viene passato a model.train() e al calcolo
   # della mAP. Sulla board ne viene riscritta una copia con `path` corretto:

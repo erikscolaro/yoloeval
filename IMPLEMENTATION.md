@@ -257,8 +257,8 @@ backend_args:
 
 ```yaml
 name: aod4
-local_path: /data/aod4                # path sulla workstation
-yaml: /data/aod4/aod4.yaml            # data yaml in formato Ultralytics
+local_path: ${project_root}/data/aod4       # path sulla workstation (data/ è gitignorata)
+yaml: ${dataset.local_path}/dataset.yaml    # data yaml in formato Ultralytics
 nc: 4
 names: [airplane, bird, drone, helicopter]
 ```
