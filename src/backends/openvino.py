@@ -1,9 +1,17 @@
 """OpenVINO — export IR sulla workstation, misura con `benchmark_app`.
 
+L'IR e' portabile come l'ONNX: si esporta sulla workstation e si copia sulla
+board. Su ARM (Pi 5, Jetson) gira il plugin CPU per aarch64, molto meno
+ottimizzato di quello x86; l'INT8 in particolare puo' ricadere su kernel a
+precisione piu' alta, quindi lo speedup va misurato, non assunto.
+
 `benchmark_app` riporta di default mediana, media, minimo e massimo: i
 percentili alti non ci sono, e restano `None` invece di essere ricostruiti da
 media e deviazione standard. Il perimetro e' allineato agli altri backend con
-`-hint latency` e `-b 1`.
+`-b 1` e uno stream solo (`-nstreams 1`), che e' quello che farebbe
+`-hint latency`: l'hint va pero' messo a `none`, perche' benchmark_app rifiuta
+`-nthreads` se c'e' un hint, e senza `-nthreads` il numero di core del compute
+target non arriverebbe a OpenVINO.
 """
 
 from __future__ import annotations
@@ -61,7 +69,13 @@ class OpenVINOBackend(Backend):
         if Path(artifact).is_dir():
             xml = sorted(Path(artifact).glob("*.xml"))
             model = xml[0] if xml else artifact
-        template = " ".join(str(bench.cmd).split())
+        elif Path(artifact).suffix != ".xml":
+            # Directory sulla board, non visibile da qui: l'IR ne contiene
+            # uno solo, e il glob lo risolve la shell remota.
+            model = f"{artifact}/*.xml"
+        # benchmark_app e' un entry point del pacchetto openvino: sta nel
+        # bin/ del venv.
+        template = self.with_venv_tool(cfg, " ".join(str(bench.cmd).split()))
         return template.format(
             model=model,
             device=DEVICE_BY_COMPUTE.get(ct.get("device"), "CPU"),

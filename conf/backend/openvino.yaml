@@ -2,7 +2,7 @@ name: openvino
 export_format: openvino
 supports_gpu: false
 requires:
-  arch: [x86_64]
+  arch: [x86_64, aarch64]     # su aarch64: plugin CPU ARM (Pi 5, Jetson)
 
 build:
   on_target: false
@@ -15,7 +15,8 @@ benchmark:
       -m {model}
       -d {device}
       -b 1
-      -hint latency
+      -hint none
+      -nstreams 1
       -niter {iters}
       -nthreads {threads}
       -report_type no_counters

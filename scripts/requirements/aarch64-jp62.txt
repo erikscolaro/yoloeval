@@ -13,3 +13,4 @@ omegaconf>=2.3
 numpy<2.3
 pyyaml
 opencv-python-headless
+openvino                  # solo CPU (plugin ARM) + benchmark_app; wheel manylinux_2_35 = glibc di Ubuntu 22.04

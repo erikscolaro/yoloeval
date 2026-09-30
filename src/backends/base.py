@@ -13,11 +13,13 @@ from __future__ import annotations
 
 import logging
 import re
+import sys
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from pathlib import Path
 
 from ..errors import ParseError
+from ..remote.connection import is_remote
 
 log = logging.getLogger(__name__)
 
@@ -81,6 +83,25 @@ class Backend(ABC):
     @abstractmethod
     def build_cmd(self, cfg, artifact: Path) -> str:
         """Command line del tool nativo di misura, gia' sostituita."""
+
+    @staticmethod
+    def venv_bin(cfg) -> Path:
+        """bin/ del venv del tool, sulla board o in locale."""
+        if is_remote(cfg):
+            return Path(str(cfg.hardware.remote.python)).parent
+        return Path(sys.executable).parent
+
+    def with_venv_tool(self, cfg, template: str) -> str:
+        """Mette davanti al comando il path del tool nel bin/ del venv.
+
+        Via SSH (e in un kernel Jupyter non attivato) quel bin/ non e' nel
+        PATH. In locale solo se il file c'e': altrimenti decide il PATH.
+        """
+        tool = str(cfg.backend.benchmark.tool)
+        path = self.venv_bin(cfg) / tool
+        if template.startswith(tool + " ") and (is_remote(cfg) or path.exists()):
+            return f"{path}{template[len(tool):]}"
+        return template
 
     def prepare_input(self, conn, cfg) -> None:
         """Prepara l'input della misura dove verra' eseguita.
