@@ -74,21 +74,47 @@ def _figures(df, out_dir: Path) -> dict:
         made["latency_by_backend"] = _savefig(fig, figures_dir,
                                               "latency_by_backend")
 
-    # fronte di Pareto latenza / accuratezza
-    if {"lat_median_ms", "acc_map50"} <= set(ok.columns):
-        pts = ok.dropna(subset=["lat_median_ms", "acc_map50"])
+    # fronte di Pareto latenza / accuratezza, per entrambe le mAP
+    for metric, label, name in (("acc_map50", "mAP@50", "pareto"),
+                                ("acc_map50_95", "mAP@50-95", "pareto_map50_95")):
+        if not {"lat_median_ms", metric} <= set(ok.columns):
+            continue
+        pts = ok.dropna(subset=["lat_median_ms", metric])
+        if pts.empty:
+            continue
+        fig, ax = plt.subplots(figsize=(6, 4.5))
+        for key, grp in pts.groupby("backend"):
+            ax.scatter(grp["lat_median_ms"], grp[metric], label=key, s=28)
+        front = _pareto(pts, metric)
+        ax.plot(front["lat_median_ms"], front[metric], "k--", lw=1,
+                label="fronte di Pareto")
+        ax.set_xlabel("latenza mediana [ms]")
+        ax.set_ylabel(label)
+        ax.set_title(f"Latenza / {label}")
+        ax.legend(fontsize=8)
+        made[name] = _savefig(fig, figures_dir, name)
+
+    # mAP@50-95 per modello, backend e quantizzazione: quanto costa quantizzare.
+    # Per modello e backend, perche' la mediana fra yolo26n e yolo26m non
+    # significa niente; la mAP non dipende dal compute target, e le celle che
+    # differiscono solo per quello danno lo stesso valore.
+    if {"acc_map50_95", "model", "backend", "quantization"} <= set(ok.columns):
+        pts = ok.dropna(subset=["acc_map50_95"])
         if not pts.empty:
-            fig, ax = plt.subplots(figsize=(6, 4.5))
-            for key, grp in pts.groupby("backend"):
-                ax.scatter(grp["lat_median_ms"], grp["acc_map50"], label=key, s=28)
-            front = _pareto(pts)
-            ax.plot(front["lat_median_ms"], front["acc_map50"], "k--", lw=1,
-                    label="fronte di Pareto")
-            ax.set_xlabel("latenza mediana [ms]")
-            ax.set_ylabel("mAP@50")
-            ax.set_title("Latenza / accuratezza")
-            ax.legend(fontsize=8)
-            made["pareto"] = _savefig(fig, figures_dir, "pareto")
+            pivot = pts.pivot_table(
+                index=["model", "backend"], columns="quantization",
+                values="acc_map50_95", aggfunc="median",
+            )
+            pivot = pivot[[q for q in ("fp32", "fp16", "int8")
+                           if q in pivot.columns]]
+            pivot.index = [f"{m}\n{b}" for m, b in pivot.index]
+            fig, ax = plt.subplots(figsize=(max(7, 0.9 * len(pivot)), 4))
+            pivot.plot.bar(ax=ax, rot=0)
+            ax.set_ylabel("mAP@50-95")
+            ax.set_xlabel("")
+            ax.set_title("mAP@50-95 per modello, backend e quantizzazione")
+            made["map50_95_by_quantization"] = _savefig(
+                fig, figures_dir, "map50_95_by_quantization")
 
     # latenza vs ordine di esecuzione: se correla, il termico ha inquinato
     if {"order_index", "lat_median_ms"} <= set(ok.columns):
@@ -104,14 +130,14 @@ def _figures(df, out_dir: Path) -> dict:
     return made
 
 
-def _pareto(df):
+def _pareto(df, metric="acc_map50"):
     """Celle non dominate: piu' veloci a parita' di mAP, o piu' accurate."""
     pts = df.sort_values("lat_median_ms")
     best, rows = -1.0, []
     for _, row in pts.iterrows():
-        if row["acc_map50"] > best:
+        if row[metric] > best:
             rows.append(row)
-            best = row["acc_map50"]
+            best = row[metric]
     import pandas as pd
 
     return pd.DataFrame(rows)
@@ -131,7 +157,8 @@ def _tables(df, out_dir: Path) -> dict:
     ok = df[df["status"] == "ok"]
     cols = [c for c in ("model", "quantization", "backend", "board",
                         "freq_target", "compute_target", "lat_median_ms",
-                        "lat_p99_ms", "acc_map50", "energy_mean_power_w",
+                        "lat_p99_ms", "acc_map50", "acc_map50_95",
+                        "energy_mean_power_w",
                         "rt_throttled") if c in df.columns]
     dump("celle_ok", ok[cols])
 
@@ -145,7 +172,8 @@ def _tables(df, out_dir: Path) -> dict:
                  .rename("n").reset_index())
     if "val_status" in df.columns:
         vcols = [c for c in ("model", "quantization", "backend", "val_status",
-                             "val_max_abs_diff_vs_fp32", "val_map50_delta",
+                             "val_max_abs_diff_vs_fp32", "val_match_rate",
+                             "val_max_score_diff", "val_map50_delta",
                              "val_requested_e2e", "val_actual_e2e",
                              "val_e2e_fallback_reason") if c in df.columns]
         # Le celle saltate non hanno un artefatto: includerle riempirebbe la

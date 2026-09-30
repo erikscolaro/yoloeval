@@ -60,7 +60,15 @@ su {{ facts.fastest.backend }} / {{ facts.fastest.board }}
 
 ## 4. Latenza e accuratezza
 
-{% if figures.pareto %}![Fronte di Pareto]({{ figures.pareto }}){% endif %}
+{% if figures.pareto %}![Fronte di Pareto, mAP@50]({{ figures.pareto }}){% endif %}
+
+{% if figures.pareto_map50_95 %}![Fronte di Pareto, mAP@50-95]({{ figures.pareto_map50_95 }}){% endif %}
+
+{% if figures.map50_95_by_quantization %}![mAP@50-95 per modello, backend e quantizzazione]({{ figures.map50_95_by_quantization }})
+
+La mAP@50-95 media su soglie di IoU da 0.50 a 0.95: premia le box precise, e
+quindi e' la prima a scendere quando la quantizzazione sposta le coordinate.
+{% endif %}
 
 ## 5. Contesto termico
 
