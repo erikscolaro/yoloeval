@@ -56,6 +56,14 @@ def test_ort_perf_test():
     assert lat.iters == 200
 
 
+def test_ort_perf_test_total():
+    """Versioni recenti: `Average inference time cost total: ... ms`."""
+    lat = get_backend("onnxruntime").parse(read("ort_perf_test_total.txt"))
+    assert lat.mean_ms == pytest.approx(1.124051)
+    assert lat.median_ms == pytest.approx(1.06339)
+    assert lat.iters == 100
+
+
 def test_ort_senza_percentili_solleva():
     """Senza `-I` perf_test non stampa i percentili: meglio fallire."""
     with pytest.raises(ParseError):

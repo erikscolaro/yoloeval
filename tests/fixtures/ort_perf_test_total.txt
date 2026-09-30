@@ -1,0 +1,20 @@
+Setting intra_op_num_threads to 1
+Session creation time cost: 0.0110773 s
+First inference time cost: 1 ms
+Total inference time cost: 0.112405 s
+Total inference requests: 100
+Average inference time cost total: 1.124051 ms
+Total inference run time: 0.112508 s
+Number of inferences per second: 888.828 
+Avg CPU usage: 7 %
+Peak working set size: 31973376 bytes
+Avg CPU usage:7
+Peak working set size:31973376
+Runs:100
+Min Latency: 0.00101716 s
+Max Latency: 0.00146144 s
+P50 Latency: 0.00106339 s
+P90 Latency: 0.00134001 s
+P95 Latency: 0.00142539 s
+P99 Latency: 0.00146144 s
+P999 Latency: 0.00146144 s

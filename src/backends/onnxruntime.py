@@ -119,9 +119,10 @@ class OnnxRuntimeBackend(Backend):
         )
 
     def parse(self, stdout: str) -> LatencyResult:
-        """`onnxruntime_perf_test` riporta la media in ms e i percentili in s."""
+        """`onnxruntime_perf_test` riporta la media in ms e i percentili in s. Le versioni
+        recenti scrivono `Average inference time cost total:`, stessa media per inferenza."""
         mean = require(
-            search(r"Average inference time cost:\s*([\d.]+)\s*ms", stdout),
+            search(r"Average inference time cost(?: total)?:\s*([\d.]+)\s*ms", stdout),
             "Average inference time cost", stdout,
         )
 
