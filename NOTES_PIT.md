@@ -64,6 +64,16 @@ Branch `pit-integration`. Aggiornato a ogni commit: se il lavoro si interrompe, 
 - `yolopit` nei requisiti e' fissato al commit 64ed4e8 (0.2.0), non al tag: da qui i tag non si
   pubblicano.
 
+## Aggiunte del 30/09
+
+- Axelera: yolopit copiato sulla board e nel PYTHONPATH (vedi sopra).
+- Probe anche sui layer lineari (informativi), grafici con tacche ogni 4 canali.
+- Roofline: complessita' (MAC, byte) all'export, `stage=roofline` per i tetti,
+  `tools/roofline.py` per efficienza e confronto con la baseline.
+- Preset `probe_edge` / `roofline_edge` per le board lente; strategie `pit_n16`, `pit_n32`;
+  `hardware.peaks` (tetti da datasheet) documentato.
+- Notebook aggiornati (strategie, probe, roofline), README riscritto come guida d'uso.
+
 ## Punti aperti per Erik
 
 1. Merge di `pit-integration` nel branch principale di yoloeval: da fare quando hai
