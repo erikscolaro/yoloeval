@@ -55,12 +55,16 @@ def compare_with_reference(conn, cfg, artifact, ref, device: str | None = None) 
     import sys
 
     helper = _push_helper(conn, cfg, HELPER)
+    # riferimento potato (strategie pit): serve yolopit.runtime per caricare il .pt
+    from ..remote.sync import ensure_yolopit, pythonpath_prefix
+
+    pythonpath = pythonpath_prefix(ensure_yolopit(conn, cfg))
     python = (
         shlex.quote(sys.executable)
         if is_local_conn(conn)
         else (cfg.hardware.remote.get("python") or "python3")
     )
-    cmd = (
+    cmd = pythonpath + (
         f"{python} {shlex.quote(str(helper))} "
         f"--ref {shlex.quote(str(ref))} "
         f"--target {shlex.quote(str(artifact))} "

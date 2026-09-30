@@ -49,8 +49,14 @@ Branch `pit-integration`. Aggiornato a ogni commit: se il lavoro si interrompe, 
 - Con Ultralytics 8.4.165 il `yolo26n.pt` ufficiale si carica con `end2end=False`: l'export
   ONNX ha la testa one-to-many anche per la BASELINE (warning "motivo non fra quelli noti").
   Non dipende da yolopit; da capire se e' voluto.
-- Il backend Axelera esporta dal `.pt` DENTRO il container sulla board: per un modello potato
-  serve yolopit installato nel container (manca nei requisiti axelera-container.txt).
+- Axelera (risolto): per i modelli potati il pacchetto yolopit installato sulla workstation
+  viene copiato sulla board (`{workdir}/python/yolopit-<versione>-<hash>/`) e messo nel
+  PYTHONPATH del solo comando che carica il `.pt` (export nel container, confronto numerico).
+  Niente pip sulla board: i requisiti fissati di yolopit romperebbero torch/Ultralytics del
+  Voyager SDK. Prima dell'export si verifica che `import yolopit.runtime` funzioni nel
+  container, altrimenti errore chiaro. Da provare sulla board vera.
+- Preesistente, non legato a yolopit: il confronto numerico gira con il python dell'HOST della
+  board (`hardware.remote.python`), ma sul Pi i requisiti dell'host non hanno torch.
 - `yolopit` nei requisiti e' fissato al commit 64ed4e8 (0.2.0), non al tag: da qui i tag non si
   pubblicano.
 
@@ -59,6 +65,6 @@ Branch `pit-integration`. Aggiornato a ogni commit: se il lavoro si interrompe, 
 1. Merge di `pit-integration` nel branch principale di yoloeval: da fare quando hai
    sincronizzato le tue modifiche locali (non l'ho toccato).
 2. Tag `v0.2.0` di yolopit sul commit 64ed4e8 (da qui i tag non si pubblicano).
-3. Axelera: per i modelli potati serve yolopit nel container della board.
+3. Axelera: meccanismo pronto (copia di yolopit + PYTHONPATH), da provare sulla board vera.
 4. Probe: aggiungere TensorRT/OpenVINO (compilano sulla board); prova su RPi5 vera.
 5. DUCCIO su GPU e su AOD-4: provato solo su CPU e coco8.

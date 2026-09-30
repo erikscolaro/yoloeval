@@ -116,8 +116,11 @@ class AxeleraBackend(Backend):
         remote_dir = f"{cfg.hardware.remote.workdir}/exports/{dst.name}"
         conn.run(f"mkdir -p {shlex.quote(remote_dir)}", hide=True)
 
+        # modello potato: `yolopit.runtime` deve essere importabile per caricare il .pt
+        pythonpath = self._ensure_yolopit(conn, cfg)
+
         build = cfg.backend.build
-        cmd = (
+        cmd = pythonpath + (
             f"yolo export model={to_container_path(cfg, src)} format=axelera "
             f"imgsz={int(cfg.model.imgsz)} batch=1 "
             f"int8=True fraction={int(build.calib_fraction)} "
@@ -165,6 +168,26 @@ class AxeleraBackend(Backend):
             "sdk_version": str(build.sdk_version),
         })
         return Path(artifact)
+
+    def _ensure_yolopit(self, conn, cfg) -> str:
+        """Prefisso PYTHONPATH con yolopit per il container ("" per la baseline).
+
+        Verifica anche che `yolopit.runtime` si importi davvero con il torch e l'Ultralytics
+        del container: meglio un errore chiaro qui che un pickle illeggibile a meta' export.
+        """
+        from ..remote.sync import ensure_yolopit, pythonpath_prefix
+
+        host_dir = ensure_yolopit(conn, cfg)
+        if host_dir is None:
+            return ""
+        prefix = pythonpath_prefix(to_container_path(cfg, host_dir))
+        check = self._wrap(cfg, prefix + "python3 -c 'import yolopit.runtime'")
+        r = conn.run(check, hide=True, warn=True)
+        if r.failed:
+            raise ExportFailed(
+                "yolopit.runtime non si importa nel container Axelera (serve per caricare il "
+                "modello potato):\n" + (r.stderr or r.stdout or "")[-1500:])
+        return prefix
 
     def _require_device(self, conn, cfg) -> None:
         """`axdevice` prima di ogni sweep che coinvolga l'acceleratore.
