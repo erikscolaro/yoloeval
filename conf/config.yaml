@@ -3,13 +3,13 @@
 defaults:
   - stage: benchmark
   - model: yolo26n
-  - train: default
+  - train: short
   - dataset: aod4
   - quantization: fp32
   - backend: onnxruntime
   - hardware: wks4_rtx6000
   - eval: default
-  - logging: local
+  - logging: wandb
   - _self_
 
 freq_target: default            # chiave dentro hardware.freq

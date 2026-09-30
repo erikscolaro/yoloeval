@@ -3,7 +3,7 @@ name: benchmark
 # Attesa termica prima di ogni cella. Condizionale: se la board e' gia'
 # sotto soglia non aspetta.
 thermal:
-  threshold_c: 45
+  threshold_c: 100
   timeout_s: 300
   poll_s: 10
 

@@ -17,4 +17,8 @@ freq:
 compute:
   gpu: {device: cuda}
   cpu_1: {device: cpu, n_cores: 1}
+  cpu_2: {device: cpu, n_cores: 2}
+  cpu_4: {device: cpu, n_cores: 4}
+  cpu_8: {device: cpu, n_cores: 8}
+  cpu_16: {device: cpu, n_cores: 16}
   cpu_all: {device: cpu, n_cores: 24}
