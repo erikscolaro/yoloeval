@@ -76,6 +76,11 @@ source "$VENV/bin/activate"
 python -m pip install --upgrade pip wheel
 python -m pip install --no-cache-dir -r "$REQUIREMENTS"
 
+# 8. onnxruntime_perf_test, solo CPU: sul Pi non c'e' CUDA. La build dura
+#    qualche ora; se si interrompe, rilanciare riprende da dove era.
+sudo apt-get install -y git build-essential python3-venv
+ORT_VENV="$VENV" bash "$WORKDIR/tools/build_ort_perf_test.sh"
+
 sudo -n true 2>/dev/null || \
   say "ATTENZIONE: sudo senza password non configurato (serve per cpufreq)"
 

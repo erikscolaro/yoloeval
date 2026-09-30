@@ -81,6 +81,16 @@ else
   exit 1
 fi
 
+# 8. onnxruntime_perf_test, con provider CUDA. cuDNN e CUDA sono quelli di
+#    JetPack; 87 e' la compute capability di Orin. La build e' lunga (ore):
+#    se si interrompe, rilanciare riprende da dove era.
+sudo apt-get install -y git build-essential
+ORT_VENV="$VENV" \
+ORT_CUDA_HOME=/usr/local/cuda \
+ORT_CUDNN_HOME=/usr/lib/aarch64-linux-gnu \
+ORT_CUDA_ARCHS=87 \
+  bash "$WORKDIR/tools/build_ort_perf_test.sh"
+
 # sudo senza password per i soli comandi di tuning, altrimenti lo sweep si
 # blocca a ogni cambio di profilo.
 sudo -n nvpmodel -q >/dev/null 2>&1 || \

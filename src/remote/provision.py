@@ -10,6 +10,7 @@ requirements: se l'ambiente e' gia' presente e coerente, non fa nulla.
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import shlex
 import time
@@ -29,11 +30,19 @@ log = logging.getLogger(__name__)
 
 
 def env_hash(cfg) -> str:
-    """Hash del file dei requirements: cambia solo quando cambia l'ambiente."""
-    req = Path(cfg.project_root) / cfg.hardware.provision.requirements
-    if not req.exists():
-        raise ProvisionFailed(f"requirements non trovati: {req}")
-    return sha256_file(req)[:12]
+    """Hash di requirements e script: cambia solo quando cambia l'ambiente.
+
+    Lo script conta quanto i requirements: un passo nuovo (come la build di
+    onnxruntime_perf_test) su una board gia' provisionata non girerebbe mai.
+    """
+    root = Path(cfg.project_root)
+    parts = []
+    for rel in (cfg.hardware.provision.requirements, cfg.hardware.provision.script):
+        f = root / rel
+        if not f.exists():
+            raise ProvisionFailed(f"file di provisioning non trovato: {f}")
+        parts.append(sha256_file(f))
+    return hashlib.sha256("".join(parts).encode()).hexdigest()[:12]
 
 
 def ensure_env(conn, cfg, force: bool = False) -> bool:
