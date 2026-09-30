@@ -131,15 +131,8 @@ def _run_one(cfg, pid: str, summary_path: Path) -> Path:
                 ct = resolve_compute(cfg)
                 n_cores = _effective_cores(live, cfg, bc, ct)
                 for i, (rep, s, c) in enumerate(order):
-                    remote = sync_artifact(live, cfg, files[(s, c)], subdir="probe",
-                                           key=pid)
-                    cmd = _wrap_command(live, cfg, backend.build_cmd(cfg, Path(remote)),
-                                        ct, n_cores)
-                    r = live.run(cmd, hide=True, warn=True)
-                    if r.failed:
-                        raise RuntimeError(f"misura fallita ({s.name}, C={c}): "
-                                           f"{(r.stderr or r.stdout or '')[-1000:]}")
-                    lat = backend.parse(r.stdout)
+                    lat = measure_file(live, cfg, backend, ct, n_cores, files[(s, c)],
+                                       subdir="probe", key=pid, what=f"{s.name}, C={c}")
                     k = dummy.costs(s, c)
                     med = lat.median_ms or lat.mean_ms
                     records.append({
@@ -183,6 +176,18 @@ def point_latency(records: list[dict]) -> dict:
     for r in records:
         by.setdefault((r["shape"], r["c"]), []).append(r["median_ms"])
     return {k: median(v) for k, v in by.items()}, by
+
+
+def measure_file(live, cfg, backend, ct, n_cores, path: Path, subdir: str, key: str,
+                 what: str = ""):
+    """Copia un ONNX sulla board e lo misura con il tool del backend -> LatencyResult."""
+    remote = sync_artifact(live, cfg, path, subdir=subdir, key=key)
+    cmd = _wrap_command(live, cfg, backend.build_cmd(cfg, Path(remote)), ct, n_cores)
+    r = live.run(cmd, hide=True, warn=True)
+    if r.failed:
+        raise RuntimeError(f"misura fallita ({what or path.name}): "
+                           f"{(r.stderr or r.stdout or '')[-1000:]}")
+    return backend.parse(r.stdout)
 
 
 def summarize(records: list[dict], cfg, pid: str) -> dict:

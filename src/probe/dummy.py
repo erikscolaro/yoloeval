@@ -179,3 +179,36 @@ def artifact(shape: Shape, c: int, precision: str, out_dir: Path, int8_args: dic
     else:
         raise ValueError(f"precisione non supportata dal probe: {precision}")
     return path
+
+
+def bandwidth_model(elements: int):
+    """Un tensore grande moltiplicato per uno scalare: 1 lettura + 1 scrittura, calcolo
+    trascurabile. Un solo input, cosi' funziona con ogni tool di misura. Con un tensore molto
+    piu' grande delle cache misura la banda verso la memoria."""
+    import onnx
+    from onnx import TensorProto, helper, numpy_helper
+
+    dims = [1, int(elements)]
+    graph = helper.make_graph(
+        [helper.make_node("Mul", ["input", "scale"], ["output"], name="scale")], "bandwidth",
+        [helper.make_tensor_value_info("input", TensorProto.FLOAT, dims)],
+        [helper.make_tensor_value_info("output", TensorProto.FLOAT, dims)],
+        [numpy_helper.from_array(np.array(1.0001, np.float32), "scale")])
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", OPSET)])
+    model.ir_version = 8
+    onnx.checker.check_model(model)
+    return model
+
+
+#: byte spostati dalla rete di banda per ogni elemento (1 lettura + 1 scrittura fp32)
+BANDWIDTH_BYTES_PER_ELEMENT = 2 * 4
+
+
+def bandwidth_artifact(elements: int, out_dir: Path) -> Path:
+    import onnx
+
+    path = Path(out_dir) / f"bandwidth_mul_{int(elements)}.onnx"
+    if not path.exists():
+        path.parent.mkdir(parents=True, exist_ok=True)
+        onnx.save(bandwidth_model(elements), str(path))
+    return path

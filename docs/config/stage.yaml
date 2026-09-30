@@ -6,6 +6,8 @@
 name: benchmark
   # OBBLIGATORIO. Valori: train | search | finetune | export | benchmark | provision
   #   train     -> allena e mette i pesi in artifacts/weights/
+  #   roofline  -> misura i tetti del roofline model (picco di calcolo, banda):
+  #                results/roofline/, usati da tools.roofline
   #   probe     -> misura con reti dummy quale N (canali a blocchi) premia la board:
   #                results/probe/, usato dalle strategie con pit.n: auto
   #   search    -> solo strategie pit: ricerca PIT, modello potato in artifacts/search/
@@ -18,7 +20,7 @@ force: false
   # Solo stage=provision. true | false (default: false).
   # true -> ignora la sentinella .env_hash e riprovisiona comunque.
 
-# --- solo stage=benchmark e stage=probe -----------------------------------
+# --- solo stage=benchmark, stage=probe e stage=roofline ---------------------
 
 thermal:
   # Cooldown condizionale prima di ogni cella: se la board e' gia' sotto
@@ -93,3 +95,20 @@ sweep:
     # Per i lineari C e' il numero di neuroni del layer.
     - {kind: conv, kernel: 3, hw: 40, depthwise: false, layers: 8, in_global: true}
     - {kind: linear, hw: 400, layers: 8, in_global: false}
+
+# --- solo stage=roofline ----------------------------------------------------
+
+iters: 30
+  # Intero. Iterazioni del tool di misura (sostituisce backend.benchmark.iters): le reti del
+  # picco sono grandi.
+warmup_iters: 5
+  # Intero. Solo per i backend con warmup configurabile (onnxruntime_py).
+compute_shapes:
+  # Reti dummy ad alta intensita' aritmetica; il picco di calcolo e' la migliore. Campi come
+  # sweep.shapes, piu' `c` (canali o neuroni).
+  - {kind: conv, kernel: 3, hw: 40, layers: 8, c: 256}
+  - {kind: linear, hw: 1024, layers: 8, c: 1024}
+bandwidth:
+  elements: 67108864
+    # Intero. Elementi fp32 del tensore moltiplicato per uno scalare (1 lettura + 1
+    # scrittura): deve superare di molto le cache, altrimenti si misura la banda della cache.

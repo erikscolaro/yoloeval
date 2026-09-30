@@ -81,6 +81,12 @@ def main(cfg: DictConfig) -> None:
         run_probe(cfg)
         return
 
+    if stage == "roofline":
+        from src.stages.roofline import run_roofline
+
+        run_roofline(cfg)
+        return
+
     if stage == "export":
         from src.stages.export import run_export
 
@@ -95,7 +101,7 @@ def main(cfg: DictConfig) -> None:
 
     raise ValueError(
         f"stadio sconosciuto: {stage!r} "
-        f"(stage=train|search|finetune|probe|export|benchmark|provision)"
+        f"(stage=train|search|finetune|probe|roofline|export|benchmark|provision)"
     )
 
 

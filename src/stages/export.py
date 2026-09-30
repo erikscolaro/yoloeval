@@ -86,6 +86,8 @@ def run_export(cfg) -> Path:
             validation = backend.validate(local, cfg, artifact, src_pt)
             info = backend.inspect(artifact)
 
+    complexity, model_info = _complexity_and_info(cfg, src_pt, wkey)
+
     env = collect_versions(project_root=cfg.project_root)
     fallback = e2e_fallback_reason(cfg, env)
     validation = dict(validation)
@@ -116,6 +118,8 @@ def run_export(cfg) -> Path:
         },
         "validation": validation,
         "inspection": info,
+        "complexity": complexity,
+        "model_info": model_info,
         "timing": timer.block(),
         "config": OmegaConf.to_container(cfg, resolve=True),
         "env": env,
@@ -124,6 +128,28 @@ def run_export(cfg) -> Path:
     log.info("export completato: %s (%s, validazione %s)",
              ekey, info.get("head"), validation.get("status"))
     return dst_dir
+
+
+def _complexity_and_info(cfg, src_pt: Path, wkey: str) -> tuple[dict | None, dict]:
+    """MAC e byte per il roofline (src/measure/complexity.py) e, per i modelli potati, la N
+    usata dalla ricerca. Mai bloccante: senza, il roofline salta solo questo modello."""
+    from ..measure.complexity import ensure_complexity, with_precision
+
+    info = {"strategy": strategy_name(cfg), "pit_n": None}
+    if not is_baseline(cfg):
+        try:
+            from ultralytics import YOLO
+
+            meta = getattr(YOLO(str(src_pt)).model, "pit_meta", {}) or {}
+            info["pit_n"] = meta.get("n")
+        except Exception as exc:  # noqa: BLE001
+            log.warning("N della ricerca non letta da %s: %s", src_pt, exc)
+    try:
+        cx = with_precision(ensure_complexity(cfg, src_pt, wkey), cfg.quantization.precision)
+    except Exception as exc:  # noqa: BLE001
+        log.warning("complessita' non calcolata per %s: %s", wkey, exc)
+        cx = None
+    return cx, info
 
 
 def _reference_for(conn, cfg, src_pt: Path, backend):

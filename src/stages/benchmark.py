@@ -326,6 +326,12 @@ def execute_benchmark(conn, cfg, raw_dest: Path, timer: PhaseTimer, bc,
     if energy:
         result["energy"] = energy
 
+    # per il roofline (tools/roofline.py): MAC e byte del modello, strategia e N
+    if export_meta.get("complexity"):
+        result["complexity"] = export_meta["complexity"]
+    if export_meta.get("model_info"):
+        result["model_info"] = export_meta["model_info"]
+
     result["accuracy"] = _accuracy(conn, cfg, backend, artifact, export_dir,
                                    ct, timer)
     result["validation"] = _validation_block(

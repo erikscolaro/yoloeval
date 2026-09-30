@@ -1,0 +1,22 @@
+name: roofline
+
+# Stesso tuning della board del benchmark.
+thermal:
+  threshold_c: 45
+  timeout_s: 300
+  poll_s: 10
+scheduling:
+  rt_priority: 80
+  drop_caches: true
+  swap_off: true
+
+iters: 30                 # le reti del picco sono grandi: bastano meno iterazioni
+warmup_iters: 5
+
+# Reti dummy ad alta intensita' aritmetica: il picco e' la migliore delle due.
+compute_shapes:
+  - {kind: conv, kernel: 3, hw: 40, layers: 8, c: 256}
+  - {kind: linear, hw: 1024, layers: 8, c: 1024}
+
+bandwidth:
+  elements: 67108864      # 64M float32 = 256 MB letti e 256 scritti, molto oltre le cache
