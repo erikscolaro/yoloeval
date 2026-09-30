@@ -147,6 +147,11 @@ def sync_clock(conn, cfg, max_skew_s: int = 60) -> None:
                 "(NTP non sincronizzato)", cfg.hardware.board, skew / 3600)
 
 
+def retry_minutes(cfg) -> int:
+    """Per quanto riprovare ogni download prima di arrendersi (stage.retry_minutes)."""
+    return int(cfg.stage.get("retry_minutes", 30))
+
+
 def check_internet(conn, cfg) -> None:
     """Prova dalla board gli URL di `stage.internet_check` prima dello script di
     provisioning, che scarica da pip, apt e docker: senza rete meglio un errore subito che
@@ -156,15 +161,18 @@ def check_internet(conn, cfg) -> None:
     probe = ("import sys, urllib.request; "
              "urllib.request.urlopen(sys.argv[1], timeout=15).close()")
     for url in urls:
-        # i proxy aziendali restano giu' anche per qualche secondo: circa un minuto
-        for attempt in range(6):
+        # il proxy aziendale cade anche per minuti: si riprova per stage.retry_minutes
+        deadline = time.time() + retry_minutes(cfg) * 60
+        attempt = 1
+        while True:
             r = conn.run(f"python3 -c {shlex.quote(probe)} {shlex.quote(url)}", hide=True,
                          warn=True, env=proxy_env(cfg))
-            if r.ok:
+            if r.ok or time.time() >= deadline:
                 break
-            log.info("internet da %s: %s non risponde, riprovo (%d/6)", cfg.hardware.board,
-                     url, attempt + 1)
-            time.sleep(10)
+            log.info("internet da %s: %s non risponde (tentativo %d), riprovo fra 30 s",
+                     cfg.hardware.board, url, attempt)
+            attempt += 1
+            time.sleep(30)
         if r.failed:
             err = (r.stderr or r.stdout or "").strip().splitlines()
             raise ProvisionFailed(
@@ -213,6 +221,7 @@ def ensure_env(conn, cfg, force: bool = False) -> bool:
     env = {
         "BENCH_WORKDIR": workdir,
         "BENCH_REQUIREMENTS": "/tmp/requirements.txt",
+        "RETRY_MINUTES": retry_minutes(cfg),
         **proxy_env(cfg),
     }
     if cfg.hardware.get("jetpack"):

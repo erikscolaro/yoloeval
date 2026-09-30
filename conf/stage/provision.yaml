@@ -8,6 +8,9 @@ no_proxy: [localhost, 127.0.0.1, 10.42.0.0/24]
 # URL provati dalla board prima dello script di provisioning, che scarica da internet:
 # se uno non risponde, errore prima di iniziare. [] per saltare il controllo.
 internet_check: [https://pypi.org/simple/pip/]
+# Per quanti minuti riprovare ogni download (controllo internet, pip, apt, clone e
+# dipendenze di onnxruntime) prima di arrendersi: il proxy cade anche per minuti.
+retry_minutes: 30
 # Primo accesso, da terminale: stage.bootstrap=admin@pi.local (un utente con sudo gia' sulla
 # board). Crea bootstrap_user senza password, con sudo senza password e la chiave di questo
 # PC, e aggiunge l'alias remote.host a ~/.ssh/config. Idempotente.

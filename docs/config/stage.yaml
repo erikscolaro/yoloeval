@@ -34,6 +34,10 @@ internet_check: [https://pypi.org/simple/pip/]
   # Solo stage=provision. Lista di URL provati dalla board (python3, rispetta http(s)_proxy)
   # prima dello script di provisioning, solo quando lo script deve girare: se uno non
   # risponde entro 15 s, errore e provisioning non avviato. [] per saltare il controllo.
+retry_minutes: 30
+  # Solo stage=provision. Intero. Per quanti minuti riprovare ogni download prima di
+  # arrendersi: controllo internet, pip e apt negli script, clone e dipendenze di
+  # onnxruntime (arriva agli script come RETRY_MINUTES). Tentativi ogni 30 s.
 bootstrap: null
   # Solo stage=provision. null | user@host. Primo accesso a una board nuova tramite un utente
   # che ha gia' sudo (es. admin@pi.local): crea bootstrap_user senza password, gli da' sudo

@@ -25,6 +25,19 @@ set -euo pipefail
 say() { echo "[ort-perf-test] $*"; }
 die() { echo "[ort-perf-test] $*" >&2; exit 1; }
 
+# Il proxy della rete interna cade anche per minuti: ogni passo che scarica si riprova
+# per RETRY_MINUTES (da stage.retry_minutes, default 30) prima di arrendersi.
+retry() {
+  local what=$1; shift
+  local deadline=$(( $(date +%s) + ${RETRY_MINUTES:-30} * 60 )) attempt=1
+  until "$@"; do
+    (( $(date +%s) >= deadline )) && die "$what: fallito per ${RETRY_MINUTES:-30} minuti"
+    say "$what fallito (tentativo $attempt), riprovo fra 30 s"
+    attempt=$((attempt + 1))
+    sleep 30
+  done
+}
+
 VENV="${ORT_VENV:?ORT_VENV non impostato}"
 CUDA_HOME="${ORT_CUDA_HOME:-}"
 CUDNN_HOME="${ORT_CUDNN_HOME:-}"
@@ -60,25 +73,20 @@ say "compilo onnxruntime_perf_test $WANT"
 TOOLS="$BUILD_ROOT/toolenv"
 [[ -x "$TOOLS/bin/cmake" && -x "$TOOLS/bin/ninja" ]] || {
   python3 -m venv "$TOOLS"
-  "$TOOLS/bin/python" -m pip install --quiet --upgrade pip "cmake>=3.28" ninja
+  retry "installazione di cmake e ninja" \
+    "$TOOLS/bin/python" -m pip install --quiet --upgrade pip "cmake>=3.28" ninja
 }
 export PATH="$TOOLS/bin:$PATH"
 
 SRC="$BUILD_ROOT/onnxruntime-$VERSION"
-# Il proxy della rete interna ogni tanto risponde 500: si riprova invece di
-# fallire. Un clone interrotto lascia una cartella a meta' (magari con .git ma
-# senza tutti i submodule): conta solo il marker scritto a clone riuscito.
-if [[ ! -f "$SRC/.clone-ok" ]]; then
-  for attempt in $(seq 1 10); do
-    rm -rf "$SRC"
-    git clone --depth 1 --branch "v$VERSION" --recursive --shallow-submodules \
-      https://github.com/microsoft/onnxruntime.git "$SRC" \
-      && touch "$SRC/.clone-ok" && break
-    (( attempt == 10 )) && die "clone di onnxruntime fallito dopo 10 tentativi"
-    say "clone fallito (tentativo $attempt/10), riprovo fra 5 s"
-    sleep 5
-  done
-fi
+# Un clone interrotto lascia una cartella a meta' (magari con .git ma senza tutti
+# i submodule): conta solo il marker scritto a clone riuscito.
+clone_ort() {
+  rm -rf "$SRC"
+  git clone --depth 1 --branch "v$VERSION" --recursive --shallow-submodules \
+    https://github.com/microsoft/onnxruntime.git "$SRC" && touch "$SRC/.clone-ok"
+}
+[[ -f "$SRC/.clone-ok" ]] || retry "clone di onnxruntime" clone_ort
 
 # Parallelismo limitato dalla RAM: i sorgenti CUDA arrivano a 3 GB per job, e
 # su un Raspberry da 4 GB `-j4` finisce in OOM a meta' build.
@@ -113,8 +121,11 @@ if [[ -n "$CUDA_HOME" ]]; then
 fi
 
 # build.py configura soltanto; la build si limita ai target che servono,
-# invece di compilare anche le migliaia di unit test.
-(cd "$SRC" && python3 tools/ci_build/build.py "${ARGS[@]}")
+# invece di compilare anche le migliaia di unit test. La configurazione scarica
+# una trentina di dipendenze (FetchContent) e non riprova da sola: si rilancia,
+# quelle gia' scaricate restano in build/Release/_deps.
+configure_ort() { (cd "$SRC" && python3 tools/ci_build/build.py "${ARGS[@]}"); }
+retry "configurazione di onnxruntime" configure_ort
 TARGETS=(onnxruntime_perf_test onnxruntime_providers_shared)
 [[ -n "$CUDA_HOME" ]] && TARGETS+=(onnxruntime_providers_cuda)
 cmake --build "$SRC/build/Release" --target "${TARGETS[@]}" -j "$ORT_BUILD_JOBS"
