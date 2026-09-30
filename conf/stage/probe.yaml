@@ -18,8 +18,8 @@ plot: true                # latenza e throughput in funzione dei canali, un PNG 
 plot_xtick: 4             # tacche dell'asse x ogni 4 canali
 
 sweep:
-  c_min: 32               # canali misurati: da c_min a c_max
-  c_max: 128
+  c_min: 1               # canali misurati: da c_min a c_max
+  c_max: 96
   c_step: 1
   repeats: 3              # passate, ognuna in ordine casuale; per ogni C la mediana
   n_candidates: null      # null -> 1, 2, 4, ... (almeno 2 multipli nel range)
