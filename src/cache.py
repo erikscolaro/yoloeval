@@ -172,12 +172,13 @@ def auto_n(cfg: DictConfig) -> bool:
     return str(pit.get("n", "")) == "auto"
 
 
-def resolve_n(cfg: DictConfig) -> int:
+def resolve_n(cfg: DictConfig) -> int | None:
     """`pit.n: auto` -> N ottimo del probe per board, precisione e backend di questa config,
-    sul compute target `strategy.n_source` (default: quello della config)."""
-    from .stages.probe import find_n
+    sul compute target `strategy.n_source` (default: quello della config). Se il probe manca
+    viene lanciato; in dry-run None."""
+    from .stages.probe import ensure_n
 
-    n, _ = find_n(cfg, cfg.strategy.get("n_source"))
+    n, _ = ensure_n(cfg, cfg.strategy.get("n_source"))
     return n
 
 

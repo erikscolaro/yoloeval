@@ -15,13 +15,15 @@ Oggi supporta i backend che misurano un ONNX portabile (onnxruntime, onnxruntime
 
 from __future__ import annotations
 
+import copy
 import hashlib
 import json
 import logging
 import random
+import time
 from pathlib import Path
 
-from omegaconf import OmegaConf, read_write
+from omegaconf import OmegaConf, open_dict, read_write
 
 from ..backends import get_backend
 from ..env import collect_versions
@@ -125,6 +127,9 @@ def _run_one(cfg, pid: str, summary_path: Path) -> Path:
     out_dir.mkdir(parents=True, exist_ok=True)
     jsonl = out_dir / f"{pid}.jsonl"
     records = []
+    log.info("probe %s: %d misure (%d forme x %d canali x %d passate), %s %s @ %s",
+             pid, len(order), len(shapes(cfg)), len(cs), int(sw.get("repeats", 3)),
+             cfg.hardware.board, cfg.compute_target, cfg.freq_target)
     with connection(cfg) as conn:
         env = collect_versions(conn, cfg, cfg.project_root)
         bc = board_controller(cfg)
@@ -135,7 +140,13 @@ def _run_one(cfg, pid: str, summary_path: Path) -> Path:
             with tuned(live, cfg, bc) as applied, timer.phase("compute"):
                 ct = resolve_compute(cfg)
                 n_cores = _effective_cores(live, cfg, bc, ct)
+                t0, every = time.monotonic(), max(1, len(order) // 20)
                 for i, (rep, s, c) in enumerate(order):
+                    if i and i % every == 0:      # avanzamento ogni 5%, con stima del resto
+                        left = (time.monotonic() - t0) / i * (len(order) - i)
+                        log.info("probe %s: %d/%d (%d%%), passata %d, ~%d min alla fine",
+                                 pid, i, len(order), 100 * i // len(order), rep + 1,
+                                 round(left / 60))
                     lat = measure_file(live, cfg, backend, ct, n_cores, files[(s, c)],
                                        subdir="probe", key=pid, what=f"{s.name}, C={c}")
                     k = dummy.costs(s, c)
@@ -272,12 +283,21 @@ def plot(records: list[dict], summary: dict, path: Path, xtick: int = 4) -> Path
     return path
 
 
+def probe_backend(cfg) -> str:
+    """Backend del probe da cui prendere N: `strategy.probe.backend`, default onnxruntime.
+    Non quello della config: un export tensorrt int8 usa l'N del probe onnxruntime int8."""
+    opts = (cfg.get("strategy") or {}).get("probe") or {}
+    return str(opts.get("backend") or "onnxruntime")
+
+
 def find_n(cfg, source: str | None = None) -> tuple[int, Path]:
-    """N ottimo dal probe per la board, il compute target e la precisione di questa config.
+    """N ottimo dal probe per la board, il compute target e la precisione di questa config,
+    con il backend di probe_backend().
 
     source: il compute target da cui prenderlo; default `stage`/strategia -> il compute
     target della config, o `n_source` della strategia (cpu_1 su CPU: il caso peggiore)."""
     target = source or cfg.compute_target
+    backend = probe_backend(cfg)
     if target is None:
         raise ValueError("pit.n: auto richiede un compute target (strategy.search.n_source o "
                          "compute_target=...) per scegliere quale probe usare")
@@ -287,15 +307,65 @@ def find_n(cfg, source: str | None = None) -> tuple[int, Path]:
         s = read_json(p) or {}
         if (s.get("board"), s.get("compute_target"), s.get("quantization"),
                 s.get("backend")) == (cfg.hardware.board, target, cfg.quantization.name,
-                                      cfg.backend.name):
+                                      backend):
             found.append((s.get("created_at") or "", s, p))
     if not found:
         raise FileNotFoundError(
             f"nessun probe per board={cfg.hardware.board} compute_target={target} "
-            f"quantization={cfg.quantization.name} backend={cfg.backend.name}: eseguire prima "
+            f"quantization={cfg.quantization.name} backend={backend}: eseguire prima "
             f"`stage=probe` con questi valori")
     _, s, p = max(found, key=lambda t: t[0])       # il piu' recente
     if not s.get("n_opt"):
         raise ValueError(f"il probe {p.name} non e' concluso (nessun N passa): rifallo con "
                          f"piu' repeats o un range di canali piu' ampio")
     return int(s["n_opt"]), p
+
+
+def ensure_n(cfg, source: str | None = None) -> tuple[int | None, Path | None]:
+    """Come find_n, ma se il probe manca lo lancia (preset e profilo da `strategy.probe`) e
+    poi rilegge N. In dry-run lo annuncia soltanto e restituisce (None, None)."""
+    try:
+        return find_n(cfg, source)
+    except FileNotFoundError:
+        pass
+    pcfg = probe_cfg(cfg, source)
+    what = (f"board={cfg.hardware.board} compute_target={pcfg.compute_target} "
+            f"quantization={cfg.quantization.name} backend={pcfg.backend.name}")
+    how = f"stage={pcfg.stage.preset} freq_target={pcfg.freq_target}"
+    if cfg.dry_run:
+        log.warning("[dry-run] nessun probe per %s: verrebbe lanciato ora (%s)", what, how)
+        return None, None
+    log.warning("nessun probe per %s: lo lancio ora (%s), poi si riparte da qui", what, how)
+    run_probe(pcfg)
+    n, path = find_n(cfg, source)
+    log.warning("probe concluso: N=%d (%s)", n, path.name)
+    return n, path
+
+
+def probe_cfg(cfg, source: str | None = None):
+    """Copia della config con lo stadio probe al posto di quello corrente.
+
+    Preset: `strategy.probe.stage`, altrimenti probe_edge per la CPU delle board remote e probe
+    per il resto. Profilo: `strategy.probe.freq_target`, altrimenti quello della config se la
+    board lo dichiara, altrimenti il primo della board."""
+    opts = (cfg.get("strategy") or {}).get("probe") or {}
+    target = source or cfg.compute_target
+    if target not in cfg.hardware.compute:
+        raise ValueError(f"compute_target={target} non dichiarato da {cfg.hardware.board}")
+    preset = opts.get("stage") or (
+        "probe_edge" if "remote" in cfg.hardware
+        and cfg.hardware.compute[target].get("device") == "cpu" else "probe")
+    freq = opts.get("freq_target") or (
+        cfg.freq_target if cfg.freq_target in cfg.hardware.freq else next(iter(cfg.hardware.freq)))
+    stage = OmegaConf.load(Path(cfg.project_root) / "conf" / "stage" / f"{preset}.yaml")
+    stage.preset = preset
+    pcfg = copy.deepcopy(cfg)
+    with read_write(pcfg), open_dict(pcfg):
+        if cfg.backend.name != probe_backend(cfg):
+            pcfg.backend = OmegaConf.load(
+                Path(cfg.project_root) / "conf" / "backend" / f"{probe_backend(cfg)}.yaml")
+        pcfg.stage = stage
+        pcfg.compute_target = target
+        pcfg.freq_target = freq
+        pcfg.force = False
+    return pcfg

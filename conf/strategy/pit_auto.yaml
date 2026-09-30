@@ -1,10 +1,15 @@
-# Come pit_duccio, ma N viene dal probe (stage=probe) per la board, la precisione e il backend
-# della config: per esempio
+# Come pit_duccio, ma N viene dal probe onnxruntime (stage=probe) per la board e la precisione
+# della config, qualunque sia il backend: per esempio
 #   python run.py stage=search strategy=pit_auto hardware=rpi5 quantization=int8
 # Su CPU si usa l'N misurato su un solo core (n_source: cpu_1), il caso peggiore.
+# Se il probe manca, la ricerca lo lancia da sola e poi riparte.
 name: pit_auto
 method: pit
 n_source: cpu_1
+probe:
+  backend: onnxruntime    # N sempre dal probe onnxruntime, per ogni backend di export
+  stage: null             # preset di conf/stage/; null -> probe_edge su CPU delle board, probe altrove
+  freq_target: null       # null -> quello della config se la board lo dichiara, altrimenti il primo
 
 search:
   epochs: 30

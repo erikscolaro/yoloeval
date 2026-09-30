@@ -23,6 +23,20 @@ method: pit
 n_source: cpu_1
   # Facoltativo, solo con search.pit.n: auto. Da quale compute target del probe prendere N
   # (default: il compute_target della config). Su CPU cpu_1 e' il caso peggiore.
+probe:
+  # Facoltativo, solo con search.pit.n: auto. Se il probe per board, n_source, precisione e
+  # backend manca, lo stadio che chiede N (search, finetune, export, benchmark) lo lancia da
+  # solo, lo annuncia nel log e poi prosegue; in dry-run lo annuncia soltanto.
+  backend: onnxruntime
+    # Backend del probe da cui prendere N, per qualunque backend di export: un export
+    # tensorrt int8 usa l'N del probe onnxruntime int8. Il probe supporta onnxruntime e
+    # onnxruntime_py.
+  stage: null
+    # Preset di conf/stage/ (probe | probe_edge). null: probe_edge per la CPU delle board
+    # remote, probe per GPU e workstation.
+  freq_target: null
+    # Profilo della board durante il probe. null: il freq_target della config se la board lo
+    # dichiara, altrimenti il primo profilo della board.
 
 search:
   # Solo method: pit. Argomenti di PITYOLO di yolopit: quelli di model.train() di Ultralytics
@@ -41,8 +55,8 @@ search:
   pit:
     # Spazio di ricerca.
     n: 16
-      # Intero, oppure `auto`: N dal probe (stage=probe) per board, precisione e backend della
-      # config. Entra nella chiave il valore misurato, non la board.
+      # Intero, oppure `auto`: N dal probe (stage=probe) per board e precisione della config,
+      # con il backend di strategy.probe.backend. Entra nella chiave il valore misurato, non la board.
     remainder: true
       # true | false. Con C non multiplo di N tiene un blocco da C % N, potato per primo.
     warmup_epochs: 0

@@ -22,6 +22,7 @@ from ..env import collect_versions
 from ..errors import MissingWeights
 from ..jsonio import atomic_write_json
 from ..timing import PhaseTimer
+from .probe import probe_backend
 
 log = logging.getLogger(__name__)
 
@@ -48,7 +49,7 @@ def search_args(cfg) -> dict:
         pit["n"] = resolve_n(cfg)
         log.info("pit.n: auto -> N=%d dal probe (board %s, compute %s, %s, %s)", pit["n"],
                  cfg.hardware.board, cfg.strategy.get("n_source") or cfg.compute_target,
-                 cfg.quantization.name, cfg.backend.name)
+                 cfg.quantization.name, probe_backend(cfg))
     conf["pit"] = pit
     return conf
 
