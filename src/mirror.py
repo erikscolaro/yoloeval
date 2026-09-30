@@ -13,6 +13,8 @@ attiva crede che i risultati stiano finendo da qualche parte.
 from __future__ import annotations
 
 import logging
+import shutil
+import tempfile
 
 log = logging.getLogger(__name__)
 
@@ -55,17 +57,26 @@ def mirror_result(cfg, rec: dict) -> None:
         return
 
     settings = cfg.logging.get("wandb") or {}
+    mode = settings.get("mode", "online")
+    # In online la cartella locale di wandb e' solo un buffer di upload: la si
+    # mette in una temp e la si butta a fine run. In offline invece e' l'unica
+    # copia finche' non si fa `wandb sync`, quindi resta nella cwd.
+    tmp = tempfile.mkdtemp(prefix="wandb-") if mode == "online" else None
     try:
         run = wandb.init(
             project=settings.get("project", "yolo-bench"),
             entity=settings.get("entity"),
-            mode=settings.get("mode", "online"),
+            mode=mode,
             tags=list(settings.get("tags") or []),
             name=rec.get("cell_id"),
             config=rec.get("config"),
+            dir=tmp,
             reinit=True,
         )
         run.log(_flatten(rec))
         run.finish()
     except Exception as exc:  # noqa: BLE001 - il mirror non fa fallire la cella
         log.warning("mirror W&B fallito per %s: %s", rec.get("cell_id"), exc)
+    finally:
+        if tmp:
+            shutil.rmtree(tmp, ignore_errors=True)

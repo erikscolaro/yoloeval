@@ -2,6 +2,6 @@
 backend: wandb
 wandb:
   project: yolo-bench
-  entity: null
+  entity: yolo-bench    # team: gli account nuovi non possono loggare sull'utente
   mode: online          # online | offline | disabled
   tags: []
