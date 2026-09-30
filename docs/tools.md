@@ -18,6 +18,7 @@ Da un'altra cartella (per esempio `notebooks/`) Python non trova il pacchetto
 |---|---|---|---|
 | [`aggregate`](#toolsaggregate) | `results/*.json` | `data.parquet` | una tabella con tutte le celle |
 | [`report`](#toolsreport) | `results/*.json` | `reports/<data>/` | figure, tabelle e report |
+| [`roofline`](#toolsroofline) | `results/*.json`, `results/roofline/*.json` | `reports/roofline/` | efficienza dei modelli e confronto con la baseline |
 | [`artifacts`](#toolsartifacts) | `artifacts/`, `results/` | niente (tranne `prune --apply`) | vedere e ripulire la cache di pesi ed export |
 
 ---
@@ -127,6 +128,81 @@ ricadute sulla testa one-to-many.
 
 L'HTML richiede `pandoc` (`sudo apt install pandoc`); se manca, il report
 viene generato lo stesso e l'HTML viene saltato con un avviso.
+
+---
+
+## `tools.roofline`
+
+Mette ogni modello misurato sul roofline della sua board: quanto e' lontano
+dal tetto raggiungibile, se e' limitato dalla memoria o dal calcolo, e quanto
+guadagna un modello potato rispetto alla baseline.
+
+```bash
+python -m tools.roofline [--results results] [--out reports/roofline]
+```
+
+| opzione | default | |
+|---|---|---|
+| `--results` | `results` | cartella con i JSON delle celle e la sottocartella `roofline/` |
+| `--out` | `reports/roofline` | dove scrivere CSV e grafici |
+
+**Cosa serve prima**, in quest'ordine:
+
+1. `stage=roofline` (workstation) o `stage=roofline_edge` (board) per ogni
+   board, compute target e precisione: misura i due tetti, picco di calcolo
+   (GMAC/s) e banda di memoria (GB/s), e li salva in
+   `results/roofline/<board>_<compute>_<precisione>_<backend>.json`.
+2. `stage=export` e `stage=benchmark` dei modelli: l'export calcola MAC e byte
+   del modello (blocco `complexity`) e il benchmark li copia nel JSON della
+   cella. Gli export fatti prima di questa funzione non li hanno: vanno rifatti
+   con `+force_reexport=true`.
+
+```bash
+python run.py -m stage=roofline_edge hardware=rpi5 freq_target=max quantization=fp32,int8
+python run.py -m stage=export ...
+python run.py -m stage=benchmark ...
+python -m tools.roofline
+```
+
+Senza tetti misurati il tool gira lo stesso, ma senza tetto, efficienza e
+memory/compute bound, e lo dice con un avviso. Senza nessuna cella `ok` con la
+complessita' del modello esce con errore.
+
+**Cosa calcola**, per ogni cella `ok`:
+
+| colonna | significato |
+|---|---|
+| `intensity_mac_per_byte` | intensita' aritmetica del modello, MAC / byte |
+| `achieved_gmacs` | prestazione ottenuta, MAC / latenza mediana |
+| `attainable_gmacs` | tetto raggiungibile: min(picco, banda × intensita') |
+| `efficiency` | `achieved_gmacs` / `attainable_gmacs` |
+| `bound` | `memory` se l'intensita' e' sotto il ridge point (picco / banda), altrimenti `compute` |
+| `speedup_vs_baseline` | latenza della baseline / latenza del modello |
+| `mac_ratio_vs_baseline` | MAC del modello / MAC della baseline |
+| `map_delta_vs_baseline` | mAP@50-95 del modello meno quella della baseline |
+
+Il confronto con la baseline e' fra celle con stessa board, compute target,
+precisione, backend e modello; `label` distingue la baseline dalle strategie
+(`pit_duccio N=16`, ...).
+
+I tetti si cercano per board, compute target e precisione. Se manca un roofline
+misurato con lo stesso backend, si usa quello di un altro backend sulla stessa
+combinazione, e la colonna `roof_backend` dice quale. Se ce ne sono piu' d'uno,
+vince il piu' recente.
+
+**Output**, in `reports/roofline/`:
+
+```
+reports/roofline/
+├── roofline.csv                          una riga per cella, tutte le colonne
+└── <board>_<compute>_<precisione>_<backend>.png   un grafico per gruppo
+```
+
+Ogni grafico e' in scala log-log: il tetto misurato come linea continua, il
+ridge point come linea verticale punteggiata, e un punto per modello con
+l'efficienza in legenda. Se in `hardware.peaks.<compute_target>` ci sono i
+tetti da datasheet (vedi `docs/config/hardware.yaml`), compaiono tratteggiati.
+Le stesse tabelle, una per gruppo, vengono stampate a terminale.
 
 ---
 
