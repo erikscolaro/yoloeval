@@ -11,6 +11,7 @@ scheduling:
   swap_off: true
 
 plot: true                # latenza e throughput in funzione dei canali, un PNG per probe
+plot_xtick: 4             # tacche dell'asse x ogni 4 canali
 
 sweep:
   c_min: 32               # canali misurati: da c_min a c_max

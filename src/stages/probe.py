@@ -165,7 +165,8 @@ def _run_one(cfg, pid: str, summary_path: Path) -> Path:
     atomic_write_json(summary_path, summary)
     if cfg.stage.get("plot"):
         try:
-            plot(records, summary, out_dir / f"{pid}.png")
+            plot(records, summary, out_dir / f"{pid}.png",
+                 xtick=int(cfg.stage.get("plot_xtick", 4)))
         except Exception as e:  # noqa: BLE001 - il grafico non deve rompere il probe
             log.warning("grafico del probe non creato: %s", e)
     log.info("probe %s: N ottimo %s (per forma: %s, rumore %.1f%%)", pid, summary["n_opt"],
@@ -219,7 +220,8 @@ def summarize(records: list[dict], cfg, pid: str) -> dict:
     }
 
 
-def plot(records: list[dict], summary: dict, path: Path) -> Path:
+def plot(records: list[dict], summary: dict, path: Path, xtick: int = 4) -> Path:
+    """Latenza e throughput in funzione di C; tacche dell'asse x ogni `xtick` canali."""
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
@@ -237,9 +239,15 @@ def plot(records: list[dict], summary: dict, path: Path) -> Path:
                                    "throughput [GMAC/s]")):
             a = axes[i][j]
             a.plot(cs, series[i], marker=".", linewidth=1)
-            for m in (range(-(-cs[0] // n) * n, cs[-1] + 1, n) if n else []):
+            # linee ai multipli di N (non per N=1: sarebbero una per ogni C)
+            for m in (range(-(-cs[0] // n) * n, cs[-1] + 1, n) if n and n > 1 else []):
                 a.axvline(m, color="grey", alpha=.25, linewidth=.8)
             a.set_xlabel("neurons C" if name.startswith("linear") else "channels C")
+            step = int(xtick or 4)
+            ticks = list(range(-(-cs[0] // step) * step, cs[-1] + 1, step))
+            a.set_xticks(ticks)
+            a.tick_params(axis="x", labelsize=7 if len(ticks) > 20 else 9,
+                          labelrotation=90 if len(ticks) > 20 else 0)
             a.set_ylabel(label)
             a.grid(alpha=.3)
             if i == 0:

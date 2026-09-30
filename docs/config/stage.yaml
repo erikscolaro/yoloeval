@@ -52,6 +52,8 @@ scheduling:
 plot: true
   # true | false. Un PNG per probe: latenza e throughput in funzione di C, con le linee ai
   # multipli dell'N trovato.
+plot_xtick: 4
+  # Intero. Tacche dell'asse x del grafico ogni tanti canali (default 4).
 
 sweep:
   # Reti dummy: L blocchi (conv o lineari) + SiLU + residual, tutti a C canali (o neuroni).
