@@ -40,9 +40,9 @@ class ExecuTorchBackend(Backend):
         produced = model.export(
             format="executorch",
             imgsz=int(cfg.model.imgsz),
-            int8=cfg.quantization.precision == "int8",
-            half=cfg.quantization.precision == "fp16",
+            quantize=cfg.quantization.precision,   # "fp32" | "fp16" | "int8"
             batch=1,
+            nms=False,            # testa one-to-one, vedi onnxruntime.py
         )
         produced = Path(produced)
         if produced.is_dir():

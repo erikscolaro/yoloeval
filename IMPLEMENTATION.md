@@ -1767,7 +1767,7 @@ riuscito, non indovinate.
 ultralytics>=8.3
 torch>=2.8,<2.13
 onnx>=1.16
-onnxsim
+onnxslim
 onnxruntime-gpu          # CPU-only: onnxruntime
 
 # configurazione e orchestrazione

@@ -5,10 +5,18 @@
 ultralytics>=8.3
 torch>=2.8,<2.13
 onnx>=1.16
-onnxsim
-onnxconverter-common        # cast fp16 sul grafo ONNX
+onnxslim>=0.1.82          # simplifier usato da Ultralytics 8.4 (onnxsim non basta)
 onnxruntime-gpu             # CPU-only: onnxruntime
 opencv-python-headless      # preprocessing per la calibrazione
+openvino                    # backend openvino, include benchmark_app
+nncf                        # quantizzazione INT8 di OpenVINO
+# TensorRT Python, serve a Ultralytics per caricare l'engine in validazione.
+# Il wheel diretto, non il meta-pacchetto `tensorrt` (e' un sdist che scarica
+# questo wheel in un pip nascosto e sembra bloccato). cu13 = CUDA di torch;
+# stessa versione del trtexec apt (libnvinfer-bin), o l'engine non si carica.
+# TensorRT 10, non 11: e' il percorso classico di Ultralytics, e l'11 ha tolto
+# --fp16/--int8 da trtexec (vedi scripts/provision/x86_local.sh).
+tensorrt-cu13==10.16.1.11
 
 # configurazione e orchestrazione
 hydra-core>=1.3

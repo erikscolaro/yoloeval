@@ -48,19 +48,48 @@ class OpenVINOBackend(Backend):
             return target
 
         int8 = cfg.quantization.precision == "int8"
+        data = self._calibration_yaml(cfg, dst) if int8 else None
         model = YOLO(str(src), task="detect")
         produced = Path(model.export(
             format="openvino",
             imgsz=int(cfg.model.imgsz),
-            half=cfg.quantization.precision == "fp16",
-            int8=int8,
+            quantize=cfg.quantization.precision,   # "fp32" | "fp16" | "int8"
             batch=1,
-            # NNCF calibra sul data yaml del dataset, non su immagini casuali
-            data=str(cfg.dataset.yaml) if int8 else None,
+            nms=False,            # testa one-to-one, vedi onnxruntime.py
+            data=data,
         ))
         if produced.resolve() != target.resolve():
             shutil.move(str(produced), target)
         return target
+
+    @staticmethod
+    def _calibration_yaml(cfg, dst: Path) -> str:
+        """Data yaml ridotto al calibration set condiviso.
+
+        Con il data yaml del dataset Ultralytics passerebbe a NNCF l'intero
+        split `val`: migliaia di immagini, e soprattutto un set diverso da
+        quello degli altri backend INT8. Qui `val` punta alla stessa lista
+        di `calibration_files`, salvata anche nel manifesto.
+        """
+        import yaml
+
+        from ..stages.quantize import calibration_files, write_manifest
+
+        files = calibration_files(cfg)
+        write_manifest(dst, files)
+        listing = dst / "calib.txt"
+        listing.write_text("".join(f"{f}\n" for f in files), encoding="utf-8")
+        spec = yaml.safe_load(Path(cfg.dataset.yaml).read_text(encoding="utf-8"))
+        calib = {
+            "path": str(cfg.dataset.local_path),
+            "train": str(listing),
+            "val": str(listing),
+            "nc": spec.get("nc", cfg.dataset.nc),
+            "names": spec["names"],
+        }
+        out = dst / "calib_data.yaml"
+        out.write_text(yaml.safe_dump(calib, sort_keys=False), encoding="utf-8")
+        return str(out)
 
     def build_cmd(self, cfg, artifact: Path) -> str:
         ct = resolve_compute(cfg)

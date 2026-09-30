@@ -119,8 +119,8 @@ class AxeleraBackend(Backend):
         build = cfg.backend.build
         cmd = (
             f"yolo export model={to_container_path(cfg, src)} format=axelera "
-            f"imgsz={int(cfg.model.imgsz)} batch=1 "
-            f"int8=True fraction={int(build.calib_fraction)} "
+            f"imgsz={int(cfg.model.imgsz)} batch=1 nms=False "
+            f"quantize=int8 fraction={int(build.calib_fraction)} "
             f"data={to_container_path(cfg, cfg.hardware.remote.workdir)}"
             f"/data/{cfg.dataset.name}/.bench_data.yaml "
             f"project={to_container_path(cfg, remote_dir)} name=export exist_ok=True"

@@ -41,27 +41,37 @@ class OnnxRuntimeBackend(Backend):
             log.info("artefatto gia' presente: %s", target.name)
             return target
 
-        base = self._export_fp32(cfg, Path(src), dst)
         precision = cfg.quantization.precision
         if precision == "fp32":
-            if base != target:
-                shutil.move(str(base), target)
-            return target
+            return self._export(cfg, Path(src), target)
         if precision == "fp16":
-            return self._to_fp16(base, target)
+            return self._export(cfg, Path(src), target, quantize="fp16")
         if precision == "int8":
             from ..stages.quantize import quantize_onnx_static
 
+            base = self._export_fp32(cfg, Path(src), dst)
             out = quantize_onnx_static(base, target, cfg)
             base.unlink(missing_ok=True)
             return out
         raise ExportFailed(f"precisione non gestita da {self.name}: {precision}")
 
     def _export_fp32(self, cfg, src: Path, dst: Path) -> Path:
+        """ONNX FP32 intermedio: base per l'INT8 e per la build TensorRT."""
+        return self._export(cfg, src, dst / f"{cfg.model.name}_fp32_base.onnx")
+
+    def _export(self, cfg, src: Path, target: Path,
+                quantize: str | None = None) -> Path:
+        """Export ONNX con Ultralytics.
+
+        L'FP16 lo fa Ultralytics: su CPU converte il grafo con
+        `onnxruntime.transformers.float16`, su GPU esporta direttamente il
+        modello in half. `onnxconverter_common` produceva cast sbagliati
+        attorno ai `Resize` e un ONNX che ONNX Runtime rifiuta di caricare.
+        """
         from ultralytics import YOLO
 
         model = YOLO(str(src), task="detect")
-        produced = model.export(
+        produced = Path(model.export(
             format="onnx",
             imgsz=int(cfg.model.imgsz),
             opset=int(cfg.backend.build.opset),
@@ -69,31 +79,29 @@ class OnnxRuntimeBackend(Backend):
             simplify=True,
             dynamic=False,
             device="cpu",
-        )
-        produced = Path(produced)
-        base = dst / f"{cfg.model.name}_fp32_base.onnx"
-        if produced.resolve() != base.resolve():
-            shutil.move(str(produced), base)
-        return base
-
-    def _to_fp16(self, base: Path, target: Path) -> Path:
-        """Cast a fp16 sul grafo ONNX.
-
-        Si usa la conversione sul grafo e non `half=True` di Ultralytics perche'
-        quest'ultima richiede una GPU al momento dell'export: l'artefatto
-        dev'essere producibile sulla workstation anche quando la cella di
-        destinazione e' una board.
-        """
-        import onnx
-        from onnxconverter_common import float16
-
-        model = onnx.load(str(base))
-        converted = float16.convert_float_to_float16(
-            model, keep_io_types=True, disable_shape_infer=False
-        )
-        onnx.save(converted, str(target))
-        base.unlink(missing_ok=True)
+            quantize=quantize,
+            # Da Ultralytics 8.4 il default nms=None esporta la testa
+            # one-to-many: la one-to-one (senza NMS) va chiesta esplicitamente.
+            nms=False,
+        ))
+        if produced.resolve() != target.resolve():
+            shutil.move(str(produced), target)
+        if quantize == "fp16":
+            self._check_fp16(target)
         return target
+
+    @staticmethod
+    def _check_fp16(path: Path) -> None:
+        """Se la conversione fallisce Ultralytics avvisa e salva l'FP32:
+        senza questo controllo un artefatto FP32 verrebbe misurato come FP16."""
+        from ..validation.graph import inspect_onnx
+
+        found = inspect_onnx(path).get("precision")
+        if found != "fp16":
+            path.unlink(missing_ok=True)
+            raise ExportFailed(
+                f"export FP16 di Ultralytics fallito: {path.name} e' {found}"
+            )
 
     # --- misura ----------------------------------------------------------
     def build_cmd(self, cfg, artifact: Path) -> str:
@@ -101,7 +109,8 @@ class OnnxRuntimeBackend(Backend):
         bench = cfg.backend.benchmark
         ep = EP_BY_DEVICE.get(ct.get("device"), "cpu")
         threads = int(ct.get("n_cores") or 1)
-        template = " ".join(str(bench.cmd).split())
+        # installato nel venv da scripts/remote/build_ort_perf_test.sh
+        template = self.with_venv_tool(cfg, " ".join(str(bench.cmd).split()))
         return template.format(
             model=shlex.quote(str(artifact)),
             ep=ep,
