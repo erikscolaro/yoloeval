@@ -2,6 +2,7 @@
 """yolo-bench — unico entry point.
 
     python run.py stage=train model=yolo26n
+    python run.py stage=search strategy=pit_duccio      # poi stage=finetune
     python run.py -m stage=benchmark hardware=jetson_orin freq_target=maxn,w15
 
 Il dispatch avviene per `cfg.stage.name`: ogni stadio ha il suo entry point e
@@ -25,7 +26,8 @@ log = logging.getLogger("yolo-bench")
 
 #: flag dichiarati in conf/config.yaml con un default
 RUN_FLAGS = (
-    "dry_run", "force", "retry_failed", "force_retrain", "force_reexport",
+    "dry_run", "force", "retry_failed", "force_retrain", "force_search", "force_finetune",
+    "force_reexport",
     "allow_reboot", "skip_invalid", "continue_on_error",
 )
 
@@ -61,6 +63,30 @@ def main(cfg: DictConfig) -> None:
         run_training(cfg)
         return
 
+    if stage == "search":
+        from src.stages.search import run_search
+
+        run_search(cfg)
+        return
+
+    if stage == "finetune":
+        from src.stages.finetune import run_finetune
+
+        run_finetune(cfg)
+        return
+
+    if stage == "probe":
+        from src.stages.probe import run_probe
+
+        run_probe(cfg)
+        return
+
+    if stage == "roofline":
+        from src.stages.roofline import run_roofline
+
+        run_roofline(cfg)
+        return
+
     if stage == "export":
         from src.stages.export import run_export
 
@@ -75,7 +101,7 @@ def main(cfg: DictConfig) -> None:
 
     raise ValueError(
         f"stadio sconosciuto: {stage!r} "
-        f"(stage=train|export|benchmark|provision)"
+        f"(stage=train|search|finetune|probe|roofline|export|benchmark|provision)"
     )
 
 

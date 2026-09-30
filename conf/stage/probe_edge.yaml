@@ -1,0 +1,33 @@
+# Probe per le board con CPU lente (Raspberry Pi 5, CPU della Jetson): reti piu' piccole e
+# meno iterazioni, circa 20-30 minuti per compute target invece di ore.
+#   python run.py stage=probe_edge hardware=rpi5 freq_target=max compute_target=cpu_1
+name: probe
+
+thermal:
+  threshold_c: 50
+  timeout_s: 300
+  poll_s: 10
+scheduling:
+  rt_priority: 80
+  drop_caches: true
+  swap_off: true
+
+iters: 30
+warmup_iters: 5
+
+plot: true
+plot_xtick: 4
+
+sweep:
+  c_min: 16
+  c_max: 96               # tre multipli di 32: si possono provare N fino a 32
+  c_step: 1
+  repeats: 3
+  n_candidates: null
+  tolerance: 0.1
+  window: 32
+  max_violations: 0.2
+  seed: 0
+  shapes:
+    - {kind: conv, kernel: 3, hw: 20, depthwise: false, layers: 4, in_global: true}
+    - {kind: linear, hw: 100, layers: 4, in_global: false}

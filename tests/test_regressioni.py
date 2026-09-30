@@ -202,3 +202,21 @@ def test_continue_on_error_false_ferma_lo_sweep(tmp_path, monkeypatch):
     with pytest.raises(BenchmarkFailed):
         run_cell(cfg, "beef00000000", dest)
     assert json.loads(dest.read_text())["status"] == "failed"
+
+
+@pytest.mark.parametrize("strategy", ["baseline", "pit_duccio"])
+def test_prune_riconosce_gli_export_delle_strategie(tmp_path, strategy, no_dataset_hash):
+    """Un export di un modello potato ha il nome e la chiave dei pesi del fine-tuning:
+    prune deve ricostruirli dagli axes, altrimenti lo cancella come non referenziato."""
+    import json
+
+    from src.cache import export_key, training_key, weights_key
+    from src.schema import base_record
+    from tools.artifacts import referenced_keys
+
+    cfg = make_cfg(f"strategy={strategy}", "backend=onnxruntime", "quantization=int8")
+    rec = base_record(cfg, "x", training_key=training_key(cfg), weights_key=weights_key(cfg))
+    (tmp_path / "x.json").write_text(json.dumps(rec, default=str))
+    keys = referenced_keys(tmp_path)
+    assert export_key(cfg) in keys
+    assert weights_key(cfg) in keys

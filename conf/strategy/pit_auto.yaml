@@ -1,0 +1,30 @@
+# Come pit_duccio, ma N viene dal probe (stage=probe) per la board, la precisione e il backend
+# della config: per esempio
+#   python run.py stage=search strategy=pit_auto hardware=rpi5 quantization=int8
+# Su CPU si usa l'N misurato su un solo core (n_source: cpu_1), il caso peggiore.
+name: pit_auto
+method: pit
+n_source: cpu_1
+
+search:
+  epochs: 30
+  batch: 16
+  optimizer: SGD
+  lr0: 0.001
+  lrf: 0.01
+  warmup_epochs: 0
+  seed: 42
+  pit:
+    n: auto
+    remainder: true
+    warmup_epochs: 0
+    ema: false
+  nas:
+    optimizer: AdamW
+    lr0: 0.01
+    lrf: 1.0
+    cos_lr: false
+    weight_decay: 0.0
+  regularizer:
+    mode: duccio
+    target: {ops: 50%}

@@ -4,8 +4,16 @@
 # alcuni stadi, come indicato.
 
 name: benchmark
-  # OBBLIGATORIO. Valori: train | export | benchmark | provision
+  # OBBLIGATORIO. Valori: train | search | finetune | export | benchmark | provision
   #   train     -> allena e mette i pesi in artifacts/weights/
+  #   roofline  -> misura i tetti del roofline model (picco di calcolo, banda):
+  #                results/roofline/, usati da tools.roofline
+  #   (i file probe_edge.yaml e roofline_edge.yaml sono preset per le board lente, con
+  #   name: probe / name: roofline)
+  #   probe     -> misura con reti dummy quale N (canali a blocchi) premia la board:
+  #                results/probe/, usato dalle strategie con pit.n: auto
+  #   search    -> solo strategie pit: ricerca PIT, modello potato in artifacts/search/
+  #   finetune  -> solo strategie pit: fine-tuning del potato in artifacts/finetune/
   #   export    -> esporta (e quantizza) in artifacts/exports/
   #   benchmark -> misura, e scrive un JSON per cella in results/
   #   provision -> prepara la board e verifica che sia usabile
@@ -14,7 +22,7 @@ force: false
   # Solo stage=provision. true | false (default: false).
   # true -> ignora la sentinella .env_hash e riprovisiona comunque.
 
-# --- solo stage=benchmark --------------------------------------------------
+# --- solo stage=benchmark, stage=probe e stage=roofline ---------------------
 
 thermal:
   # Cooldown condizionale prima di ogni cella: se la board e' gia' sotto
@@ -42,3 +50,68 @@ scheduling:
   swap_off: true
     # true | false. Disattiva lo swap per la durata della cella e lo rimette
     # com'era dopo. Meglio un OOM visibile che una cella in swap.
+
+# --- solo stage=probe -------------------------------------------------------
+
+iters: 100
+  # Solo probe e roofline. Intero. Iterazioni del tool di misura per ogni rete dummy
+  # (sostituisce backend.benchmark.iters).
+warmup_iters: 10
+  # Solo probe e roofline. Intero. Solo per i backend con warmup configurabile.
+
+plot: true
+  # true | false. Un PNG per probe: latenza e throughput in funzione di C, con le linee ai
+  # multipli dell'N trovato.
+plot_xtick: 4
+  # Intero. Tacche dell'asse x del grafico ogni tanti canali (default 4).
+
+sweep:
+  # Reti dummy: L blocchi (conv o lineari) + SiLU + residual, tutti a C canali (o neuroni).
+  # Per ogni forma si misura la latenza per C da c_min a c_max. Efficienza = MAC / latenza.
+  # Un C e' "allineato" se la sua efficienza e' entro `tolerance` dalla migliore vista nei
+  # `window` canali precedenti. N = il piu' piccolo fra 1, 2, 4, ... i cui multipli sono
+  # allineati (tranne al piu' una frazione max_violations). N globale = il piu' grande fra
+  # le forme con in_global: true (i suoi multipli sono multipli anche degli altri).
+  c_min: 32
+    # Intero. Il range deve contenere almeno due multipli dell'N piu' grande da provare.
+  c_max: 128
+  c_step: 1
+    # Intero. 1: con passi piu' grandi si perdono i C non allineati che fanno da confronto.
+  repeats: 3
+    # Intero. Passate complete, ognuna in ordine casuale; per ogni C si usa la mediana. La
+    # dispersione fra le passate stima il rumore.
+  n_candidates: null
+    # null -> 1, 2, 4, ... finche' ci sono almeno due multipli nel range; oppure [8, 16].
+  tolerance: 0.1
+    # Float. Si usa il massimo fra questo e il rumore stimato.
+  window: 32
+    # Intero. Quanti canali indietro guardare per l'efficienza migliore.
+  max_violations: 0.2
+    # Float 0-1. Frazione di multipli non allineati tollerata (una misura sporca isolata non
+    # boccia un N).
+  seed: 0
+    # Intero. Ordine casuale delle misure: la deriva termica non sembra un effetto di C.
+  shapes:
+    # Lista di forme. Ognuna:
+    #   kind      conv | linear (default conv)
+    #   kernel    intero, solo conv
+    #   hw        conv: lato della feature map; linear: righe dell'input (token o batch)
+    #   depthwise true | false, solo conv
+    #   layers    numero di blocchi
+    #   in_global true | false (default true): se false la forma e' solo informativa,
+    #             N compare nel summary ma non entra nell'N globale
+    # Per i lineari C e' il numero di neuroni del layer.
+    - {kind: conv, kernel: 3, hw: 40, depthwise: false, layers: 8, in_global: true}
+    - {kind: linear, hw: 400, layers: 8, in_global: false}
+
+# --- solo stage=roofline ----------------------------------------------------
+
+compute_shapes:
+  # Reti dummy ad alta intensita' aritmetica; il picco di calcolo e' la migliore. Campi come
+  # sweep.shapes, piu' `c` (canali o neuroni).
+  - {kind: conv, kernel: 3, hw: 40, layers: 8, c: 256}
+  - {kind: linear, hw: 1024, layers: 8, c: 1024}
+bandwidth:
+  elements: 67108864
+    # Intero. Elementi fp32 del tensore moltiplicato per uno scalare (1 lettura + 1
+    # scrittura): deve superare di molto le cache, altrimenti si misura la banda della cache.

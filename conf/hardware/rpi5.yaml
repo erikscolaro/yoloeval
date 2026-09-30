@@ -29,3 +29,11 @@ compute:                       # nessun requires_freq: i 4 core sono sempre onli
   cpu_2: {device: cpu, n_cores: 2}
   cpu_4: {device: cpu, n_cores: 4}
   axelera: {device: metis}
+
+# Tetti da datasheet per il roofline (facoltativi, vedi docs/config/hardware.yaml).
+# Stima da verificare: Cortex-A76 = 2 pipe NEON da 128 bit -> 8 MAC fp32 per ciclo per core
+# (int8 con SDOT: 32), 2.4 GHz; LPDDR4X-4267 a 32 bit -> 17.1 GB/s. Togli il commento dopo
+# aver controllato i numeri.
+# peaks:
+#   cpu_1: {gmacs: {fp32: 19.2, int8: 76.8}, bandwidth_gbs: 17.1}
+#   cpu_4: {gmacs: {fp32: 76.8, int8: 307.2}, bandwidth_gbs: 17.1}

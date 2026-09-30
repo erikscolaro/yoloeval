@@ -1,265 +1,204 @@
 # yolo-bench
 
-Misura latenza, accuratezza ed energia di YOLO26 su hardware edge, in modo
-ripetibile e senza doverci stare davanti.
+Misura latenza, accuratezza ed energia di YOLO26 su hardware edge. Confronta i modelli
+Ultralytics (baseline) con quelli potati da [yolopit](https://github.com/erikscolaro/yolopit)
+(ricerca PIT di PLiNIO, canali a blocchi di N). Dataset: AOD4 (airplane, bird, drone,
+helicopter).
 
-Il problema che risolve è banale da descrivere e noioso da fare a mano: sei
-variabili (modello, quantizzazione, backend, board, profilo di potenza,
-target di calcolo) che si incrociano in qualche centinaio di misure, ognuna
-delle quali va fatta partire, tenuta pulita e annotata. Questo tool le fa
-partire, le annota tutte allo stesso modo e alla fine ne tira fuori un
-dataframe, dei grafici e un report.
+Un solo entry point, `run.py`, con configurazione [Hydra](https://hydra.cc): ogni asse è un
+gruppo in `conf/`, ogni campo è documentato in [`docs/config/`](docs/config/).
 
-Dataset: **AOD4**, quattro classi (airplane, bird, drone, helicopter).
+## Installazione
 
-> Niente a che vedere con la pipeline di compressione PLiNIO. Qui si usano
-> solo le API standard di Ultralytics e la quantizzazione post-training nativa
-> di ogni backend. Il confronto fra le due pipeline è un altro lavoro.
-
-## Le sei variabili
-
-| | valori |
-|---|---|
-| `model` | yolo26n, yolo26s, yolo26m, varianti custom |
-| `quantization` | fp32, fp16, int8 (solo PTQ) |
-| `backend` | ONNX Runtime, TensorRT, OpenVINO, ExecuTorch, Axelera |
-| `hardware` | workstation x86, Jetson Orin, Raspberry Pi 5 |
-| `freq_target` | profili nvpmodel su Jetson, clock fisso sul Pi |
-| `compute_target` | GPU, CPU a 1/2/N core, acceleratore Axelera |
-
-Le ultime due non sono assi indipendenti: ogni board dichiara nel proprio file
-quali profili e quali target di calcolo ha. `cpu_8` su un Raspberry Pi non è
-una casella da scartare, è una cosa che non si può proprio scrivere, e infatti
-solleva un errore prima ancora di partire.
-
-## Come è fatto
-
-Quattro idee, tutte per lo stesso motivo: non ritrovarsi con numeri sbagliati
-che sembrano giusti.
-
-**La configurazione è tutta in YAML.** Un gruppo [Hydra](https://hydra.cc) per
-asse. Aggiungere un modello, un backend o una board vuol dire aggiungere un
-file, mai toccare il codice.
-
-**A cronometrare ci pensano i tool dei vendor.** `trtexec`,
-`onnxruntime_perf_test`, `benchmark_app` sono eseguibili C++ scritti da chi ha
-fatto il runtime. Il tool compone la riga di comando, la lancia e legge
-l'output. Non c'è un solo `time.perf_counter()` attorno a una chiamata Python,
-perché quell'overhead è costante e su un modello nano quantizzato su CPU ARM
-finirebbe per nascondere proprio lo speedup che stai misurando.
-
-**Quello che si tocca si rimette a posto.** Governor, frequenze, profili di
-potenza e swap vengono cambiati per la singola cella e ripristinati subito
-dopo, anche se la misura esplode a metà.
-
-**Si può interrompere.** Ogni cella ha un id che dipende dal suo contenuto; se
-fermi lo sweep e lo rilanci, riprende da dove era.
-
-## Dove sta cosa
-
-```
-conf/        un gruppo per asse: stage, model, train, dataset, quantization,
-             backend, hardware, eval, logging
-src/
-  stages/    train, export, benchmark, quantize
-  backends/  un adapter per backend: come esportare, come misurare, come
-             leggere l'output
-  remote/    SSH, provisioning, rsync
-  measure/   stato della board, termico, energia, mAP
-  validation/celle valide, confronto numerico, ispezione del grafo
-  cache.py   le chiavi di cache e il naming degli artefatti
-  schema.py  lo schema (versionato) di results.json
-scripts/     provisioning per board, tuning, requirements, Dockerfile
-tools/       aggregazione, listing artefatti, report
-notebooks/   analisi e figure
-run.py       unico entry point
-```
-
-`artifacts/` tiene i pesi e i modelli esportati, `results/` un JSON per cella,
-`reports/` i report generati.
-
-Se devi scrivere un file di configurazione nuovo (una board, un backend), in
-[`docs/config/`](docs/config/) c'è un riferimento per gruppo: ogni campo, i
-valori che accetta e cosa fa ognuno. Un test verifica che restino allineati ai
-file veri.
-
-## Prepararsi
-
-Sulla workstation:
+Workstation (Python 3.11–3.13):
 
 ```bash
-git clone <repo> && cd yolo-bench
 python -m venv .venv && source .venv/bin/activate
-pip install -r scripts/requirements/x86_64.txt
-sudo apt install pandoc          # serve solo per l'HTML del report
+pip install -r scripts/requirements/x86_64.txt       # include yolopit e PLiNIO
+sudo apt install pandoc                              # solo per l'HTML del report
 ```
 
-Le board si raggiungono tramite un alias in `~/.ssh/config`. Nel repo non c'è
-nessuna credenziale, e non deve entrarcene nessuna: Hydra copia la config
-risolta in ogni cartella di output, quindi un segreto nei config si
-ritroverebbe duplicato in centinaia di posti.
-
-```
-Host jetson-orin
-    HostName <ip>
-    User <user>
-    IdentityFile ~/.ssh/id_ed25519_bench
-    ControlMaster auto
-    ControlPath ~/.ssh/cm-%r@%h:%p
-    ControlPersist 10m
-```
-
-Serve anche `sudo` senza password sulle board, limitato ai comandi di tuning
-(`nvpmodel`, `jetson_clocks`, scrittura su `cpufreq`). Senza, lo sweep si
-pianta a ogni cambio di profilo aspettando una password che nessuno digiterà.
-
-Il dataset sta sulla workstation e viene copiato sulle board da solo, una
-volta, al primo sweep che lo richiede.
-
-### Provisioning
+Board: alias SSH in `~/.ssh/config` (nessuna credenziale nel repo) e `sudo` senza password
+per i comandi di tuning (`nvpmodel`, `jetson_clocks`, `cpufreq`). Poi:
 
 ```bash
 python run.py stage=provision hardware=jetson_orin
-python run.py stage=provision hardware=rpi5
+python run.py stage=provision hardware=rpi5          # crea anche il container Axelera
 ```
 
-È idempotente: se l'ambiente c'è già e va bene, non fa niente.
+Il dataset viene copiato sulle board da solo al primo uso.
 
-Sul Raspberry Pi costruisce anche un container Ubuntu 22.04 per il Voyager
-SDK, perché Raspberry Pi OS non è una piattaforma che Axelera supporta. Il
-driver `metis-dkms` invece resta sull'host, che è un modulo kernel.
+## Assi
 
-## Lanciare
+| gruppo / chiave | valori |
+|---|---|
+| `model` | `yolo26n`, `yolo26s`, `yolo26m`, `custom_pruned` |
+| `strategy` | `baseline`, `pit_standard`, `pit_duccio`, `pit_n16`, `pit_n32`, `pit_auto` |
+| `quantization` | `fp32`, `fp16`, `int8` (PTQ) |
+| `backend` | `onnxruntime`, `onnxruntime_py`, `tensorrt`, `openvino`, `executorch`, `axelera` |
+| `hardware` | `wks4_rtx6000`, `jetson_orin`, `rpi5` |
+| `freq_target` | profili della board (`maxn`, `w30`, `w15` sulla Jetson; `max`, `mid`, `low` sul Pi) |
+| `compute_target` | `gpu`, `cpu_1`, `cpu_2`, …, `axelera` (quelli dichiarati dalla board; vuoto = tutti) |
+| `train`, `finetune` | argomenti di training di Ultralytics |
 
-Gli stadi vanno in ordine e ognuno salta quello che trova già in cache.
+`freq_target` e `compute_target` dipendono dalla board: un valore che la board non dichiara è
+un errore immediato. `freq_target` va sempre indicato sulle board.
+
+## Stadi
+
+Si lanciano in quest'ordine; ognuno salta quello che trova già in cache.
+
+| stadio | dove | cosa produce |
+|---|---|---|
+| `train` | workstation | pesi in `artifacts/weights/` |
+| `search` | workstation | solo strategie pit: modello potato in `artifacts/search/` |
+| `finetune` | workstation | solo strategie pit: fine-tuning in `artifacts/finetune/` |
+| `probe` / `probe_edge` | board | N che premia l'hardware, in `results/probe/` |
+| `roofline` / `roofline_edge` | board | picco di calcolo e banda, in `results/roofline/` |
+| `export` | workstation (ONNX) o board (TensorRT, Axelera) | `artifacts/exports/`, con MAC e byte del modello |
+| `benchmark` | board | un JSON per cella in `results/` |
+
+I preset `_edge` usano reti più piccole e meno iterazioni, adatti a Raspberry Pi e CPU della
+Jetson.
+
+## Flussi
+
+**Solo baseline**
 
 ```bash
-# 1. training, una volta per modello, sulla workstation
-python run.py -m stage=train model=yolo26n,yolo26s,yolo26m
-
-# 2. export: l'ONNX si fa qui, gli engine TensorRT e i modelli Axelera
-#    si compilano sulla board di destinazione
-python run.py -m stage=export \
-  model=glob\(*\) quantization=fp32,fp16,int8 backend=onnxruntime,tensorrt
-
-# 3. benchmark, la matrice vera
-python run.py -m stage=benchmark \
-  model=glob\(*\) quantization=fp32,int8 backend=tensorrt \
-  hardware=jetson_orin freq_target=maxn,w15 compute_target=gpu,cpu_2,cpu_4
+python run.py -m stage=train model=yolo26n,yolo26s
+python run.py -m stage=export model=yolo26n,yolo26s quantization=fp32,int8 backend=onnxruntime
+python run.py -m stage=benchmark model=yolo26n,yolo26s quantization=fp32,int8 \
+  backend=onnxruntime hardware=rpi5 freq_target=max compute_target=cpu_1,cpu_4
 ```
 
-Se ometti `compute_target` li prende tutti, quelli che la board dichiara:
+**Baseline contro potati con N=16 e N=32**
 
 ```bash
-python run.py -m stage=benchmark hardware=rpi5 freq_target=max,mid,low
+python run.py stage=train model=yolo26n
+python run.py -m stage=search   strategy=pit_n16,pit_n32
+python run.py -m stage=finetune strategy=pit_n16,pit_n32
+python run.py -m stage=export    strategy=baseline,pit_n16,pit_n32 quantization=fp32,int8
+python run.py -m stage=benchmark strategy=baseline,pit_n16,pit_n32 quantization=fp32,int8 \
+  hardware=rpi5 freq_target=max compute_target=cpu_1,cpu_4
 ```
 
-`freq_target` invece va sempre indicato per le board. Il default che trovi in
-`config.yaml` vale per la workstation, e sulle altre non esiste: se lo
-dimentichi te lo dice subito, con l'elenco di quelli buoni.
-
-Prima di lanciare qualcosa di grosso, conviene guardarlo:
+**N misurata sulla board (`pit_auto`)**
 
 ```bash
-python run.py -m ... --cfg job --resolve     # la config risolta, senza eseguire
-python run.py -m ... +dry_run=true           # quali celle verrebbero fatte
+python run.py stage=probe_edge hardware=rpi5 freq_target=max quantization=int8 compute_target=cpu_1
+python run.py stage=search   strategy=pit_auto hardware=rpi5 quantization=int8
+python run.py stage=finetune strategy=pit_auto hardware=rpi5 quantization=int8
 ```
 
-Il dry-run stampa una riga per cella con l'esito previsto, incluse quelle che
-verrebbero saltate e perché.
+`pit_auto` prende N dal probe con stessa board, precisione e backend, sul compute target
+`strategy.n_source` (default `cpu_1`). Nella chiave della ricerca entra il valore di N, non la
+board.
 
-### Riprendere, ripetere
+**Più target di DUCCIO**
 
 ```bash
-python run.py -m ...                      # rifà solo quello che manca
-python run.py -m ... +retry_failed=true   # riprova anche le celle fallite
-python run.py -m ... +force=true          # rifà tutto
+python run.py -m stage=search strategy=pit_duccio strategy.search.regularizer.target.ops=30%,40%,50%
 ```
 
-(Hydra vorrebbe `retry_failed=true` senza il `+`, perché quelle chiavi hanno
-già un default. `run.py` accetta entrambe le forme, così i comandi qui sopra
-funzionano come sono scritti.)
+Stessi override per `finetune`, `export` e `benchmark`.
 
-Un avvertimento sul parallelismo: `hydra/launcher=joblib` va benissimo per
-training ed export, ma **mai** per la misura di latenza. Due job che si
-contendono la stessa GPU o gli stessi core producono numeri inservibili.
-
-### Guardare i risultati
+**Roofline**
 
 ```bash
-python -m tools.aggregate --out data.parquet
-jupyter lab notebooks/01_analysis.ipynb
-python -m tools.report
+python run.py -m stage=roofline_edge hardware=rpi5 freq_target=max quantization=fp32,int8
+# ... export e benchmark dei modelli ...
+python -m tools.roofline                     # reports/roofline/: roofline.csv + un PNG per gruppo
 ```
 
-Il report finisce in una cartella datata sotto `reports/`, con dentro il
-markdown, l'HTML autoconsistente, le figure in PNG e PDF, le tabelle in CSV e
-il dataframe. `reports/latest` punta sempre all'ultima. Opzioni e output di
-tutti i tool sono in [`docs/tools.md`](docs/tools.md).
+Per ogni board × compute target × precisione × backend: intensità aritmetica (MAC/byte),
+GMAC/s ottenuti, tetto raggiungibile, efficienza, memory/compute bound, speedup e rapporto di
+MAC rispetto alla baseline. I tetti da datasheet, se scritti in `hardware.peaks`, compaiono
+tratteggiati.
 
-## Cosa viene registrato
+## Strategie
 
-**Latenza**: media, mediana, p90, p95, p99, throughput. Sempre `batch=1`,
-stesso numero di iterazioni, stesso input, misurata dal tool nativo del
-backend.
+Una strategia (`conf/strategy/`) contiene la configurazione della ricerca PIT: argomenti di
+Ultralytics più i gruppi di yolopit.
 
-**Accuratezza**: mAP@50 e mAP@50-95, calcolate una volta per artefatto
-esportato. Non dipendono dal profilo di potenza né da quanti core usi, quindi
-rifarle per ogni riga della matrice sarebbe solo tempo buttato.
+```yaml
+name: pit_duccio
+method: pit                  # ultralytics = baseline
+search:
+  epochs: 30
+  lr0: 0.001
+  pit:  {n: 16, remainder: true, warmup_epochs: 0, ema: false}    # n: auto -> dal probe
+  nas:  {optimizer: AdamW, lr0: 0.01, lrf: 1.0, cos_lr: false}
+  regularizer: {mode: duccio, target: {ops: 50%}}                 # oppure
+  # regularizer: {mode: standard, lambda: {ops: 1.0, params: 0.0}}
+```
 
-**Energia**: potenza media e integrale sulla durata della misura, dove ci sono
-i sensori (su Jetson via `tegrastats`; sul Pi non c'è niente di accessibile).
+- Target DUCCIO sul modello intero, assoluti (`1.2G`, `800M`) o in % del modello di partenza;
+  sotto il minimo raggiungibile la ricerca si ferma con un errore.
+- Le MAC sono calcolate alla risoluzione di deploy (`model.imgsz`).
+- `pit_n16`, `pit_n32` = `pit_duccio` con N fissa (`defaults: [pit_duccio]`).
+- Il fine-tuning ha il suo gruppo `conf/finetune/`.
 
-**Contesto**: temperatura prima e dopo, throttling, frequenza richiesta e
-frequenza effettiva, core online, versioni di tutti i runtime, commit del
-tool. Sembra pedante finché non ti serve difendere un numero.
+## Opzioni
 
-**Tempo macchina**: quanto è durato ogni stadio e su quale macchina, anche per
-le celle fallite. Una cella che crasha dopo venti minuti di build TensorRT ha
-occupato la macchina uguale.
+| flag | effetto |
+|---|---|
+| `+dry_run=true` | mostra cosa verrebbe fatto, senza eseguire |
+| `--cfg job --resolve` | stampa la config risolta |
+| `+force=true` | rifà benchmark, probe e roofline già fatti |
+| `+retry_failed=true` | riprova le celle fallite |
+| `+force_retrain=true` / `+force_search=true` / `+force_finetune=true` / `+force_reexport=true` | rifà quello stadio |
+| `+allow_reboot=true` | permette il riavvio della board per i cambi di profilo |
+| `skip_invalid=false` | ferma lo sweep su una cella non valida invece di saltarla |
+| `continue_on_error=false` | ferma lo sweep alla prima cella fallita |
 
-**Validità**: ogni artefatto esportato viene confrontato numericamente con
-l'FP32 prima di essere ammesso al benchmark. Un modello INT8 calibrato male è
-velocissimo e predice rumore, e senza questo controllo comparirebbe in tabella
-come il risultato migliore.
+`hydra/launcher=joblib` va bene per training ed export, **mai** per benchmark, probe o
+roofline: misure in parallelo sullo stesso hardware non valgono niente.
 
-## Cose che è meglio sapere
+## Risultati
 
-**YOLO26 ha due teste.** Una one-to-one per l'inferenza end-to-end senza NMS,
-e una one-to-many tradizionale che l'NMS ce l'ha. Certe combinazioni di
-runtime e quantizzazione (fra cui INT8 su TensorRT con JetPack 6) disabilitano
-il percorso end-to-end da sole, con un warning e un fallback silenzioso. Il
-tool guarda dentro l'artefatto e registra quale testa c'è davvero. Se non lo
-facesse, attribuiresti alla quantizzazione una differenza di latenza che viene
-invece dal post-processing.
+```bash
+python -m tools.aggregate --out data.parquet        # un DataFrame con tutte le celle
+python -m tools.roofline                            # roofline e confronto con la baseline
+jupyter lab notebooks/01_analysis.ipynb             # tabelle, probe, roofline
+jupyter lab notebooks/02_figures.ipynb              # figure PNG + PDF per la tesi
+python -m tools.report                              # reports/<data>/ e reports/latest
+python -m tools.artifacts ls | prune [--apply]      # cache degli artefatti
+```
 
-**Gli engine non si spostano.** Un engine TensorRT è legato a GPU,
-architettura e versione della libreria; un modello Axelera richiede la scheda
-Metis fisicamente presente in fase di export e cambia formato con l'SDK. Per
-questo si compilano sulla board, e la workstation produce solo `.pt` e
-`.onnx`.
+Opzioni e output di tutti i tool sono in [`docs/tools.md`](docs/tools.md).
 
-**La quantizzazione Axelera non è un asse.** Il Voyager SDK quantizza e
-compila in INT8 per conto suo, quindi le celle Axelera non si confrontano riga
-per riga con l'INT8 di TensorRT: lo schema di quantizzazione è diverso. Una
-cella `axelera + fp32` viene saltata, perché misurerebbe un modello INT8 con
-l'etichetta sbagliata.
+Ogni cella registra latenza (media, mediana, p90/p95/p99, sempre batch 1, con il tool nativo
+del backend), mAP (una volta per artefatto), energia dove ci sono sensori, temperatura,
+throttling, frequenze, versioni, tempo macchina, validazione numerica contro l'FP32, strategia,
+N e complessità del modello.
 
-**MAXN non è "il profilo veloce".** NVIDIA lo descrive come modalità non
-vincolata e sperimentale: il throttling hardware interviene quando la potenza
-del modulo supera il budget, e i carichi pesanti prolungati lì dentro sono
-sconsigliati. Le celle MAXN vanno lette insieme al campo `throttled`.
+## Da sapere
 
-**Certi cambi di profilo vogliono il riavvio.** Per questo lo sweep va
-raggruppato per profilo, e il tool si ferma se il profilo attivo non è quello
-richiesto invece di andare avanti con risultati sbagliati in silenzio. Il
-riavvio automatico esiste ma è spento di default (`+allow_reboot=true`), così
-uno sweep notturno non può riavviarti una board mentre non guardi.
+- **Teste di YOLO26.** L'export può ricadere sulla testa one-to-many (con NMS): il tool
+  registra quella usata davvero (`val_actual_e2e`).
+- **Engine non portabili.** TensorRT e Axelera si compilano sulla board; la workstation
+  produce solo `.pt` e `.onnx`.
+- **Axelera.** Quantizza da sé in INT8: le celle `axelera + fp32` vengono saltate. Per i
+  modelli potati il pacchetto yolopit viene copiato sulla board e messo nel PYTHONPATH del
+  container, senza installarlo.
+- **Profili di potenza.** Certi cambi di profilo vogliono il riavvio: raggruppa gli sweep per
+  profilo. MAXN va letto insieme a `throttled`.
+- **Caldo.** Il tool aspetta il raffreddamento prima di ogni misura e registra l'ordine di
+  esecuzione, per vedere in analisi se la temperatura ha influito.
 
-**Il caldo sporca le misure.** Uno sweep lungo scalda le board e le ultime
-celle vengono sistematicamente più lente delle prime. Il tool aspetta che si
-raffreddi prima di ogni misura e registra l'indice di esecuzione, così se
-salta fuori una correlazione fra ordine e latenza la vedi in analisi.
+## Struttura
+
+```
+conf/        un gruppo per asse (stage, model, train, strategy, finetune, dataset,
+             quantization, backend, hardware, eval, logging)
+docs/config/ riferimento di ogni campo, per gruppo
+src/stages/  train, search, finetune, probe, roofline, export, benchmark
+src/probe/   reti dummy e scelta di N
+src/backends/, src/remote/, src/measure/, src/validation/
+tools/       aggregate, roofline, report, artifacts
+notebooks/   analisi e figure
+```
 
 ## Test
 
@@ -267,25 +206,15 @@ salta fuori una correlazione fra ordine e latenza la vedi in analisi.
 pytest
 ```
 
-Non c'è copertura estesa, ci sono i test che prendono gli errori silenziosi.
-Il più importante è quello che verifica che backend, hardware e profilo di
-potenza **non** finiscano nella chiave di training: se ci finissero, lo stesso
-modello verrebbe riallenato per ogni cella e te ne accorgeresti solo a GPU già
-sprecata.
+Verificano soprattutto gli errori silenziosi: chiavi di cache (training e ricerca non
+dipendono dall'hardware), parser sui veri output dei tool, probe, roofline, config
+documentata.
 
-I parser hanno per fixture output veri dei tool, salvati in `tests/fixtures/`,
-e per ognuno c'è anche il test contrario: davanti a un output troncato devono
-sollevare, non restituire zeri.
+## Limiti
 
-## Limiti attuali
-
-- Il training gira su una sola workstation, non è distribuito.
-- L'isolamento dei core (`isolcpus`, cpuset) non c'è: richiede un boot
-  modificato, quindi una modifica persistente, che è fuori dalle regole che si
-  è dato il tool.
-- Solo PTQ. La quantization-aware training è un altro discorso.
-- Il mirror su Weights & Biases è opzionale e resta un mirror: la fonte di
-  verità è il JSON locale.
-- Niente di tutto questo è mai girato contro hardware vero. I parser sono
-  testati su output reali salvati come fixture, ma la prima cella end-to-end
-  su workstation, e poi su Jetson, resta da fare.
+- Probe e roofline solo con ONNX Runtime (`onnxruntime`, `onnxruntime_py`); TensorRT,
+  OpenVINO e Axelera da aggiungere.
+- Nessun isolamento dei core (`isolcpus`): richiederebbe modifiche permanenti al boot.
+- Solo PTQ, niente QAT.
+- Mai girato su una board vera: parser testati su output reali salvati, flusso completo
+  provato solo in locale sulla workstation.

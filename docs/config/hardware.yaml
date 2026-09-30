@@ -53,6 +53,16 @@ jetpack: "6.2"
   # BENCH_JETPACK, che la verifica contro /etc/nv_tegra_release e si ferma se
   # non corrisponde.
 
+peaks:
+  # Facoltativo. Tetti da datasheet per il roofline (tools.roofline li disegna tratteggiati
+  # accanto a quelli misurati da stage=roofline), per compute target. Numeri teorici:
+  # scriverli solo da una fonte, con la fonte in un commento.
+  cpu_4:
+    gmacs: {fp32: 76.8, fp16: 153.6, int8: 307.2}
+      # MAC/s di picco per precisione (una FMA = 1 MAC).
+    bandwidth_gbs: 17.1
+      # Banda teorica della memoria.
+
 # --- descrittivi: il codice non li legge -----------------------------------
 # Restano perche' aprendo il file si capisce di che macchina si parla.
 

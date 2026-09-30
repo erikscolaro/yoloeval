@@ -1,0 +1,22 @@
+# Roofline per le board con CPU lente: reti del picco piu' piccole, meno iterazioni.
+#   python run.py stage=roofline_edge hardware=rpi5 freq_target=max quantization=fp32,int8 -m
+name: roofline
+
+thermal:
+  threshold_c: 50
+  timeout_s: 300
+  poll_s: 10
+scheduling:
+  rt_priority: 80
+  drop_caches: true
+  swap_off: true
+
+iters: 10
+warmup_iters: 3
+
+compute_shapes:
+  - {kind: conv, kernel: 3, hw: 20, layers: 4, c: 256}
+  - {kind: linear, hw: 256, layers: 4, c: 512}
+
+bandwidth:
+  elements: 33554432      # 32M float32 = 128 MB letti e 128 scritti: oltre le cache del Pi

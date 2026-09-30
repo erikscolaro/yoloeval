@@ -10,6 +10,8 @@ defaults:
   - hardware: wks4_rtx6000
   - eval: default
   - logging: wandb
+  - strategy: baseline
+  - finetune: default
   - _self_
 
 freq_target: default            # chiave dentro hardware.freq
@@ -29,6 +31,8 @@ continue_on_error: true
 force: false
 retry_failed: false
 force_retrain: false
+force_search: false
+force_finetune: false
 force_reexport: false
 dry_run: false
 allow_reboot: false             # riavvio automatico della board per cambio profilo

@@ -1,0 +1,10 @@
+# pit_duccio con N=16 fisso: per il confronto baseline / N=16 / N=32
+#   python run.py -m stage=search strategy=pit_n16,pit_n32
+defaults:
+  - pit_duccio
+  - _self_
+
+name: pit_n16
+search:
+  pit:
+    n: 16

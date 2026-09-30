@@ -30,11 +30,18 @@ SCOPE_E2E = "end_to_end_with_transfers"
 SCOPE_COMPUTE = "compute_only"
 
 
-def axes(cfg: DictConfig, training_key: str | None = None) -> dict:
-    """Gli assi della matrice, appiattiti: sono le colonne dell'analisi."""
+def axes(cfg: DictConfig, training_key: str | None = None,
+         weights_key: str | None = None) -> dict:
+    """Gli assi della matrice, appiattiti: sono le colonne dell'analisi.
+
+    `strategy` e `weights_key` (i pesi arrivati all'export: il training_key per la baseline)
+    servono a distinguere un modello potato dalla sua baseline."""
+    strategy = cfg.get("strategy")
     return {
         "model": cfg.model.name,
+        "strategy": "baseline" if strategy is None else strategy.name,
         "training_key": training_key,
+        "weights_key": weights_key or training_key,
         "quantization": cfg.quantization.name,
         "backend": cfg.backend.name,
         "board": cfg.hardware.board,
@@ -49,6 +56,7 @@ def base_record(
     cell_id: str,
     training_key: str | None = None,
     env: dict | None = None,
+    weights_key: str | None = None,
 ) -> dict:
     """Parte comune a ok / skipped / failed.
 
@@ -62,7 +70,7 @@ def base_record(
         "status": None,
         "timestamp": now_iso(),
         "order_index": order_index(),
-        "axes": axes(cfg, training_key),
+        "axes": axes(cfg, training_key, weights_key),
         "env": env or {},
         "config": OmegaConf.to_container(cfg, resolve=True),
     }

@@ -159,3 +159,52 @@ def fetch(conn, cfg, remote_path: str, local_path: str | Path) -> Path:
         return local_path
     _rsync(f"{cfg.hardware.remote.host}:{remote_path}", str(local_path))
     return local_path
+
+
+def _package_tag(pkg: Path) -> str:
+    """Versione + hash dei sorgenti: una modifica locale non riusa una copia vecchia."""
+    import hashlib
+
+    h = hashlib.sha256()
+    for f in sorted(pkg.rglob("*.py")):
+        h.update(f.relative_to(pkg).as_posix().encode())
+        h.update(f.read_bytes())
+    try:
+        from importlib.metadata import version
+
+        ver = version("yolopit")
+    except Exception:  # noqa: BLE001 - la versione e' solo un'etichetta leggibile
+        ver = "dev"
+    return f"{ver}-{h.hexdigest()[:8]}"
+
+
+def ensure_yolopit(conn, cfg) -> str | None:
+    """Rende importabile `yolopit.runtime` sulla board, per i modelli potati.
+
+    Un `.pt` potato contiene in pickle `yolopit.runtime.FxDetectionModel`: chi lo carica
+    (l'export Axelera nel container, il confronto numerico sull'host della board) deve poter
+    importare quel modulo. Invece di installare yolopit con pip sulla board — i suoi requisiti
+    fissano torch e Ultralytics e romperebbero l'ambiente del Voyager SDK — si copia il
+    pacchetto installato sulla workstation e lo si mette nel PYTHONPATH del solo comando che
+    ne ha bisogno. `yolopit.runtime` usa solo torch e Ultralytics, gia' presenti.
+
+    Ritorna la directory da mettere nel PYTHONPATH (path della board), None per la baseline o
+    in locale (dove yolopit e' gia' installato).
+    """
+    from ..cache import is_baseline
+
+    if is_baseline(cfg) or is_local_conn(conn) or not is_remote(cfg):
+        return None
+    import yolopit
+
+    pkg = Path(yolopit.__file__).resolve().parent
+    remote_pkg = sync_artifact(conn, cfg, pkg, subdir="python",
+                               key=f"yolopit-{_package_tag(pkg)}")
+    return remote_pkg.rsplit("/", 1)[0]
+
+
+def pythonpath_prefix(path: str | None) -> str:
+    """`PYTHONPATH=<path>:$PYTHONPATH ` davanti a un comando (niente se path e' None)."""
+    if not path:
+        return ""
+    return f"PYTHONPATH={shlex.quote(path)}${{PYTHONPATH:+:$PYTHONPATH}} "

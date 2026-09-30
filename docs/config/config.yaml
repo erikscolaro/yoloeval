@@ -16,6 +16,8 @@ defaults:
   - hardware: wks4_rtx6000
   - eval: default
   - logging: local
+  - strategy: baseline
+  - finetune: default
   - _self_
 
 freq_target: default
@@ -69,6 +71,10 @@ retry_failed: false
   #         a ogni rilancio).
 force_retrain: false
   # true -> riallena anche se i pesi con quel training_key esistono gia'.
+force_search: false
+  # true -> rifa' la ricerca PIT anche se esiste gia' quella con lo stesso search_key.
+force_finetune: false
+  # true -> rifa' il fine-tuning anche se esiste gia' quello con lo stesso finetune_key.
 force_reexport: false
   # true -> riesporta anche se l'artefatto con quell'export_key esiste gia'.
   #         Serve dopo un aggiornamento di TensorRT o del Voyager SDK.

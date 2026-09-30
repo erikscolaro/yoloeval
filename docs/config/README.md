@@ -16,6 +16,8 @@ stringhe sono ammesse.
 | [`hardware.yaml`](hardware.yaml) | `conf/hardware/*.yaml`: una board per file |
 | [`eval.yaml`](eval.yaml) | `conf/eval/*.yaml`: le soglie, che sono due coppie diverse |
 | [`logging.yaml`](logging.yaml) | `conf/logging/*.yaml` |
+| [`strategy.yaml`](strategy.yaml) | `conf/strategy/*.yaml`: baseline o ricerca PIT (yolopit) |
+| [`finetune.yaml`](finetune.yaml) | `conf/finetune/*.yaml`: fine-tuning del modello potato |
 
 Non stanno dentro `conf/` di proposito: Hydra tratta ogni file di un gruppo
 come un'opzione selezionabile, quindi una board o un backend di esempio

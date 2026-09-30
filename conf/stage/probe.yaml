@@ -1,0 +1,35 @@
+# Preset per workstation e GPU. Per le board (CPU ARM): stage=probe_edge.
+name: probe
+
+# Stesso tuning della board del benchmark (vedi stage/benchmark.yaml).
+thermal:
+  threshold_c: 45
+  timeout_s: 300
+  poll_s: 10
+scheduling:
+  rt_priority: 80
+  drop_caches: true
+  swap_off: true
+
+iters: 100                # iterazioni per misura (sostituisce backend.benchmark.iters)
+warmup_iters: 10
+
+plot: true                # latenza e throughput in funzione dei canali, un PNG per probe
+plot_xtick: 4             # tacche dell'asse x ogni 4 canali
+
+sweep:
+  c_min: 32               # canali misurati: da c_min a c_max
+  c_max: 128
+  c_step: 1
+  repeats: 3              # passate, ognuna in ordine casuale; per ogni C la mediana
+  n_candidates: null      # null -> 1, 2, 4, ... (almeno 2 multipli nel range)
+  tolerance: 0.1          # un multiplo di N e' "allineato" se e' entro il 10% dell'efficienza
+                          #   migliore vista nei `window` canali precedenti
+  window: 32
+  max_violations: 0.2     # frazione di multipli non allineati tollerata (misure sporche)
+  seed: 0
+  shapes:                 # forme dei layer delle reti dummy: N per forma; l'N globale
+                          #   viene solo da quelle con in_global: true (qui la conv 3x3)
+    - {kind: conv, kernel: 3, hw: 40, depthwise: false, layers: 8, in_global: true}
+    - {kind: conv, kernel: 1, hw: 80, depthwise: false, layers: 8, in_global: false}
+    - {kind: linear, hw: 400, layers: 8, in_global: false}   # C = neuroni, 400 righe

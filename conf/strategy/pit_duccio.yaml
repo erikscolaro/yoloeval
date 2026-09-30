@@ -1,0 +1,28 @@
+# Ricerca PIT (yolopit) con DUCCIO: ogni costo scende fino al suo target e poi non viene piu'
+# spinto. Target sul modello INTERO, assoluti (1.2G, 800M) o in % del modello di partenza.
+# Per piu' target:  -m strategy=pit_duccio strategy.search.regularizer.target.ops=30%,40%,50%
+name: pit_duccio
+method: pit
+
+search:
+  epochs: 30
+  batch: 16
+  optimizer: SGD
+  lr0: 0.001
+  lrf: 0.01
+  warmup_epochs: 0
+  seed: 42
+  pit:
+    n: 16
+    remainder: true
+    warmup_epochs: 0
+    ema: false
+  nas:
+    optimizer: AdamW
+    lr0: 0.01
+    lrf: 1.0
+    cos_lr: false
+    weight_decay: 0.0
+  regularizer:
+    mode: duccio
+    target: {ops: 50%}

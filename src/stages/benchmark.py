@@ -24,7 +24,8 @@ from pathlib import Path
 from omegaconf import read_write
 
 from ..backends import get_backend
-from ..cache import cell_key, export_key, find_export, locate_artifact, training_key
+from ..cache import (cell_key, export_key, find_export, locate_artifact, training_key,
+                     weights_key)
 from ..env import collect_versions
 from ..errors import BenchmarkFailed, MissingExport
 from ..jsonio import atomic_write_json, atomic_write_text, read_json
@@ -133,7 +134,7 @@ def run_cell(cfg, cid: str, dest: Path) -> Path:
     occupato la macchina sparirebbe dalle machine hours.
     """
     timer = PhaseTimer(device=cfg.hardware.board)
-    rec = base_record(cfg, cid, training_key=training_key(cfg))
+    rec = base_record(cfg, cid, training_key=training_key(cfg), weights_key=weights_key(cfg))
     try:
         valid, reason = is_valid(cfg)
         if not valid:
@@ -335,6 +336,12 @@ def execute_benchmark(conn, cfg, raw_dest: Path, timer: PhaseTimer, bc,
     if energy:
         result["energy"] = energy
 
+    # per il roofline (tools/roofline.py): MAC e byte del modello, strategia e N
+    if export_meta.get("complexity"):
+        result["complexity"] = export_meta["complexity"]
+    if export_meta.get("model_info"):
+        result["model_info"] = export_meta["model_info"]
+
     result["accuracy"] = _accuracy(conn, cfg, backend, artifact, export_dir,
                                    ct, timer)
     result["validation"] = _validation_block(
@@ -454,10 +461,14 @@ def _validation_block(cfg, validation: dict, export_meta: dict,
     validation["head"] = inspection.get("head")
 
     ref_map50 = None
+    # riferimento: il modello che e' andato all'export (per le strategie, il fine-tuning)
+    baseline = export_meta.get("strategy", "baseline") == "baseline"
+    index = "weights" if baseline else "finetune"
+    key = export_meta.get("training_key") if baseline else export_meta.get("weights_key")
     weights_meta = read_json(
-        Path(cfg.artifacts_dir) / "weights" / "index.json", default={}
+        Path(cfg.artifacts_dir) / index / "index.json", default={}
     ) or {}
-    entry = weights_meta.get(export_meta.get("training_key"))
+    entry = weights_meta.get(key)
     if entry and entry.get("metrics"):
         ref_map50 = entry["metrics"].get("map50")
     return grade_accuracy(

@@ -31,3 +31,9 @@ compute:
   cpu_2: {device: cpu, n_cores: 2}
   cpu_4: {device: cpu, n_cores: 4}
   cpu_8: {device: cpu, n_cores: 8, requires_freq: [maxn, w30]}
+
+# Tetti da datasheet per il roofline (facoltativi, vedi docs/config/hardware.yaml): dipendono
+# dalla variante del modulo e dal profilo nvpmodel. Da compilare dalla scheda tecnica, per
+# esempio:
+# peaks:
+#   gpu: {gmacs: {fp16: ..., int8: ...}, bandwidth_gbs: ...}

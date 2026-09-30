@@ -25,6 +25,8 @@ FLATTEN = {
     "validation": "val_",
     "timing": "time_",
     "env": "env_",
+    "complexity": "cx_",
+    "model_info": "mi_",
 }
 
 
