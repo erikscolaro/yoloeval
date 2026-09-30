@@ -34,10 +34,20 @@ calibration:
 validation:
   # null per fp32: e' il riferimento, non c'e' niente da validare.
   max_abs_diff: 0.05
-    # Float. Differenza massima ammessa fra l'output dell'artefatto e quello
-    # FP32 sullo stesso batch fisso. Oltre, l'artefatto e' `degraded`: resta
-    # in tabella, segnalato, perche' i suoi numeri di latenza non sono
-    # confrontabili con gli altri.
+    # Float. Solo per la testa one-to-many ([1, 4+nc, anchors]). Differenza
+    # massima ammessa fra l'output dell'artefatto e quello FP32 sullo stesso
+    # batch fisso. Oltre, l'artefatto e' `degraded`: resta in tabella,
+    # segnalato, perche' i suoi numeri di latenza non sono confrontabili con
+    # gli altri.
+  min_match_rate: 0.90
+    # Float in [0, 1]. Solo per la testa one-to-one ([1, max_det, 6]), dove i
+    # tensori non si confrontano elemento per elemento: si tengono le
+    # detection con score >= 0.25 e si accoppiano per classe e IoU >= 0.7
+    # (default di Ultralytics). Frazione minima di detection accoppiate sul
+    # totale del lato che ne ha di piu'. Sotto, `degraded`.
+  max_score_diff: 0.10
+    # Float. Solo testa one-to-one: scarto massimo di score fra due
+    # detection accoppiate. Oltre, `degraded`.
   map50_drop_tolerance: 0.02
     # Float. Calo di mAP@50 ammesso rispetto al modello allenato. Oltre,
     # `degraded`.

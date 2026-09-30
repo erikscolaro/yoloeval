@@ -96,7 +96,7 @@ def run_export(cfg) -> Path:
             ekey, info.get("head"), fallback or "motivo non fra quelli noti",
         )
     if validation.get("status") == "degraded":
-        log.error("validazione degradata per %s: %s", ekey,
+        log.warning("validazione degradata per %s: %s", ekey,
                   validation.get("reason"))
 
     meta = {

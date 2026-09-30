@@ -115,3 +115,26 @@ def test_trtexec_bindings():
     assert bindings["inputs"][0]["shape"] == (1, 3, 640, 640)
     assert bindings["outputs"][0]["name"] == "output0"
     assert bindings["outputs"][0]["shape"] == (1, 300, 6)
+
+
+def _openvino_ir(tmp_path, out_dims):
+    dims = "".join(f"<dim>{d}</dim>" for d in out_dims)
+    xml = tmp_path / "model.xml"
+    xml.write_text(
+        '<net><layers>'
+        '<layer type="Parameter"><output><port precision="FP32">'
+        '<dim>1</dim><dim>3</dim><dim>640</dim><dim>640</dim></port></output></layer>'
+        f'<layer type="Result"><input><port>{dims}</port></input></layer>'
+        '</layers></net>'
+    )
+    return xml
+
+
+@pytest.mark.parametrize("out_dims, head, e2e", [
+    ((1, 300, 6), "one_to_one", True),
+    ((1, 8, 8400), "one_to_many", False),
+])
+def test_openvino_inspect_testa(tmp_path, out_dims, head, e2e):
+    info = get_backend("openvino").inspect(_openvino_ir(tmp_path, out_dims))
+    assert info["head"] == head
+    assert info["actual_e2e"] is e2e

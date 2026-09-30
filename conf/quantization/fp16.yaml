@@ -5,7 +5,9 @@ method: cast                   # nessuna calibrazione
 calibration: null
 
 validation:
-  max_abs_diff: 0.01
+  max_abs_diff: 0.01             # testa one-to-many: tensori grezzi
+  min_match_rate: 0.98           # testa one-to-one: detection accoppiate
+  max_score_diff: 0.02
   map50_drop_tolerance: 0.005
 
 backend_args:

@@ -103,7 +103,7 @@ class OpenVINOBackend(Backend):
         xml = sorted(path.glob("*.xml"))[0] if path.is_dir() else path
         import xml.etree.ElementTree as ET
 
-        from ..validation.graph import classify_head
+        from ..validation.graph import classify_head, infer_nc
 
         root = ET.parse(xml).getroot()
         outputs, inputs, precisions = [], [], set()
@@ -121,7 +121,8 @@ class OpenVINOBackend(Backend):
             "int8" if {"I8", "U8"} & precisions else
             "fp16" if "FP16" in precisions else "fp32"
         )
-        head, e2e = classify_head(list(outputs), nms_in_graph=False, nc=None)
+        head, e2e = classify_head(list(outputs), nms_in_graph=False,
+                                 nc=infer_nc(outputs))
         return {
             "actual_e2e": e2e,
             "head": head,

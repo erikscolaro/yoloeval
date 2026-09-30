@@ -95,6 +95,8 @@ def grade(payload: dict, thresholds) -> dict:
         "ref_shape": payload.get("ref_shape"),
         "target_shape": payload.get("target_shape"),
     }
+    if payload.get("comparison") == "detections":
+        return _grade_detections(payload, thresholds)
     if payload.get("status") == "shape_mismatch":
         out["status"] = "degraded"
         out["reason"] = (
@@ -114,6 +116,34 @@ def grade(payload: dict, thresholds) -> dict:
         out["reason"] = f"max_abs_diff {diff:.5f} > soglia {limit}"
     else:
         out["status"] = "ok"
+    return out
+
+
+def _grade_detections(payload: dict, thresholds) -> dict:
+    """Soglie per il confronto detection per detection (testa one-to-one)."""
+    keys = ("comparison", "conf", "iou", "n_ref", "n_target", "n_matched",
+            "match_rate", "max_box_diff_px", "max_score_diff", "mean_iou",
+            "n_images", "ref_shape", "target_shape")
+    out = {k: payload.get(k) for k in keys}
+    # Nessun max_abs_diff sui tensori: con la testa one-to-one non ha senso,
+    # e un numero enorme dovuto all'ordine delle detection sarebbe fuorviante.
+    out["max_abs_diff_vs_fp32"] = None
+    min_rate = float(thresholds.get("min_match_rate", 0.0))
+    max_score = float(thresholds.get("max_score_diff", float("inf")))
+    reasons = []
+    if out["match_rate"] < min_rate:
+        reasons.append(
+            f"match_rate {out['match_rate']:.3f} < soglia {min_rate} "
+            f"({out['n_matched']} accoppiate su {out['n_ref']} rif. / "
+            f"{out['n_target']} artefatto)"
+        )
+    if out["max_score_diff"] > max_score:
+        reasons.append(
+            f"max_score_diff {out['max_score_diff']:.4f} > soglia {max_score}"
+        )
+    out["status"] = "degraded" if reasons else "ok"
+    if reasons:
+        out["reason"] = "; ".join(reasons)
     return out
 
 

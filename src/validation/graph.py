@@ -69,6 +69,14 @@ def e2e_fallback_reason(cfg, env: dict) -> str | None:
     return None
 
 
+def infer_nc(output_shapes) -> int | None:
+    """Numero di classi dedotto da un output one-to-many [1, 4+nc, anchors]."""
+    for shape in output_shapes:
+        if len(shape) == 3 and isinstance(shape[1], int) and shape[1] > 4:
+            return shape[1] - 4
+    return None
+
+
 def classify_head(output_shapes: list[tuple], nms_in_graph: bool,
                   nc: int | None = None) -> tuple[str, bool]:
     """Dalla forma degli output alla testa effettivamente esportata.
@@ -107,11 +115,7 @@ def inspect_onnx(path) -> dict:
 
     input_shape = shape_of(graph.input[0]) if graph.input else ()
     output_shapes = [shape_of(o) for o in graph.output]
-    nc = None
-    for shape in output_shapes:
-        if len(shape) == 3 and isinstance(shape[1], int) and shape[1] > 4:
-            nc = shape[1] - 4
-            break
+    nc = infer_nc(output_shapes)
 
     if "QuantizeLinear" in op_types or "QLinearConv" in op_types:
         precision = "int8"
