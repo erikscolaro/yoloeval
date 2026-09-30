@@ -5,7 +5,7 @@ cpu: cortex_a76
 n_cores_total: 4
 shared_clock_domain: true      # i 4 core condividono il clock
 trt_available: false
-axelera_available: true
+axelera_available: false       # con la scheda Metis: hardware=rpi5_axelera
 power_sensors: false
 controller: rpi5
 
@@ -15,9 +15,9 @@ remote:
   python: /home/bench/bench/.venv/bin/python
 
 provision:
-  script: scripts/provision/rpi5_axelera.sh
+  script: scripts/provision/rpi5.sh
   requirements: scripts/requirements/aarch64-rpi5.txt
-  container: true
+  container: false
 
 freq:
   max: {khz: 2400000, governor: performance}
@@ -28,7 +28,6 @@ compute:                       # nessun requires_freq: i 4 core sono sempre onli
   cpu_1: {device: cpu, n_cores: 1}
   cpu_2: {device: cpu, n_cores: 2}
   cpu_4: {device: cpu, n_cores: 4}
-  axelera: {device: metis}
 
 # Tetti da datasheet per il roofline (facoltativi, vedi docs/config/hardware.yaml).
 # Stima da verificare: Cortex-A76 = 2 pipe NEON da 128 bit -> 8 MAC fp32 per ciclo per core

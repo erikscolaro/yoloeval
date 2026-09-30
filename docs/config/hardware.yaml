@@ -6,6 +6,10 @@
 # Non sta dentro conf/ di proposito: sarebbe una board selezionabile, e
 # finirebbe negli sweep scritti con glob(*).
 
+defaults: [rpi5, _self_]
+  # Facoltativo. Una variante della stessa board eredita dal file base e scrive solo le
+  # differenze (rpi5_axelera.yaml = rpi5.yaml + scheda Metis, container e compute axelera).
+
 board: jetson_orin_nx
   # OBBLIGATORIO. Stringa libera: e' il nome con cui la board compare nei
   # risultati (axes.board) e nelle tabelle del report.
@@ -98,9 +102,12 @@ remote:
 
 provision:
   script: scripts/provision/jetson_jp62.sh
-    # Path relativo alla radice del repo. Quelli che ci sono:
+    # Path relativo alla radice del repo, oppure una lista di path eseguiti in ordine
+    # (tutti entrano nella sentinella). Quelli che ci sono:
     #   jetson_jp62.sh   wheel NVIDIA, venv --system-site-packages, trtexec
-    #   rpi5_axelera.sh  metis-dkms, axdevice, container Ubuntu 22.04
+    #   rpi5.sh          venv host (torch CPU), onnxruntime_perf_test
+    #   rpi5_axelera.sh  metis-dkms, axdevice, container Ubuntu 22.04; in rpi5_axelera.yaml
+    #                    come [rpi5_axelera.sh, rpi5.sh]
     #   x86_local.sh     venv locale e verifica dei tool di misura
   requirements: scripts/requirements/aarch64-jp62.txt
     # Path relativo alla radice. Lo sha di questo file e' la sentinella del

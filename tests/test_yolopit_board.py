@@ -49,7 +49,7 @@ def test_copia_il_pacchetto_installato(rsync_calls):
 def test_export_axelera_con_pythonpath_nel_container(rsync_calls):
     from src.backends.axelera import AxeleraBackend
 
-    cfg = make_cfg("hardware=rpi5", "backend=axelera", "quantization=int8",
+    cfg = make_cfg("hardware=rpi5_axelera", "backend=axelera", "quantization=int8",
                    "strategy=pit_duccio")
     conn = RemoteConn()
     prefix = AxeleraBackend(cfg)._ensure_yolopit(conn, cfg)
@@ -63,13 +63,13 @@ def test_import_fallito_nel_container_e_un_errore_chiaro(rsync_calls):
     from src.errors import ExportFailed
     from src.remote.connection import Result
 
-    cfg = make_cfg("hardware=rpi5", "backend=axelera", "quantization=int8",
+    cfg = make_cfg("hardware=rpi5_axelera", "backend=axelera", "quantization=int8",
                    "strategy=pit_duccio")
     conn = RemoteConn({"import yolopit.runtime": Result("", "No module named torch", 1)})
     with pytest.raises(ExportFailed, match="yolopit.runtime non si importa"):
         AxeleraBackend(cfg)._ensure_yolopit(conn, cfg)
     assert AxeleraBackend(cfg)._ensure_yolopit(
-        RemoteConn(), make_cfg("hardware=rpi5", "backend=axelera")) == ""
+        RemoteConn(), make_cfg("hardware=rpi5_axelera", "backend=axelera")) == ""
 
 
 def test_la_copia_nel_pythonpath_vince_su_quella_installata(tmp_path):

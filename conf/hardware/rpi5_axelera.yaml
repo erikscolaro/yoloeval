@@ -1,0 +1,16 @@
+# Raspberry Pi 5 con la scheda Axelera Metis: come rpi5.yaml piu' driver, Voyager SDK nel
+# container Ubuntu 22.04 e il compute target `axelera`. Stessa board, stesso alias SSH.
+#   python run.py stage=provision hardware=rpi5_axelera
+defaults:
+  - rpi5
+  - _self_
+
+axelera_available: true
+
+provision:
+  # prima la parte Axelera (driver, container), poi quella comune del Pi
+  script: [scripts/provision/rpi5_axelera.sh, scripts/provision/rpi5.sh]
+  container: true
+
+compute:
+  axelera: {device: metis}

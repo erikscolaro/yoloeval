@@ -60,7 +60,7 @@ def test_tensorrt_su_cpu_e_saltata():
 def test_axelera_fp32_e_saltata():
     """Il Voyager SDK quantizza sempre a INT8: una cella fp32 sarebbe una
     misura di un modello INT8 con l'etichetta sbagliata."""
-    cfg = make_cfg("hardware=rpi5", "backend=axelera", "quantization=fp32",
+    cfg = make_cfg("hardware=rpi5_axelera", "backend=axelera", "quantization=fp32",
                    "freq_target=max", "compute_target=axelera")
     valid, reason = is_valid(cfg)
     assert not valid
@@ -68,24 +68,24 @@ def test_axelera_fp32_e_saltata():
 
 
 def test_axelera_int8_sull_aipu_e_valida():
-    cfg = make_cfg("hardware=rpi5", "backend=axelera", "quantization=int8",
-                   "freq_target=max", "compute_target=axelera")
+    cfg = make_cfg("hardware=rpi5_axelera", "backend=axelera",
+                   "quantization=int8", "freq_target=max", "compute_target=axelera")
     assert is_valid(cfg)[0]
 
 
 def test_axelera_sul_pi_passa_grazie_al_container():
     """Raspberry Pi OS non e' supportato da Axelera, ma il Voyager SDK gira in
     un container Ubuntu 22.04: la cella e' valida per quello."""
-    cfg = make_cfg("hardware=rpi5", "backend=axelera", "quantization=int8",
-                   "freq_target=max", "compute_target=axelera")
+    cfg = make_cfg("hardware=rpi5_axelera", "backend=axelera",
+                   "quantization=int8", "freq_target=max", "compute_target=axelera")
     assert cfg.hardware.os == "raspbian12"
     assert cfg.backend.requires.os == ["ubuntu22", "ubuntu24"]
     assert is_valid(cfg)[0]
 
 
 def test_backend_con_os_incompatibile_e_senza_container_e_saltato():
-    cfg = make_cfg("hardware=rpi5", "backend=axelera", "quantization=int8",
-                   "freq_target=max", "compute_target=axelera")
+    cfg = make_cfg("hardware=rpi5_axelera", "backend=axelera",
+                   "quantization=int8", "freq_target=max", "compute_target=axelera")
     with open_dict(cfg):
         cfg.hardware.provision.container = False
         cfg.backend.build.container = False
@@ -114,7 +114,7 @@ def test_profilo_jetson_su_pi_non_e_rappresentabile():
 
 
 def test_compute_target_nullo_significa_tutti():
-    cfg = make_cfg("hardware=rpi5", "freq_target=max")
+    cfg = make_cfg("hardware=rpi5_axelera", "freq_target=max")
     assert cfg.compute_target is None
     assert compute_targets(cfg) == ["cpu_1", "cpu_2", "cpu_4", "axelera"]
 
