@@ -194,7 +194,8 @@ python -m tools.report
 
 Il report finisce in una cartella datata sotto `reports/`, con dentro il
 markdown, l'HTML autoconsistente, le figure in PNG e PDF, le tabelle in CSV e
-il dataframe. `reports/latest` punta sempre all'ultima.
+il dataframe. `reports/latest` punta sempre all'ultima. Opzioni e output di
+tutti i tool sono in [`docs/tools.md`](docs/tools.md).
 
 ## Cosa viene registrato
 
