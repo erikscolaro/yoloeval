@@ -11,7 +11,7 @@
 
 defaults:
   # Facoltativo. Parte da un'altra strategia del gruppo e cambia solo i campi scritti sotto,
-  # es. pit_n32.yaml = pit_duccio con search.pit.n: 32.
+  # es. una variante di pit_duccio che cambia solo search.pit.n.
   - pit_duccio
   - _self_
 

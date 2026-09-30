@@ -43,7 +43,7 @@ Il dataset viene copiato sulle board da solo al primo uso.
 | gruppo / chiave | valori |
 |---|---|
 | `model` | `yolo26n`, `yolo26s`, `yolo26m`, `custom_pruned` |
-| `strategy` | `baseline`, `pit_standard`, `pit_duccio`, `pit_n16`, `pit_n32`, `pit_auto` |
+| `strategy` | `baseline`, `pit_standard`, `pit_duccio`, `pit_auto` |
 | `quantization` | `fp32`, `fp16`, `int8` (PTQ) |
 | `backend` | `onnxruntime`, `onnxruntime_py`, `tensorrt`, `openvino`, `executorch`, `axelera` |
 | `hardware` | `wks4_rtx6000`, `jetson_orin`, `rpi5`, `rpi5_axelera` |
@@ -82,14 +82,14 @@ python run.py -m stage=benchmark model=yolo26n,yolo26s quantization=fp32,int8 \
   backend=onnxruntime hardware=rpi5 freq_target=max compute_target=cpu_1,cpu_4
 ```
 
-**Baseline contro potati con N=16 e N=32**
+**Baseline contro potati**
 
 ```bash
 python run.py stage=train model=yolo26n
-python run.py -m stage=search   strategy=pit_n16,pit_n32
-python run.py -m stage=finetune strategy=pit_n16,pit_n32
-python run.py -m stage=export    strategy=baseline,pit_n16,pit_n32 quantization=fp32,int8
-python run.py -m stage=benchmark strategy=baseline,pit_n16,pit_n32 quantization=fp32,int8 \
+python run.py -m stage=search   strategy=pit_standard,pit_duccio
+python run.py -m stage=finetune strategy=pit_standard,pit_duccio
+python run.py -m stage=export    strategy=baseline,pit_standard,pit_duccio quantization=fp32,int8
+python run.py -m stage=benchmark strategy=baseline,pit_standard,pit_duccio quantization=fp32,int8 \
   hardware=rpi5 freq_target=max compute_target=cpu_1,cpu_4
 ```
 
@@ -148,7 +148,6 @@ search:
 - Target DUCCIO sul modello intero, assoluti (`1.2G`, `800M`) o in % del modello di partenza;
   sotto il minimo raggiungibile la ricerca si ferma con un errore.
 - Le MAC sono calcolate alla risoluzione di deploy (`model.imgsz`).
-- `pit_n16`, `pit_n32` = `pit_duccio` con N fissa (`defaults: [pit_duccio]`).
 - Il fine-tuning ha il suo gruppo `conf/finetune/`.
 
 ## Opzioni
