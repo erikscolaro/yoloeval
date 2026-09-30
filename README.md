@@ -23,8 +23,18 @@ per i comandi di tuning (`nvpmodel`, `jetson_clocks`, `cpufreq`). Poi:
 
 ```bash
 python run.py stage=provision hardware=jetson_orin
-python run.py stage=provision hardware=rpi5          # crea anche il container Axelera
+python run.py stage=provision hardware=rpi5          # Pi senza scheda Axelera
+python run.py stage=provision hardware=rpi5_axelera  # Pi con Metis: driver e container SDK
 ```
+
+Board nuova, con solo un utente con sudo (es. `admin`): la prima volta, da terminale,
+
+```bash
+python run.py stage=provision hardware=rpi5 stage.bootstrap=admin@pi.local
+```
+
+crea l'utente `bench` senza password, con sudo senza password e la chiave SSH di questo PC,
+e aggiunge l'alias `rpi5` a `~/.ssh/config`.
 
 Il dataset viene copiato sulle board da solo al primo uso.
 
@@ -36,7 +46,7 @@ Il dataset viene copiato sulle board da solo al primo uso.
 | `strategy` | `baseline`, `pit_standard`, `pit_duccio`, `pit_n16`, `pit_n32`, `pit_auto` |
 | `quantization` | `fp32`, `fp16`, `int8` (PTQ) |
 | `backend` | `onnxruntime`, `onnxruntime_py`, `tensorrt`, `openvino`, `executorch`, `axelera` |
-| `hardware` | `wks4_rtx6000`, `jetson_orin`, `rpi5` |
+| `hardware` | `wks4_rtx6000`, `jetson_orin`, `rpi5`, `rpi5_axelera` |
 | `freq_target` | profili della board (`maxn`, `w30`, `w15` sulla Jetson; `max`, `mid`, `low` sul Pi) |
 | `compute_target` | `gpu`, `cpu_1`, `cpu_2`, …, `axelera` (quelli dichiarati dalla board; vuoto = tutti) |
 | `train`, `finetune` | argomenti di training di Ultralytics |
@@ -91,9 +101,11 @@ python run.py stage=search   strategy=pit_auto hardware=rpi5 quantization=int8
 python run.py stage=finetune strategy=pit_auto hardware=rpi5 quantization=int8
 ```
 
-`pit_auto` prende N dal probe con stessa board, precisione e backend, sul compute target
+`pit_auto` prende N dal probe onnxruntime con stessa board e precisione, per qualunque backend
+(un export tensorrt int8 usa l'N del probe onnxruntime int8), sul compute target
 `strategy.n_source` (default `cpu_1`). Nella chiave della ricerca entra il valore di N, non la
-board.
+board. Se il probe manca, la ricerca lo lancia da sola (preset e profilo in `strategy.probe`),
+lo scrive nel log e poi riparte: il primo comando qui sopra serve solo a scegliere il preset.
 
 **Più target di DUCCIO**
 
