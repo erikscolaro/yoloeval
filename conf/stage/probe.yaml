@@ -1,3 +1,4 @@
+# Preset per workstation e GPU. Per le board (CPU ARM): stage=probe_edge.
 name: probe
 
 # Stesso tuning della board del benchmark (vedi stage/benchmark.yaml).
@@ -9,6 +10,9 @@ scheduling:
   rt_priority: 80
   drop_caches: true
   swap_off: true
+
+iters: 100                # iterazioni per misura (sostituisce backend.benchmark.iters)
+warmup_iters: 10
 
 plot: true                # latenza e throughput in funzione dei canali, un PNG per probe
 plot_xtick: 4             # tacche dell'asse x ogni 4 canali

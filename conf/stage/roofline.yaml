@@ -1,3 +1,4 @@
+# Preset per workstation e GPU. Per le board (CPU ARM): stage=roofline_edge.
 name: roofline
 
 # Stesso tuning della board del benchmark.

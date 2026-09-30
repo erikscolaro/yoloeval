@@ -18,3 +18,8 @@ compute:
   gpu: {device: cuda}
   cpu_1: {device: cpu, n_cores: 1}
   cpu_all: {device: cpu, n_cores: 24}
+
+# Tetti da datasheet per il roofline (facoltativi, vedi docs/config/hardware.yaml), per
+# esempio:
+# peaks:
+#   gpu: {gmacs: {fp32: ..., fp16: ..., int8: ...}, bandwidth_gbs: ...}

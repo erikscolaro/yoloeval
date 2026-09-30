@@ -97,6 +97,11 @@ def run_probe(cfg) -> list[Path]:
 def _run_one(cfg, pid: str, summary_path: Path) -> Path:
     sw = cfg.stage.sweep
     timer = PhaseTimer(device=cfg.hardware.board)
+    with read_write(cfg):                # iterazioni del probe, non quelle del benchmark
+        if cfg.stage.get("iters"):
+            cfg.backend.benchmark.iters = int(cfg.stage.iters)
+        if cfg.stage.get("warmup_iters") and cfg.backend.benchmark.get("warmup_iters"):
+            cfg.backend.benchmark.warmup_iters = int(cfg.stage.warmup_iters)
     backend = get_backend(cfg.backend.name, cfg)
     precision = cfg.quantization.precision
     int8_args = dict(cfg.quantization.get("backend_args", {}).get("onnxruntime", {}) or {})

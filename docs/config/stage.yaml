@@ -8,6 +8,8 @@ name: benchmark
   #   train     -> allena e mette i pesi in artifacts/weights/
   #   roofline  -> misura i tetti del roofline model (picco di calcolo, banda):
   #                results/roofline/, usati da tools.roofline
+  #   (i file probe_edge.yaml e roofline_edge.yaml sono preset per le board lente, con
+  #   name: probe / name: roofline)
   #   probe     -> misura con reti dummy quale N (canali a blocchi) premia la board:
   #                results/probe/, usato dalle strategie con pit.n: auto
   #   search    -> solo strategie pit: ricerca PIT, modello potato in artifacts/search/
@@ -50,6 +52,12 @@ scheduling:
     # com'era dopo. Meglio un OOM visibile che una cella in swap.
 
 # --- solo stage=probe -------------------------------------------------------
+
+iters: 100
+  # Solo probe e roofline. Intero. Iterazioni del tool di misura per ogni rete dummy
+  # (sostituisce backend.benchmark.iters).
+warmup_iters: 10
+  # Solo probe e roofline. Intero. Solo per i backend con warmup configurabile.
 
 plot: true
   # true | false. Un PNG per probe: latenza e throughput in funzione di C, con le linee ai
@@ -98,11 +106,6 @@ sweep:
 
 # --- solo stage=roofline ----------------------------------------------------
 
-iters: 30
-  # Intero. Iterazioni del tool di misura (sostituisce backend.benchmark.iters): le reti del
-  # picco sono grandi.
-warmup_iters: 5
-  # Intero. Solo per i backend con warmup configurabile (onnxruntime_py).
 compute_shapes:
   # Reti dummy ad alta intensita' aritmetica; il picco di calcolo e' la migliore. Campi come
   # sweep.shapes, piu' `c` (canali o neuroni).

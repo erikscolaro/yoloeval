@@ -1,0 +1,9 @@
+# pit_duccio con N=32 fisso: per il confronto baseline / N=16 / N=32
+defaults:
+  - pit_duccio
+  - _self_
+
+name: pit_n32
+search:
+  pit:
+    n: 32

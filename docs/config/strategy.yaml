@@ -9,6 +9,12 @@
 # training_key, alla versione di yolopit e a model.imgsz: cambiare un campo vuol dire una
 # ricerca nuova. Con la baseline non entra in nessuna chiave.
 
+defaults:
+  # Facoltativo. Parte da un'altra strategia del gruppo e cambia solo i campi scritti sotto,
+  # es. pit_n32.yaml = pit_duccio con search.pit.n: 32.
+  - pit_duccio
+  - _self_
+
 name: pit_duccio
   # OBBLIGATORIO. Stringa. Finisce nei risultati (axes.strategy) e nel nome degli export
   # (yolo26n-pit_duccio_...).
