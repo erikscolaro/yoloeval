@@ -32,6 +32,9 @@ log = logging.getLogger(__name__)
 #: nome del file che porta l'hash del dataset, accanto ai dati
 DATASET_HASH_FILE = ".dataset_hash"
 
+#: split che non entrano nel training: cambiarli non deve invalidare i pesi
+NON_TRAINING_SPLITS = frozenset({"calib"})
+
 
 def _sha(payload: Any) -> str:
     """SHA256 di una struttura, serializzata in modo deterministico."""
@@ -54,12 +57,20 @@ def compute_dataset_hash(root: str | Path) -> str:
     sostenibile a ogni lancio. Nome + dimensione intercetta l'aggiunta, la
     rimozione e la sostituzione di immagini, che e' il caso da cui proteggersi:
     il riuso silenzioso di pesi allenati su un dataset diverso.
+
+    Restano fuori lo split di calibrazione, che non tocca il training, e i
+    `*.cache` che Ultralytics riscrive accanto alle label: dentro l'hash
+    cambierebbero il `training_key` al primo training.
     """
     root = Path(root)
     entries = []
     for p in sorted(root.rglob("*")):
-        if p.is_file() and p.name != DATASET_HASH_FILE:
-            entries.append((str(p.relative_to(root)), p.stat().st_size))
+        rel = p.relative_to(root)
+        if (not p.is_file() or p.name == DATASET_HASH_FILE
+                or p.suffix == ".cache"
+                or NON_TRAINING_SPLITS & set(rel.parts)):
+            continue
+        entries.append((str(rel), p.stat().st_size))
     return _sha(entries)[:16]
 
 

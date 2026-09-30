@@ -19,8 +19,11 @@ calibration:
   n_samples: 512
     # Intero: quante immagini per la calibrazione. Per Axelera 100-400, oltre
     # non cambia niente.
-  source: val
-    # Quale split del data yaml usare: val | train | test
+  source: calib
+    # Quale split del data yaml usare: calib | train | val | test. Deve
+    # esistere nel data yaml, altrimenti errore. `calib` e' uno split dedicato,
+    # disgiunto da val e test: calibrare sui dati su cui poi si misura la mAP
+    # renderebbe ottimistico il calo dell'INT8.
   shuffle_seed: 42
     # Intero FISSO. La lista viene ordinata e poi mescolata con questo seed,
     # cosi' il calibration set e' identico per ogni artefatto: cambiarlo fra

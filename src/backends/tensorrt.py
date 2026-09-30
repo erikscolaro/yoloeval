@@ -20,6 +20,7 @@ from pathlib import Path
 
 from ..errors import ExportFailed
 from ..jsonio import atomic_write_json, read_json
+from ..remote.connection import is_remote, remote_workdir
 from . import register
 from .base import Backend, LatencyResult, require, search
 from .onnxruntime import OnnxRuntimeBackend
@@ -43,11 +44,19 @@ class TensorRTBackend(Backend):
         onnx_dir = Path(dst) / "onnx"
         onnx_dir.mkdir(parents=True, exist_ok=True)
         # Per fp16 l'ONNX resta fp32: e' `trtexec --fp16` a scegliere le
-        # precisioni dei layer. Per int8 serve invece il grafo QDQ.
-        if cfg.quantization.precision == "int8":
-            return onnx_backend.export(None, cfg, Path(src), onnx_dir)
-        produced = onnx_backend._export_fp32(cfg, Path(src), onnx_dir)
-        return produced
+        # precisioni dei layer. Per int8 serve invece il grafo QDQ, e in INT8
+        # simmetrico: quello di onnxruntime ha attivazioni UINT8, che TensorRT
+        # rifiuta. A differenza di Ultralytics (calibratore di TensorRT, testa
+        # lasciata in FP32/FP16) qui si quantizza tutto il grafo.
+        base = onnx_backend._export_fp32(cfg, Path(src), onnx_dir)
+        if cfg.quantization.precision != "int8":
+            return base
+        from ..stages.quantize import quantize_onnx_static
+
+        target = onnx_dir / f"{cfg.model.name}_{cfg.quantization.name}.onnx"
+        out = quantize_onnx_static(base, target, cfg, symmetric=True)
+        base.unlink(missing_ok=True)
+        return out
 
     # --- build on target -------------------------------------------------
     def export(self, conn, cfg, src: Path, dst: Path) -> Path:
@@ -62,7 +71,10 @@ class TensorRTBackend(Backend):
             return Path(prev["remote_path"])
 
         trtexec = self._trtexec(conn)
-        remote_dir = f"{cfg.hardware.remote.workdir}/exports/{dst.name}"
+        # Sulla workstation (niente `hardware.remote`) l'engine resta accanto
+        # agli altri file dell'export.
+        remote_dir = (f"{remote_workdir(cfg)}/exports/{dst.name}"
+                      if is_remote(cfg) else str(dst))
         engine = f"{remote_dir}/{cfg.model.name}_{cfg.quantization.name}.engine"
         conn.run(f"mkdir -p {shlex.quote(remote_dir)}", hide=True)
 
@@ -88,7 +100,7 @@ class TensorRTBackend(Backend):
         atomic_write_json(marker, {
             "remote_path": engine,
             "board": cfg.hardware.board,
-            "host": cfg.hardware.remote.host,
+            "host": cfg.hardware.remote.host if is_remote(cfg) else "localhost",
             "built_from": str(src),
             "flags": flags,
         })

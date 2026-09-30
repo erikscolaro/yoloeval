@@ -4,12 +4,14 @@ method: ptq
 
 calibration:
   n_samples: 512          # Axelera: 100-400, oltre non porta benefici
-  source: val
+  source: calib
   shuffle_seed: 42        # FISSO: calibration set identico per ogni artefatto
   cache: true
 
 validation:
-  max_abs_diff: 0.05
+  max_abs_diff: 0.05             # testa one-to-many: tensori grezzi
+  min_match_rate: 0.90           # testa one-to-one: detection accoppiate
+  max_score_diff: 0.10
   map50_drop_tolerance: 0.02
 
 backend_args:

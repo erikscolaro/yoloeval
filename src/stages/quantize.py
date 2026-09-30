@@ -28,8 +28,10 @@ def _split_dirs(cfg, split: str) -> list[Path]:
     """Directory delle immagini per uno split, dal data yaml di Ultralytics."""
     spec = yaml.safe_load(Path(cfg.dataset.yaml).read_text(encoding="utf-8"))
     root = Path(spec.get("path") or cfg.dataset.local_path)
-    entry = spec.get(split) or spec.get("val")
+    entry = spec.get(split)
     if entry is None:
+        # Nessun ripiego su `val`: un nome sbagliato calibrerebbe sui dati
+        # di valutazione senza che nessuno se ne accorga.
         raise KeyError(f"split {split!r} assente in {cfg.dataset.yaml}")
     entries = entry if isinstance(entry, list) else [entry]
     return [root / e if not Path(e).is_absolute() else Path(e) for e in entries]
@@ -124,12 +126,69 @@ class CalibrationReader:
         self._it = iter(self.files)
 
 
-def quantize_onnx_static(src: Path, dst: Path, cfg) -> Path:
+def _unquantize_scalars(path: Path) -> int:
+    """Riporta in float le costanti scalari quantizzate (DQ su tensori 0-d).
+
+    onnxruntime quantizza anche le costanti scalari, per esempio la scala
+    dell'attention. TensorRT le rifiuta due volte: il parser applica l'asse di
+    default 1 a un tensore 0-d ("Axis must be in the range [0, nbDims (0)]") e
+    il builder non ammette costanti quantizzate fuori dal pattern peso -> DQ
+    di una conv. Si sostituisce il DequantizeLinear con il valore float che
+    produrrebbe: e' un moltiplicatore, non un tensore su cui gira un kernel,
+    quindi tenerlo in float non toglie niente alla quantizzazione del grafo.
+    """
+    import numpy as np
+    import onnx
+    from onnx import numpy_helper
+
+    model = onnx.load(str(path))
+    graph = model.graph
+    inits = {init.name: init for init in graph.initializer}
+
+    def scalar(name):
+        init = inits.get(name)
+        return numpy_helper.to_array(init) if init is not None and not init.dims else None
+
+    folded = []
+    for node in graph.node:
+        if node.op_type != "DequantizeLinear":
+            continue
+        q = scalar(node.input[0])
+        scale = scalar(node.input[1]) if len(node.input) > 1 else None
+        if q is None or scale is None:
+            continue
+        zp = scalar(node.input[2]) if len(node.input) > 2 and node.input[2] else 0
+        value = (q.astype(np.float32) - np.float32(zp)) * scale.astype(np.float32)
+        graph.initializer.append(
+            numpy_helper.from_array(np.asarray(value, dtype=scale.dtype), node.output[0])
+        )
+        folded.append(node)
+    for node in folded:
+        graph.node.remove(node)
+    if folded:
+        # gli input quantizzati rimasti senza consumatori
+        used = {i for n in graph.node for i in n.input}
+        orphans = [i for i in graph.initializer
+                   if i.name not in used and i.name not in {o.name for o in graph.output}
+                   and any(i.name in n.input for n in folded)]
+        for init in orphans:
+            graph.initializer.remove(init)
+        onnx.save(model, str(path))
+        log.info("%d costanti scalari quantizzate riportate in float", len(folded))
+    return len(folded)
+
+
+def quantize_onnx_static(src: Path, dst: Path, cfg, symmetric: bool = False) -> Path:
     """PTQ statica su ONNX, formato QDQ.
 
     QDQ (e non QOperator) perche' e' il formato che ONNX Runtime, TensorRT e
     OpenVINO sanno tutti consumare: lo stesso file resta confrontabile fra
     backend.
+
+    `symmetric=True` produce il QDQ che accetta TensorRT: attivazioni INT8
+    con zero point nullo (con UINT8 il parser si ferma con "unsupported input
+    type of UINT8") e bias non quantizzati. Immagini e metodo di calibrazione
+    restano gli stessi, cambia solo la rappresentazione.
     """
     import onnx
     from onnxruntime.quantization import (
@@ -161,11 +220,18 @@ def quantize_onnx_static(src: Path, dst: Path, cfg) -> Path:
         quant_format=fmt,
         per_channel=bool(args.get("per_channel", True)),
         reduce_range=bool(args.get("reduce_range", False)),
-        activation_type=QuantType.QUInt8,
+        activation_type=QuantType.QInt8 if symmetric else QuantType.QUInt8,
         weight_type=QuantType.QInt8,
         calibrate_method=CalibrationMethod.MinMax,
+        # Per TensorRT: bias in FP32, perche' il parser non accetta un
+        # DequantizeLinear su bias INT32; e' TensorRT a fonderlo nella conv.
+        extra_options={"ActivationSymmetric": True, "WeightSymmetric": True,
+                       "QuantizeBias": False}
+        if symmetric else None,
     )
     prepped.unlink(missing_ok=True)
+    if symmetric:
+        _unquantize_scalars(dst)
     write_manifest(dst.parent, files)
     log.info("quantizzazione INT8 completata su %d immagini", len(files))
     return dst

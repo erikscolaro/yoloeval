@@ -54,7 +54,8 @@ build:
     # Facoltativo. Formato di partenza della build on-target: onnx | torch.
     # Dice cosa viene sincronizzato sulla board prima di compilare.
   opset: 17
-    # Solo per gli export ONNX. Intero, passato a Ultralytics.
+    # Intero, passato a Ultralytics. Serve a ogni backend che passa da un
+    # ONNX: onnxruntime, onnxruntime_py e tensorrt (ONNX intermedio).
   workspace_mb: 4096
     # Solo tensorrt. Intero, diventa --memPoolSize=workspace:<n>.
   timeout_s: 1800
