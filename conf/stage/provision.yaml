@@ -1,2 +1,15 @@
 name: provision
 force: false              # ignora la sentinella .env_hash e riprovisiona
+# Proxy della board per pip, apt e docker, scritto prima del controllo internet.
+# auto -> quello di questo PC (https_proxy / http_proxy), niente se il PC non ne ha;
+# null -> non toccare la board; oppure un URL, es. http://10.130.4.109:8080.
+proxy: auto
+no_proxy: [localhost, 127.0.0.1, 10.42.0.0/24]
+# URL provati dalla board prima dello script di provisioning, che scarica da internet:
+# se uno non risponde, errore prima di iniziare. [] per saltare il controllo.
+internet_check: [https://pypi.org/simple/pip/]
+# Primo accesso, da terminale: stage.bootstrap=admin@pi.local (un utente con sudo gia' sulla
+# board). Crea bootstrap_user senza password, con sudo senza password e la chiave di questo
+# PC, e aggiunge l'alias remote.host a ~/.ssh/config. Idempotente.
+bootstrap: null
+bootstrap_user: bench

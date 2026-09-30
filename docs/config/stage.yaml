@@ -21,6 +21,28 @@ name: benchmark
 force: false
   # Solo stage=provision. true | false (default: false).
   # true -> ignora la sentinella .env_hash e riprovisiona comunque.
+proxy: auto
+  # Solo stage=provision. auto | null | URL. Proxy scritto sulla board prima del controllo
+  # internet: /etc/environment (pip, python, curl, git), /etc/apt/apt.conf.d/95proxy (apt),
+  # drop-in systemd del demone docker (docker pull, riavvia docker se cambia) e
+  # ~/.docker/config.json dell'utente di misura (docker build). auto: https_proxy /
+  # http_proxy di questo PC, niente se non c'e'. null: la board non viene toccata.
+no_proxy: [localhost, 127.0.0.1, 10.42.0.0/24]
+  # Solo stage=provision con proxy. Indirizzi che non passano dal proxy; 10.42.0.0/24 e' la
+  # rete condivisa da NetworkManager fra PC e board.
+internet_check: [https://pypi.org/simple/pip/]
+  # Solo stage=provision. Lista di URL provati dalla board (python3, rispetta http(s)_proxy)
+  # prima dello script di provisioning, solo quando lo script deve girare: se uno non
+  # risponde entro 15 s, errore e provisioning non avviato. [] per saltare il controllo.
+bootstrap: null
+  # Solo stage=provision. null | user@host. Primo accesso a una board nuova tramite un utente
+  # che ha gia' sudo (es. admin@pi.local): crea bootstrap_user senza password, gli da' sudo
+  # senza password (e il gruppo docker, se c'e'), copia la chiave SSH di questo PC (creata se
+  # manca) e aggiunge l'alias remote.host a ~/.ssh/config. Idempotente. Da terminale: la
+  # password di admin, se serve, la chiede ssh.
+bootstrap_user: bench
+  # Solo stage=provision con bootstrap. L'utente di misura: il workdir della board deve stare
+  # nella sua home.
 
 # --- solo stage=benchmark, stage=probe e stage=roofline ---------------------
 

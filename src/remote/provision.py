@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import os
 import shlex
 import time
 from pathlib import Path
@@ -29,20 +30,148 @@ from .sync import ensure_support_files
 log = logging.getLogger(__name__)
 
 
+def provision_scripts(cfg) -> list[Path]:
+    """`provision.script`: un path o una lista, eseguiti in ordine (rpi5_axelera: la parte
+    Axelera, poi quella comune del Pi)."""
+    scripts = cfg.hardware.provision.script
+    if isinstance(scripts, str):
+        scripts = [scripts]
+    return [Path(cfg.project_root) / s for s in scripts]
+
+
 def env_hash(cfg) -> str:
     """Hash di requirements e script: cambia solo quando cambia l'ambiente.
 
-    Lo script conta quanto i requirements: un passo nuovo (come la build di
+    Gli script contano quanto i requirements: un passo nuovo (come la build di
     onnxruntime_perf_test) su una board gia' provisionata non girerebbe mai.
     """
-    root = Path(cfg.project_root)
+    files = [Path(cfg.project_root) / cfg.hardware.provision.requirements,
+             *provision_scripts(cfg)]
     parts = []
-    for rel in (cfg.hardware.provision.requirements, cfg.hardware.provision.script):
-        f = root / rel
+    for f in files:
         if not f.exists():
             raise ProvisionFailed(f"file di provisioning non trovato: {f}")
         parts.append(sha256_file(f))
     return hashlib.sha256("".join(parts).encode()).hexdigest()[:12]
+
+
+PROXY_SCRIPT = r"""
+set -e
+P={proxy}
+N={no_proxy}
+# pip, python, curl, git: /etc/environment, letto a ogni login
+sudo sed -i '/^\(http\|https\|no\)_proxy=/Id' /etc/environment
+printf 'http_proxy=%s\nhttps_proxy=%s\nno_proxy=%s\nHTTP_PROXY=%s\nHTTPS_PROXY=%s\nNO_PROXY=%s\n' \
+  "$P" "$P" "$N" "$P" "$P" "$N" | sudo tee -a /etc/environment >/dev/null
+# apt
+printf 'Acquire::http::Proxy "%s";\nAcquire::https::Proxy "%s";\n' "$P" "$P" \
+  | sudo tee /etc/apt/apt.conf.d/95proxy >/dev/null
+# demone docker (docker pull): vale anche se docker verra' installato dopo
+D=/etc/systemd/system/docker.service.d
+sudo mkdir -p "$D"
+printf '[Service]\nEnvironment="HTTP_PROXY=%s"\nEnvironment="HTTPS_PROXY=%s"\nEnvironment="NO_PROXY=%s"\n' \
+  "$P" "$P" "$N" | sudo tee "$D/http-proxy.conf.new" >/dev/null
+if sudo cmp -s "$D/http-proxy.conf.new" "$D/http-proxy.conf"; then
+  sudo rm "$D/http-proxy.conf.new"
+else
+  sudo mv "$D/http-proxy.conf.new" "$D/http-proxy.conf"
+  sudo systemctl daemon-reload
+  if systemctl is-active --quiet docker; then sudo systemctl restart docker; fi
+fi
+# dentro i container di docker build: ~/.docker/config.json dell'utente di misura
+python3 - "$P" "$N" <<'PY'
+import json, os, sys
+path = os.path.expanduser("~/.docker/config.json")
+os.makedirs(os.path.dirname(path), exist_ok=True)
+try:
+    with open(path) as f:
+        conf = json.load(f)
+except (OSError, ValueError):
+    conf = {{}}
+conf.setdefault("proxies", {{}})["default"] = {{
+    "httpProxy": sys.argv[1], "httpsProxy": sys.argv[1], "noProxy": sys.argv[2]}}
+with open(path, "w") as f:
+    json.dump(conf, f, indent=2)
+PY
+"""
+
+
+def proxy_url(cfg) -> str | None:
+    """`stage.proxy`: auto -> il proxy di questo PC, None -> nessuno."""
+    proxy = cfg.stage.get("proxy")
+    if proxy == "auto":
+        proxy = next((os.environ[k] for k in ("https_proxy", "HTTPS_PROXY", "http_proxy",
+                                              "HTTP_PROXY") if os.environ.get(k)), None)
+    return str(proxy) if proxy else None
+
+
+def proxy_env(cfg) -> dict:
+    """Variabili del proxy per i comandi di questa connessione: /etc/environment vale solo
+    dal login successivo."""
+    proxy = proxy_url(cfg)
+    if not proxy:
+        return {}
+    no_proxy = ",".join(map(str, cfg.stage.get("no_proxy") or []))
+    return {"http_proxy": proxy, "https_proxy": proxy, "no_proxy": no_proxy,
+            "HTTP_PROXY": proxy, "HTTPS_PROXY": proxy, "NO_PROXY": no_proxy}
+
+
+def configure_proxy(conn, cfg) -> None:
+    """Scrive il proxy sulla board per pip, apt, docker e docker build. Idempotente."""
+    proxy = proxy_url(cfg)
+    if not proxy:
+        return
+    no_proxy = ",".join(map(str, cfg.stage.get("no_proxy") or []))
+    script = PROXY_SCRIPT.format(proxy=shlex.quote(proxy), no_proxy=shlex.quote(no_proxy))
+    r = conn.run(f"bash -c {shlex.quote(script)}", hide=True, warn=True)
+    if r.failed:
+        raise ProvisionFailed(f"proxy su {cfg.hardware.board} non configurato "
+                              f"({r.return_code}):\n{r.stderr or r.stdout}")
+    log.info("proxy di %s: %s (no_proxy %s) per pip, apt e docker", cfg.hardware.board,
+             proxy, no_proxy)
+
+
+def sync_clock(conn, cfg, max_skew_s: int = 60) -> None:
+    """Rimette l'orologio della board su quello di questo PC se e' fuori di piu' di
+    `max_skew_s`. Dietro una rete che blocca NTP il Pi (senza batteria per l'RTC) riparte
+    dall'ultima data salvata, e con l'orologio indietro pip e apt rifiutano i certificati TLS
+    ("certificate is not yet valid")."""
+    r = conn.run("date +%s", hide=True, warn=True)
+    if r.failed or not r.stdout.strip().isdigit():
+        return
+    skew = time.time() - int(r.stdout.strip())
+    if abs(skew) <= max_skew_s:
+        return
+    conn.run(f"sudo -n date -u -s @{int(time.time())}", hide=True)
+    log.warning("orologio di %s fuori di %.1f ore: rimesso su quello di questo PC "
+                "(NTP non sincronizzato)", cfg.hardware.board, skew / 3600)
+
+
+def check_internet(conn, cfg) -> None:
+    """Prova dalla board gli URL di `stage.internet_check` prima dello script di
+    provisioning, che scarica da pip, apt e docker: senza rete meglio un errore subito che
+    un'installazione a meta'. python3 e non curl, che non e' detto ci sia; urllib rispetta
+    http(s)_proxy come pip e apt."""
+    urls = list(cfg.stage.get("internet_check") or [])
+    probe = ("import sys, urllib.request; "
+             "urllib.request.urlopen(sys.argv[1], timeout=15).close()")
+    for url in urls:
+        # i proxy aziendali restano giu' anche per qualche secondo: circa un minuto
+        for attempt in range(6):
+            r = conn.run(f"python3 -c {shlex.quote(probe)} {shlex.quote(url)}", hide=True,
+                         warn=True, env=proxy_env(cfg))
+            if r.ok:
+                break
+            log.info("internet da %s: %s non risponde, riprovo (%d/6)", cfg.hardware.board,
+                     url, attempt + 1)
+            time.sleep(10)
+        if r.failed:
+            err = (r.stderr or r.stdout or "").strip().splitlines()
+            raise ProvisionFailed(
+                f"{cfg.hardware.board} non raggiunge {url}: niente internet, provisioning "
+                f"non avviato (controllare rete, DNS o proxy della board)\n"
+                f"{err[-1] if err else ''}")
+        log.info("internet da %s: %s raggiungibile", cfg.hardware.board, url)
 
 
 def ensure_env(conn, cfg, force: bool = False) -> bool:
@@ -69,13 +198,13 @@ def ensure_env(conn, cfg, force: bool = False) -> bool:
             log.debug("ambiente su %s gia' coerente (%s)", cfg.hardware.board, want)
             return False
 
-    script = Path(cfg.project_root) / cfg.hardware.provision.script
+    scripts = provision_scripts(cfg)
     req = Path(cfg.project_root) / cfg.hardware.provision.requirements
-    if not script.exists():
-        raise ProvisionFailed(f"script di provisioning non trovato: {script}")
+    for script in scripts:
+        if not script.exists():
+            raise ProvisionFailed(f"script di provisioning non trovato: {script}")
 
-    log.info("provisioning di %s con %s", cfg.hardware.board, script.name)
-    conn.put(str(script), "/tmp/provision.sh")
+    check_internet(conn, cfg)
     conn.put(str(req), "/tmp/requirements.txt")
     # I campi della board che lo script deve conoscere viaggiano come
     # variabili d'ambiente: senza, jetson_jp62.sh userebbe il proprio default
@@ -84,6 +213,7 @@ def ensure_env(conn, cfg, force: bool = False) -> bool:
     env = {
         "BENCH_WORKDIR": workdir,
         "BENCH_REQUIREMENTS": "/tmp/requirements.txt",
+        **proxy_env(cfg),
     }
     if cfg.hardware.get("jetpack"):
         env["BENCH_JETPACK"] = cfg.hardware.jetpack
@@ -92,12 +222,15 @@ def ensure_env(conn, cfg, force: bool = False) -> bool:
     if cfg.backend.get("build", {}).get("image"):
         env["BENCH_AXELERA_IMAGE"] = cfg.backend.build.image
     prefix = " ".join(f"{k}={shlex.quote(str(v))}" for k, v in env.items())
-    r = conn.run(f"{prefix} bash /tmp/provision.sh", pty=True, warn=True)
-    if r.failed:
-        raise ProvisionFailed(
-            f"provisioning di {cfg.hardware.board} fallito "
-            f"({r.return_code}):\n{r.stderr or r.stdout}"
-        )
+    for script in scripts:
+        log.info("provisioning di %s con %s", cfg.hardware.board, script.name)
+        conn.put(str(script), "/tmp/provision.sh")
+        r = conn.run(f"{prefix} bash /tmp/provision.sh", pty=True, warn=True)
+        if r.failed:
+            raise ProvisionFailed(
+                f"provisioning di {cfg.hardware.board} fallito in {script.name} "
+                f"({r.return_code}):\n{r.stderr or r.stdout}"
+            )
     conn.run(f"echo {want} > {workdir}/.env_hash", hide=True)
     return True
 
@@ -133,7 +266,14 @@ def health_check(conn, cfg) -> dict:
 
 
 def provision(cfg) -> dict:
-    """Stadio `provision`: prepara la board e verifica che sia usabile."""
+    """Stadio `provision`: prepara la board e verifica che sia usabile. Con
+    `stage.bootstrap=admin@host` prima crea utente, sudo, chiave e alias (bootstrap.py)."""
+    if cfg.stage.get("bootstrap"):
+        if not is_remote(cfg):
+            raise ProvisionFailed(f"{cfg.hardware.board} e' locale: niente bootstrap")
+        from .bootstrap import bootstrap
+
+        bootstrap(cfg)
     with connection(cfg) as conn:
         if isinstance(conn, LocalConnection):
             log.info(
@@ -141,6 +281,8 @@ def provision(cfg) -> dict:
                 cfg.hardware.board,
             )
             return {"provisioned": False, "checks": health_check(conn, cfg)}
+        sync_clock(conn, cfg)
+        configure_proxy(conn, cfg)
         did = ensure_env(conn, cfg, force=bool(cfg.stage.get("force", False)))
         checks = health_check(conn, cfg)
         log.info("provisioning %s: %s", cfg.hardware.board,
