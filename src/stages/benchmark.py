@@ -112,10 +112,16 @@ def _should_skip(cfg, cid: str, dest: Path) -> bool:
     if status == "skipped":
         log.info("%s non applicabile (%s), salto", cid, prev.get("reason"))
         return True
-    if status == "failed" and not cfg.retry_failed:
-        log.info("%s fallita in precedenza, salto (usa +retry_failed=true)", cid)
-        return True
-    log.info("%s fallita, riprovo", cid)
+    if status == "failed":
+        if not cfg.retry_failed:
+            log.info("%s fallita in precedenza, salto (usa +retry_failed=true)", cid)
+            return True
+        log.info("%s fallita, riprovo", cid)
+        return False
+    # status None: il finally di run_cell ha scritto il record di una cella
+    # interrotta (Ctrl-C) prima che avesse un esito. Non e' un fallimento,
+    # quindi si rifa' indipendentemente da retry_failed.
+    log.info("%s interrotta prima della fine, la rifaccio", cid)
     return False
 
 
@@ -146,11 +152,15 @@ def run_cell(cfg, cid: str, dest: Path) -> Path:
                     live = _ensure_profile(conn, cfg, bc)
                     try:
                         with timer.phase("setup"):
+                            # Prima di `tuned`: una cella senza export deve
+                            # fallire subito, non dopo l'attesa termica.
+                            resolved = resolve_artifact(
+                                live, cfg, get_backend(cfg.backend.name, cfg))
                             ensure_support_files(live, cfg)
                             _prepare_board_for_cell(live, cfg)
                         with tuned(live, cfg, bc) as applied:
                             payload = execute_benchmark(live, cfg, dest, timer,
-                                                        bc, applied)
+                                                        bc, applied, resolved)
                     finally:
                         if live is not conn:
                             live.close()
@@ -260,9 +270,9 @@ def resolve_artifact(conn, cfg, backend) -> tuple[str, Path]:
 
 
 def execute_benchmark(conn, cfg, raw_dest: Path, timer: PhaseTimer, bc,
-                      applied: dict) -> dict:
+                      applied: dict, resolved: tuple[str, Path]) -> dict:
     backend = get_backend(cfg.backend.name, cfg)
-    artifact, export_dir = resolve_artifact(conn, cfg, backend)
+    artifact, export_dir = resolved
 
     export_meta = read_json(export_dir / "meta.json") or {}
     validation = dict(export_meta.get("validation") or {})

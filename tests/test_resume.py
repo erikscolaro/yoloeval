@@ -50,6 +50,12 @@ def test_cella_failed_si_ritenta_con_flag(cfg_res, tmp_path):
     assert not _should_skip(cfg, "x", dest)
 
 
+def test_cella_interrotta_si_rifa_senza_flag(cfg_res, tmp_path):
+    """Ctrl-C lascia un record con status null: va rifatto, non e' failed."""
+    dest = write(tmp_path / "x.json", None)
+    assert not _should_skip(cfg_res, "x", dest)
+
+
 def test_force_rifa_anche_le_celle_ok(cfg_res, tmp_path):
     dest = write(tmp_path / "x.json", "ok")
     cfg = make_cfg(f"results_dir={tmp_path}", "force=true")
