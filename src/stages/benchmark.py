@@ -370,30 +370,46 @@ def _wrap_command(conn, cfg, cmd: str, ct, n_cores) -> str:
     if affinity:
         cmd = f"taskset -c {affinity} {cmd}"
     prio = cfg.stage.get("scheduling", {}).get("rt_priority")
+    prefix = ""
     if prio and cmd.startswith("docker exec"):
         # Il prefisso finirebbe sul client docker, non sul processo dentro il
         # container: nessun effetto sullo scheduling di chi misura davvero.
         log.debug("comando nel container: scheduling FIFO non applicabile")
     elif prio and _has_rt(conn):
         cmd = f"chrt -f {int(prio)} {cmd}"
-    return shell_env(env) + cmd
+        if _RT_CACHE[_host(conn)] == "prlimit":
+            prefix = RT_PRLIMIT
+    return prefix + shell_env(env) + cmd
 
 
-_RT_CACHE: dict[str, bool] = {}
+# Senza CAP_SYS_NICE, `chrt` da utente funziona se il limite RLIMIT_RTPRIO della shell lo
+# permette: con sudo senza password lo si alza sulla shell stessa ($$), e il benchmark resta un
+# processo dell'utente con il suo ambiente (niente `sudo chrt`, che lo azzererebbe).
+RT_PRLIMIT = "sudo -n prlimit --rtprio=99:99 --pid $$ >/dev/null 2>&1; "
+
+_RT_CACHE: dict[str, str | bool] = {}
+
+
+def _host(conn) -> str:
+    return str(getattr(conn, "host", "local"))
 
 
 def _has_rt(conn) -> bool:
-    """`chrt` richiede CAP_SYS_NICE: se non c'e', si misura senza e lo si dice."""
-    host = str(getattr(conn, "host", "local"))
+    """`chrt` richiede CAP_SYS_NICE o un RLIMIT_RTPRIO sufficiente: si prova direttamente,
+    poi alzando il limite con sudo; se nessuno dei due va, si misura senza e lo si dice."""
+    host = _host(conn)
     if host not in _RT_CACHE:
-        available = conn.run("chrt -f 80 true", hide=True, warn=True).ok
-        if not available:
+        if conn.run("chrt -f 80 true", hide=True, warn=True).ok:
+            _RT_CACHE[host] = "direct"
+        elif conn.run(RT_PRLIMIT + "chrt -f 80 true", hide=True, warn=True).ok:
+            _RT_CACHE[host] = "prlimit"
+        else:
             log.warning(
                 "scheduling FIFO non disponibile su %s: la misura avra' piu' "
-                "jitter (serve CAP_SYS_NICE)", host,
+                "jitter (serve CAP_SYS_NICE o sudo senza password)", host,
             )
-        _RT_CACHE[host] = available
-    return _RT_CACHE[host]
+            _RT_CACHE[host] = False
+    return bool(_RT_CACHE[host])
 
 
 def _runtime_state(conn, cfg, bc, applied: dict, n_cores) -> dict:
@@ -412,7 +428,7 @@ def _runtime_state(conn, cfg, bc, applied: dict, n_cores) -> dict:
         "load_avg": bc.load_average(conn),
         "isolation": "none",
         "post_reboot": bool(getattr(bc, "post_reboot", False)),
-        "rt_scheduling": _RT_CACHE.get(str(getattr(conn, "host", "local")), False),
+        "rt_scheduling": bool(_RT_CACHE.get(_host(conn), False)),
     }
 
 

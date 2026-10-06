@@ -3,7 +3,7 @@ name: benchmark
 # Attesa termica prima di ogni cella. Condizionale: se la board e' gia'
 # sotto soglia non aspetta.
 thermal:
-  threshold_c: 100
+  threshold_c: 50          # il Pi a riposo sta a ~52 °C: si aspetta fino a timeout_s
   timeout_s: 300
   poll_s: 10
 

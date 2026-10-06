@@ -21,8 +21,8 @@ provision:
 
 freq:
   max: {khz: 2400000, governor: performance}
-  mid: {khz: 1500000, governor: userspace}
-  low: {khz: 1000000, governor: userspace}
+  mid: {khz: 2000000, governor: userspace}
+  low: {khz: 1500000, governor: powersave}   # minimo del Pi 5 (frequenze da 1.5 a 2.4 GHz): powersave ci va da solo
 
 compute:                       # nessun requires_freq: i 4 core sono sempre online
   cpu_1: {device: cpu, n_cores: 1}
