@@ -1,40 +1,49 @@
-"""Test una tantum: finetune con finetune=<conf> partendo dall'ultima epoca salvata della search
-pit_duccio_pico interrotta (e95c6991, epoca 58). Fuori dalla cache di yoloeval: tutto in
-outputs/sweep_yolo26p/<conf>_test/.
-    .venv/bin/python outputs/sweep_yolo26p/finetune_test.py adam|musgd|sgd
+"""Ablation sull'optimizer del finetune del modello potato: finetune=<conf> (adam, musgd, sgd)
+partendo da `pruned.pt` della search `pit_duccio_pico` di yolo26p, che a sua volta parte
+dall'adattamento a Svanstrom. Le tre conf sono confrontate sullo stesso `cfg.dataset`.
+Fuori dalla cache di yoloeval: tutto in runs/<conf>_test/. Grafici con plot_finetune.py.
+
+    .venv/bin/python experiments/finetune/lr_scheduler/run.py adam|musgd|sgd
+
+Prima: `run.py stage=train`, `stage=adapt` e `stage=search` con gli override di COMMON (se la
+search manca lo script lo dice ed esce).
 """
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))   # experiments/, per _lib
+from _lib import chain_hint, make_cfg  # noqa: E402
 
-from hydra import compose, initialize_config_dir  # noqa: E402
+HERE = Path(__file__).resolve().parent
 
-from src.cache import find_weights, training_key  # noqa: E402
-from src.stages.finetune import finetune_args  # noqa: E402
-from src.stages.search import search_args  # noqa: E402
+# la search e' condivisa con gli altri esperimenti sul potato (N dal probe rpi5 int8 a 4 core)
+COMMON = ["model=yolo26p", "train=scratch_musgd", "strategy=pit_duccio_pico",
+          "strategy.n_source=cpu_4", "strategy.n_quantization=int8", "hardware=rpi5", "quantization=int8"]
 
-SEARCH = ROOT / "artifacts/search/yolo26p_aod4_pit_duccio_pico_e95c6991/run/weights/last.pt"
-FT = sys.argv[1] if len(sys.argv) > 1 else "adam"
-OUT = ROOT / f"outputs/sweep_yolo26p/{FT}_test"
 
-with initialize_config_dir(config_dir=str(ROOT / "conf"), version_base=None):
-    cfg = compose("config", overrides=[
-        f"project_root={ROOT}", "model=yolo26p", "train=scratch", f"finetune={FT}",
-        "strategy=pit_duccio_pico", "hardware=rpi5", "quantization=int8"])
+def main() -> None:
+    ft = sys.argv[1] if len(sys.argv) > 1 else "adam"
+    out = HERE / "runs" / f"{ft}_test"        # ignorata da git
 
-from ultralytics import YOLO  # noqa: E402
-from yolopit import PITYOLO, PrunedTrainer  # noqa: E402
+    from src.cache import find_by_key, search_key
+    from src.stages.finetune import finetune_args
 
-OUT.mkdir(parents=True, exist_ok=True)
-weights = find_weights(cfg.artifacts_dir, training_key(cfg)) / "best.pt"
-search = PITYOLO(str(weights), cfg=search_args(cfg))
-ckpt = search.load_search_checkpoint(SEARCH)
-print(f"checkpoint della search: epoca {ckpt['epoch'] + 1}, costi {ckpt['costs']}")
-search.export_pruned(path=OUT / "pruned.pt")
+    cfg = make_cfg(*COMMON, f"finetune={ft}")
+    skey = search_key(cfg)
+    search = find_by_key(cfg.artifacts_dir, "search", "search_key", skey)
+    if search is None or not (search / "pruned.pt").exists():
+        sys.exit(f"search {skey} non in cache; lancia prima, dalla root del repo:\n"
+                 + chain_hint(cfg, COMMON, upto="search"))
 
-model = YOLO(str(OUT / "pruned.pt"))
-results = model.train(data=str(cfg.dataset.yaml), project=str(OUT), name="run", exist_ok=True,
-                      trainer=PrunedTrainer, **finetune_args(cfg))
-print(f"finetune {FT}: mAP50 {results.box.map50:.4f}, mAP50-95 {results.box.map:.4f}")
+    from ultralytics import YOLO
+    from yolopit import PrunedTrainer
+
+    out.mkdir(parents=True, exist_ok=True)
+    model = YOLO(str(search / "pruned.pt"))
+    results = model.train(data=str(cfg.dataset.yaml), project=str(out), name="run", exist_ok=True,
+                          trainer=PrunedTrainer, **finetune_args(cfg))
+    print(f"finetune {ft}: mAP50 {results.box.map50:.4f}, mAP50-95 {results.box.map:.4f}")
+
+
+if __name__ == "__main__":
+    main()

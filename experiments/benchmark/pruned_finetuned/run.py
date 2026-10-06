@@ -1,12 +1,15 @@
-"""Benchmark su Raspberry Pi 5 del yolo26p potato e finetunato con MuSGD
-(experiments/ablation/finetune/lr_scheduler): OpenVINO in fp32, fp16 e int8, tutti i core
-(cpu_4), governor performance a 2.4 GHz (freq_target=max).
+"""Benchmark su Raspberry Pi 5 del yolo26p potato (search `pit_duccio_pico`) e finetunato
+con la recipe `finetune` di default (MuSGD, experiments/finetune/lr_scheduler): OpenVINO in
+fp32, fp16 e int8, tutti i core (cpu_4), governor performance a 2.4 GHz (freq_target=max).
+I pesi sono quelli della pipeline (`src.cache.final_weights`).
 
-    .venv/bin/python experiments/rpi5_finetuned_musgd/run_experiment.py           # tutto
-    .venv/bin/python experiments/rpi5_finetuned_musgd/run_experiment.py --report  # solo tabella
+    .venv/bin/python experiments/benchmark/pruned_finetuned/run.py           # tutto
+    .venv/bin/python experiments/benchmark/pruned_finetuned/run.py --report  # solo tabella
 
-1. registra il modello nella cache della repo come finetune della strategia
-   `pit_duccio_pico_ep58` (search interrotta all'epoca 58, N=8 fisso: nessun probe);
+Prima, dalla root: `run.py stage=train`, `stage=adapt`, `stage=search` e `stage=finetune` con gli
+override di COMMON (se i pesi mancano lo script lo dice ed esce).
+
+1. controlla che il finetune sia in cache;
 2. export OpenVINO (run.py stage=export);
 3. benchmark sul Pi (run.py stage=benchmark), una precisione per volta, campionando la RAM del
    Pi ogni secondo: prima del lancio, durante la latenza (benchmark_app) e durante la mAP
@@ -14,95 +17,34 @@
 """
 import argparse
 import json
-import shutil
 import subprocess
 import sys
-import threading
 import time
 from pathlib import Path
 
-HERE = Path(__file__).resolve().parent
-ROOT = HERE.parents[1]
-sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))   # experiments/, per _lib
+from _lib import ROOT, PiRam, make_cfg, weights_or_exit  # noqa: E402
 
-SOURCE = ROOT / "outputs/sweep_yolo26p/musgd_test/run"           # finetune MuSGD
+HERE = Path(__file__).resolve().parent
+
 QUANTS = ("fp32", "fp16", "int8")
-COMMON = ["model=yolo26p", "train=scratch", "finetune=musgd", "strategy=pit_duccio_pico",
-          "strategy.name=pit_duccio_pico_ep58", "strategy.search.pit.n=8", "hardware=rpi5",
-          "backend=openvino", "freq_target=max", "compute_target=cpu_4"]
-RAM_LOG = HERE / "ram.json"
+# override della pipeline che identificano il modello (N dal probe rpi5 a 4 core: la search e'
+# condivisa con gli altri esperimenti sul potato)
+MODEL = ["model=yolo26p", "train=scratch_musgd", "strategy=pit_duccio_pico",
+         "strategy.n_source=cpu_4", "strategy.n_quantization=int8", "hardware=rpi5", "quantization=int8"]
+COMMON = [*MODEL, "backend=openvino", "freq_target=max", "compute_target=cpu_4"]
+RESULTS = HERE / "results"
+RAM_LOG = RESULTS / "ram.json"
 
 
 def compose(quant: str):
-    from hydra import compose as hydra_compose
-    from hydra import initialize_config_dir
-
-    with initialize_config_dir(config_dir=str(ROOT / "conf"), version_base=None):
-        return hydra_compose("config", overrides=[f"project_root={ROOT}", *COMMON,
-                                                  f"quantization={quant}"])
-
-
-def register() -> None:
-    """Il best.pt del finetune MuSGD come artefatto di finetune della repo."""
-    import csv
-
-    from src.cache import (finetune_dir, finetune_key, search_key, training_key, update_index,
-                           yolopit_version)
-    from src.jsonio import atomic_write_json
-
-    cfg = compose("fp32")
-    fkey, out = finetune_key(cfg), finetune_dir(cfg)
-    if (out / "meta.json").exists():
-        print(f"finetune gia' registrato: {out.name}")
-        return
-    rows = [{k.strip(): v for k, v in r.items()} for r in csv.DictReader(open(SOURCE / "results.csv"))]
-    out.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(SOURCE / "weights/best.pt", out / "best.pt")
-    meta = {
-        "finetune_key": fkey, "search_key": search_key(cfg), "training_key": training_key(cfg),
-        "strategy": "pit_duccio_pico_ep58", "yolopit": yolopit_version(),
-        "source": str(SOURCE), "note": "search pit_duccio_pico interrotta all'epoca 58 (N=8), "
-                                       "finetune MuSGD 100 epoche: experiments/ablation/finetune",
-        "metrics": {"map50": float(rows[-1]["metrics/mAP50(B)"]),
-                    "map50_95": float(rows[-1]["metrics/mAP50-95(B)"])},
-    }
-    atomic_write_json(out / "meta.json", meta)
-    update_index(ROOT / "artifacts/finetune/index.json", fkey, meta)
-    print(f"finetune registrato: {out.name}")
+    return make_cfg(*COMMON, f"quantization={quant}")
 
 
 def run(*args: str) -> None:
     cmd = [str(ROOT / ".venv/bin/python"), "run.py", *args]
     print(">>>", " ".join(cmd[1:]), flush=True)
     subprocess.run(cmd, cwd=ROOT, check=True)
-
-
-class PiRam(threading.Thread):
-    """Campiona sul Pi ogni secondo: MB usati, MB disponibili, benchmark_app attivo, eval attivo."""
-    LOOP = ("while true; do m=$(free -m | awk 'NR==2{print $3, $7}'); "
-            "l=$(pgrep -c benchmark_app); a=$(pgrep -cf '[e]val_map.py'); "
-            "echo \"$m $l $a\"; sleep 1; done")
-
-    def __init__(self):
-        super().__init__(daemon=True)
-        self.samples = []
-        self.proc = subprocess.Popen(["ssh", "-o", "BatchMode=yes", "rpi5", self.LOOP],
-                                     stdout=subprocess.PIPE, text=True)
-
-    def run(self):
-        for line in self.proc.stdout:
-            parts = line.split()
-            if len(parts) == 4:
-                self.samples.append([int(x) for x in parts])
-
-    def stop(self) -> dict:
-        self.proc.terminate()
-        used = lambda pick: max((s[0] for s in self.samples if pick(s)), default=None)
-        return {"before_mb": self.samples[0][0] if self.samples else None,
-                "peak_latency_mb": used(lambda s: s[2] > 0),
-                "peak_map_mb": used(lambda s: s[3] > 0),
-                "peak_mb": used(lambda s: True),
-                "min_available_mb": min((s[1] for s in self.samples), default=None)}
 
 
 def benchmark() -> None:
@@ -115,6 +57,7 @@ def benchmark() -> None:
             run("stage=benchmark", *COMMON, f"quantization={q}")
         finally:
             ram[q] = sampler.stop()
+            RESULTS.mkdir(exist_ok=True)
             RAM_LOG.write_text(json.dumps(ram, indent=1))
         print(f"RAM del Pi ({q}): {ram[q]}", flush=True)
 
@@ -144,7 +87,7 @@ if __name__ == "__main__":
     ap.add_argument("--report", action="store_true", help="solo la tabella dei risultati")
     args = ap.parse_args()
     if not args.report:
-        register()
+        print(f"pesi: {weights_or_exit(*COMMON, 'quantization=fp32')}")
         run("-m", "stage=export", *COMMON, f"quantization={','.join(QUANTS)}")
         benchmark()
     report()

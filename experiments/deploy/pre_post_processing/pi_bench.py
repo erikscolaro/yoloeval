@@ -26,13 +26,12 @@ def temp_c() -> float:
     return int(Path("/sys/class/thermal/thermal_zone0/temp").read_text()) / 1000
 
 
-# --- frame in memoria: originali 1024x1024 e gia' ridotti a 640x640 (camera a 640) ---
-frames, imread_ms = {1024: [], 640: []}, []
+# --- frame in memoria, gia' ridotti a 640x640 (camera a 640) ---
+frames, imread_ms = {640: []}, []
 for p in sorted(images_dir.glob("*.jpg")):
     t = now()
     img = cv2.imread(str(p))
     imread_ms.append((now() - t) * 1e3)
-    frames[1024].append(img)
     frames[640].append(cv2.resize(img, (IMGSZ, IMGSZ), interpolation=cv2.INTER_LINEAR))
 
 
@@ -91,11 +90,11 @@ def run_ultralytics(md, size, rows, rnd):
                          post_ms=s["postprocess"], total_ms=(t1 - t0) * 1e3, ndet=len(r.boxes)))
 
 
-CONFIGS = [("openvino", md, size) for size in (640, 1024) for md in (300, 50)] + \
-          [("ultralytics", md, 1024) for md in (300, 50)]
+CONFIGS = [("openvino", md, size) for size in (640,) for md in (300, 50)] + \
+          [("ultralytics", md, 640) for md in (300, 50)]
 RUN = {"openvino": run_openvino, "ultralytics": run_ultralytics}
 
-env = {"openvino": ov.__version__, "cv2": cv2.__version__, "images": len(frames[1024]),
+env = {"openvino": ov.__version__, "cv2": cv2.__version__, "images": len(frames[640]),
        "imread_ms_median": float(np.median(imread_ms)), "imread_ms_max": float(np.max(imread_ms)),
        "temp_start_c": temp_c(),
        "freq_khz": int(Path("/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq").read_text())}

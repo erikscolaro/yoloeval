@@ -1,14 +1,15 @@
 """Ablation sull'optimizer del training da zero di yolo26p: scratch_adam, scratch_musgd e
 scratch_sgd (conf/train/), identiche tranne optimizer e lr0.
 
-    .venv/bin/python experiments/ablation/train/lr_scheduler/train_ablation.py           # lancia e attende
-    .venv/bin/python experiments/ablation/train/lr_scheduler/train_ablation.py --report  # solo grafici
+    .venv/bin/python experiments/train/lr_scheduler/run.py           # lancia e attende
+    .venv/bin/python experiments/train/lr_scheduler/run.py --report  # solo grafici
 
-I training passano da `run.py stage=train`, quindi finiscono nella cache vera
-(artifacts/weights/): la conf migliore diventa direttamente la baseline. Prima di lanciare
+I training passano da `run.py stage=train` su `pretrain_dataset` (AOD4), quindi finiscono nella
+cache vera (artifacts/weights/, ritrovati con `find_weights`): la conf migliore diventa la
+baseline, da adattare poi a Svanstrom con `stage=adapt`. Prima di lanciare
 controlla RAM, GPU e disco; i tre training girano in parallelo, con i log in
-outputs/ablation_train_lr/<nome>.log. Alla fine: grafici di mAP50 e mAP50-95 per epoca, copia
-delle conf in configs/ e tabella dei risultati da incollare nel README.
+runs/<nome>.log. Alla fine: grafici di mAP50 e mAP50-95 per epoca, copia
+delle conf in config/ e tabella dei risultati da incollare nel README.
 """
 import argparse
 import csv
@@ -18,13 +19,16 @@ import sys
 import time
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))   # experiments/, per _lib
+from _lib import ROOT, make_cfg  # noqa: E402
+
 HERE = Path(__file__).resolve().parent
-ROOT = HERE.parents[3]
-sys.path.insert(0, str(ROOT))
 
 RUNS = {"Adam": "adam", "MuSGD": "musgd", "SGD": "sgd"}
 COLORS = {"Adam": "#2a78d6", "MuSGD": "#eb6834", "SGD": "#1baf7a"}   # ordine categorico fisso
-LOGS = ROOT / "outputs/ablation_train_lr"
+RUNS_DIR = HERE / "runs"          # log dei training (ignorata da git)
+FIGURES = HERE / "figures"
+CONFIG = HERE / "config"          # copia delle conf usate, scritta da --report
 
 # risorse richieste per tre training in parallelo (batch 64, cache su disco)
 MIN_RAM_GB = 40
@@ -34,14 +38,14 @@ MIN_DISK_GB = 20
 
 def train_dir(name: str) -> Path:
     """Cartella del training in artifacts/weights/ (dipende dal training_key della conf)."""
-    from hydra import compose, initialize_config_dir
+    from src.cache import find_weights, training_key
 
-    from src.cache import weights_dir
-
-    with initialize_config_dir(config_dir=str(ROOT / "conf"), version_base=None):
-        cfg = compose("config", overrides=[f"project_root={ROOT}", "model=yolo26p",
-                                           f"train=scratch_{name}"])
-    return weights_dir(cfg)
+    cfg = make_cfg("model=yolo26p", f"train=scratch_{name}")
+    d = find_weights(cfg.artifacts_dir, training_key(cfg))
+    if d is None:
+        sys.exit(f"training scratch_{name} non in cache: .venv/bin/python run.py stage=train "
+                 f"model=yolo26p train=scratch_{name}  (o senza --report)")
+    return d
 
 
 def check_resources() -> None:
@@ -51,7 +55,7 @@ def check_resources() -> None:
                          capture_output=True, text=True, check=True).stdout
     gpu_gb = int(out.split()[0]) / 1024
     disk_gb = shutil.disk_usage(ROOT).free / 2**30
-    busy = subprocess.run(["pgrep", "-f", "run.py stage=(train|search|finetune)"],
+    busy = subprocess.run(["pgrep", "-f", "run.py stage=(train|adapt|search|finetune)"],
                           capture_output=True, text=True).stdout.split()
     print(f"RAM disponibile {ram_gb:.0f} GB, GPU libera {gpu_gb:.0f} GB, disco libero "
           f"{disk_gb:.0f} GB, training gia' attivi: {len(busy)}")
@@ -67,15 +71,15 @@ def check_resources() -> None:
 
 def launch() -> None:
     check_resources()
-    LOGS.mkdir(parents=True, exist_ok=True)
+    RUNS_DIR.mkdir(exist_ok=True)
     procs = {}
     for label, name in RUNS.items():
-        log = open(LOGS / f"{name}.log", "w")
+        log = open(RUNS_DIR / f"{name}.log", "w")
         procs[label] = subprocess.Popen(
             [str(ROOT / ".venv/bin/python"), "run.py", "stage=train", "model=yolo26p",
              f"train=scratch_{name}"],
             cwd=ROOT, stdout=log, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL)
-        print(f"{label}: pid {procs[label].pid}, log {LOGS / f'{name}.log'}")
+        print(f"{label}: pid {procs[label].pid}, log {RUNS_DIR / f'{name}.log'}")
         time.sleep(30)   # partenze sfalsate: la scansione delle label non si sovrappone
     for label, p in procs.items():
         rc = p.wait()
@@ -84,8 +88,7 @@ def launch() -> None:
 
 def load(name: str) -> list[dict]:
     run = train_dir(name) / "run"
-    # results_e250.csv: copia a 250 epoche se il run e' stato esteso (experiments/scratch_musgd_close_mosaic)
-    path = run / "results_e250.csv" if (run / "results_e250.csv").exists() else run / "results.csv"
+    path = run / "results.csv"
     return [{k.strip(): v for k, v in r.items()} for r in csv.DictReader(open(path))]
 
 
@@ -125,16 +128,16 @@ def report() -> None:
             ax.spines[side].set_visible(False)
         ax.legend(frameon=False, loc="lower right")
         fig.tight_layout()
-        fig.savefig(HERE / fname, dpi=150)
+        FIGURES.mkdir(exist_ok=True)
+        fig.savefig(FIGURES / fname, dpi=150)
         plt.close(fig)
-        print(HERE / fname)
+        print(FIGURES / fname)
 
-    configs = HERE / "configs"
-    configs.mkdir(exist_ok=True)
+    CONFIG.mkdir(exist_ok=True)
     print("\n| optimizer | mAP50 | mAP50-95 | migliore mAP50-95 (epoca) |\n|---|---|---|---|")
     for label, name in RUNS.items():
-        shutil.copy(ROOT / f"conf/train/scratch_{name}.yaml", configs / f"scratch_{name}.yaml")
-        shutil.copy(train_dir(name) / "run" / "args.yaml", configs / f"scratch_{name}_args.yaml")
+        shutil.copy(ROOT / f"conf/train/scratch_{name}.yaml", CONFIG / f"scratch_{name}.yaml")
+        shutil.copy(train_dir(name) / "run" / "args.yaml", CONFIG / f"scratch_{name}_args.yaml")
         rows = data[label]
         best = max(rows, key=lambda r: float(r["metrics/mAP50-95(B)"]))
         print(f"| {label} | {float(rows[-1]['metrics/mAP50(B)']):.3f} | "

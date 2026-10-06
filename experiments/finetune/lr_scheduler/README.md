@@ -3,19 +3,14 @@
 Finetune di yolo26p potato con tre optimizer, stesso punto di partenza e stessi altri parametri
 (100 epoche, batch 64, `close_mosaic` 25, stessa augmentation).
 
-- Partenza: search `pit_duccio_pico` (N=8) interrotta, ultima epoca salvata (58): ops 48.7%,
-  params 39.8%, mAP50 0.747.
-- Script: `finetune_test.py <adam|musgd|sgd>`, grafici con `plot_finetune.py`.
-- Configurazioni in `configs/`: la conf di yoloeval e gli argomenti completi di Ultralytics.
+- Prima: `run.py stage=train`, `adapt` e `search` con gli override di `COMMON` in `run.py`
+  (yolo26p `scratch_musgd`, `pit_duccio_pico`, N dal probe a 4 core (`strategy.n_source=cpu_4`)); lo script esce se la search manca.
+- Partenza: `pruned.pt` della search in cache (parte dall'adattamento a Svanstrom); finetune su
+  Svanstrom.
+- Script: `run.py <adam|musgd|sgd>` (run in `runs/`), grafici con `plot_finetune.py` (in `figures/`).
+- Configurazioni in `config/`: la conf di yoloeval e gli argomenti completi di Ultralytics.
 
-| optimizer | lr0 → lr0·lrf | mAP50 | mAP50-95 |
-|---|---|---|---|
-| MuSGD | 0.005 → 5e-5 | **0.923** | **0.580** |
-| SGD | 0.01 → 1e-6 | 0.917 | 0.573 |
-| Adam | 0.001 → 1e-5 | 0.910 | 0.564 |
+## Esito storico (AOD4)
+MuSGD davanti: 0.923 / 0.580 (mAP50 / mAP50-95 a 100 epoche), SGD 0.917 / 0.573, Adam 0.910 / 0.564; adottato `finetune=musgd`; dati e grafici nel tag git `aod4-results`.
 
-Adam sale più regolare nelle prime ~25 epoche; da ~40 MuSGD resta davanti. Alla 100 le curve
-salgono ancora.
-
-![mAP50](finetune_map50.png)
-![mAP50-95](finetune_map50_95.png)
+**Stato**: da rifare con la pipeline AOD4 → Svanström.

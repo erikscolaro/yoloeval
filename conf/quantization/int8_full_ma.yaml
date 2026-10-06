@@ -1,5 +1,5 @@
 # Identica a int8_full da quando la media mobile e' il default (2026-10-02); resta per
-# experiments/ablation/quantization/calibration.
+# experiments/quantization/calibration.
 # Come int8_full, con calibrazione MinMax a media mobile dei min e max per batch (la piu' vicina al MEAN_MINMAX di NNCF).
 # int8_full: come int8, ma per i backend QDQ (onnxruntime, openvino_qdq) quantizza tutti i tipi di nodo:
 # SiLU, Add, Concat, Resize, MaxPool restano in int8 tra una conv e l'altra, senza

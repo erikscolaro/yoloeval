@@ -1,22 +1,71 @@
 # Esperimenti
 
-Studi una tantum fuori dalla pipeline: ogni cartella ha script, configurazioni, risultati
-(grafici) e un README con scopo ed esito. Tenere aggiornato questo indice quando se ne
+Studi una tantum fuori dalla pipeline, raggruppati per stadio: `train`, `adapt`, `pruning`,
+`finetune`, `quantization`, `deploy`, `benchmark`. Tenere aggiornato questo indice quando se ne
 aggiunge o chiude uno.
 
-| cartella | scopo | contenuto | stato |
-|---|---|---|---|
-| [`ablation/finetune/lr_scheduler`](ablation/finetune/lr_scheduler) | optimizer del finetune di yolo26p potato (Adam, MuSGD, SGD) | `finetune_test.py`, `plot_finetune.py`, `configs/`, grafici mAP50 e mAP50-95 | concluso: MuSGD (0.923 mAP50), adottato in `finetune=musgd` |
-| [`ablation/train/lr_scheduler`](ablation/train/lr_scheduler) | optimizer del training da zero di yolo26p (Adam, MuSGD, SGD) | `train_ablation.py`, `configs/`, grafici mAP50 e mAP50-95 | concluso: MuSGD (0.960 / 0.649 alla 250), davanti dall'inizio; SGD 0.643, Adam 0.637 |
-| [`ablation/train/imgsz`](ablation/train/imgsz) | risoluzione di training e validazione: yolo26p da zero a 1024 (250 epoche, `close_mosaic` 25) contro i training a 640, tutti validati a 640 e 1024 | `run_experiment.py`, `results.json`, grafici per epoca e matrice | in corso |
-| [`ablation/pruned/scratch_vs_finetune`](ablation/pruned/scratch_vs_finetune) | sull'architettura potata dalla search (50% MAC e params, N=8): finetune dai pesi ereditati contro training da zero, 500 epoche, `close_mosaic` 50 | `run_experiment.py`, `search.json`, grafici a fine run | concluso: finetune 0.959 / 0.645, scratch 0.954 / 0.639 a 500 epoche; distacco da +0.034 (ep. 50) a +0.006: conta l'architettura, il finetune arriva prima |
-| [`ablation/deploy/max_det`](ablation/deploy/max_det) | `max_det` (k del TopK nel grafo) da 1 a 300 sul yolo26p potato: latenza sul Pi (benchmark_app e API Python, frame 640) e mAP | `run_experiment.py`, `pi_bench.py`, `bench.sh`, `results/`, grafici | concluso: latenza piatta fino a 64, a 300 +0.5 ms (benchmark_app) / +1.1 ms (end-to-end); da 16 in su stesse detection a conf 0.25; per AOD4 64 |
-| [`ablation/quantization/calibration`](ablation/quantization/calibration) | metodo di calibrazione dell'int8 `int8_full` di onnxruntime (MinMax, MinMax a media mobile, Percentile, Entropy): mAP sulla workstation, la latenza non cambia | `run_experiment.py`, `results.json`, grafici | concluso: media mobile e Percentile 0.519 / 0.518 di mAP50-95 (MinMax 0.463, fp32 0.561, NNCF 0.526); Entropy di quantize_static degenere (= MinMax) |
-| [`rpi5_finetuned_musgd`](rpi5_finetuned_musgd) | latenza, mAP e RAM su Raspberry Pi 5 del yolo26p potato e finetunato con MuSGD (OpenVINO fp32/fp16/int8, 4 core) | `run_experiment.py`, `ram.json`, tabella nel README | concluso: fp32 22.4 ms (44.7 FPS), int8 piu' lento (32.9 ms) |
-| [`rpi5_yolo26p_baseline`](rpi5_yolo26p_baseline) | stesso benchmark sul Pi con yolo26p non potato (snapshot del training MuSGD), per misurare il guadagno di latenza del pruning | `run_experiment.py`, `snapshot.json`, `ram.json`, tabelle nel README | concluso: pruning 1.25× piu' veloce (fp32 27.9 → 22.4 ms) |
-| [`rpi5_yolo26n`](rpi5_yolo26n) | stesso benchmark sul Pi con yolo26n allenato su AOD4 (fp32), riferimento per i modelli pico | `run_experiment.py`, `ram.json`, tabelle nel README | concluso: 57.0 ms (17.5 FPS); pico potato 2.55× piu' veloce |
-| [`rpi5_pre_post_processing`](rpi5_pre_post_processing) | pre/post-processing sul Pi del yolo26p potato (OpenVINO fp32 640x640, API Python e Ultralytics predict) e ablation su `max_det` (300 contro 50) | `run_experiment.py`, `pi_bench.py`, `bench.sh`, `bench_app.sh`, `results/`, grafici | concluso: end-to-end 27.0 ms (37 FPS) con frame 640 e max_det 50; pre 2.4 ms, post 0.1 ms; max_det 50 -0.55 ms |
-| [`rpi5_pruned_500ep`](rpi5_pruned_500ep) | benchmark sul Pi del migliore tra finetune e scratch dell'ablation `pruned/scratch_vs_finetune`: onnxruntime e OpenVINO, fp32 e fp16, frequenze max/mid/low, 4 core | `run_experiment.py`, `chosen.json`, tabella nel README | concluso: OpenVINO fp32 22.4 ms (44.7 FPS) a 2.4 GHz, 33.4 a 1.5 GHz; con max_det 64 21.9 ms (45.7 FPS); mAP sul Pi 0.950 / 0.630; onnxruntime fp16 60 ms |
-| [`rpi5_probe_n_vs_cores`](rpi5_probe_n_vs_cores) | N del probe (`probe_edge`, onnxruntime) sul Pi per int8, fp16 e fp32 su 1, 2 e 4 core: N cambia con core e precisione? | `run_experiment.py`, `per_core.png`, `per_quant.png`, tabella nel README | concluso: N scende con i core (int8 4/4/2, fp16 8/4/2 su 1/2/4 core), fp32 N=1; replica int8 cpu_1 N=4 contro 8 (al confine della soglia) |
-| [`rpi5_int8_backend`](rpi5_int8_backend) | int8 piu' lento di fp32 sul Pi: backend (onnxruntime, OpenVINO, OpenVINO sul QDQ di onnxruntime) o nodi quantizzati (`int8` solo conv, `int8_full` tutto tranne la coda della testa)? latenza e mAP, 4 core | `run_experiment.py`, `latency.png`, `accuracy.png`, tabella nel README | concluso: conta quanti nodi sono int8 (onnxruntime int8 solo conv 44.2 ms, int8_full 22.0 ms contro fp32 28.0); OpenVINO lento sul QDQ (49.0 ms int8_full); mAP50-95 0.46 con MinMax contro 0.53 di NNCF |
-| [`scratch_musgd_close_mosaic`](scratch_musgd_close_mosaic) | 15 epoche in piu' senza mosaic sul yolo26p MuSGD da zero (25 in tutto, come il 10% della tesi) | `run_experiment.py`, `run/`, `map50.png`, `map50_95.png` | concluso: 0.960 / 0.649 → 0.962 / 0.652 (mAP50 / mAP50-95) |
+Struttura uniforme di ogni esperimento:
+
+- `README.md`: scopo, setup ed esito storico;
+- `run.py`: unico punto d'ingresso (`--report` per i soli grafici, dove c'e'); gli script secondari hanno nome descrittivo;
+- `config/`: file di configurazione in input o copie delle conf usate, se ce ne sono;
+- `results/` e `figures/`: json/csv e grafici scritti da `run.py` (create al primo uso, vuote nel repo);
+- `runs/`: output grezzo (run di Ultralytics, log, IR, modelli intermedi), ignorata da git (`experiments/**/runs/`).
+
+Il codice comune sta in `_lib.py`: `ROOT` (root del repo, aggiunta a `sys.path`) e `PiRam`, il
+campionatore della RAM del Pi usato dai benchmark. Ogni `run.py` lo importa con
+`sys.path.insert(0, str(Path(__file__).resolve().parents[2]))` seguito da `from _lib import ROOT`.
+Gli script per il Pi (`pi_bench.py`, `bench.sh`) restano in `deploy/max_det` e
+`deploy/pre_post_processing`: le due copie differiscono (modelli, passate, output).
+
+I risultati AOD4 dei vecchi esperimenti sono nel tag git `aod4-results`; tutti vanno rifatti con
+la pipeline AOD4 → Svanström.
+
+## train
+
+| cartella | scopo | stato |
+|---|---|---|
+| [`train/lr_scheduler`](train/lr_scheduler) | optimizer del training da zero di yolo26p (Adam, MuSGD, SGD) | da rifare (esito AOD4: MuSGD 0.960 / 0.649 alla 250, davanti dall'inizio; SGD 0.643, Adam 0.637) |
+| [`train/imgsz`](train/imgsz) | risoluzione di training e validazione: yolo26p da zero a 1024 contro i training a 640, validati a 640 e 1024 | da rifare (esito AOD4: in corso, nessun risultato) |
+| [`train/close_mosaic`](train/close_mosaic) | 15 epoche in piu' senza mosaic sul yolo26p MuSGD da zero | da rifare (esito AOD4: 0.960 / 0.649 → 0.962 / 0.652) |
+
+## adapt
+
+| cartella | scopo | stato |
+|---|---|---|
+| [`adapt`](adapt) | finetune di adattamento su Svanström | vuoto |
+
+## pruning
+
+| cartella | scopo | stato |
+|---|---|---|
+| [`pruning/scratch_vs_finetune`](pruning/scratch_vs_finetune) | sull'architettura potata dalla search (50% MAC e params, N dal probe): finetune dai pesi ereditati contro training da zero, 500 epoche | da rifare (esito AOD4: finetune 0.959 / 0.645, scratch 0.954 / 0.639; distacco da +0.034 a +0.006) |
+| [`pruning/probe_n_vs_cores`](pruning/probe_n_vs_cores) | N del probe (`probe_edge`, onnxruntime) sul Pi per int8, fp16 e fp32 su 1, 2 e 4 core | da rifare (esito AOD4: N scende con i core, int8 4/4/2, fp16 8/4/2, fp32 N=1) |
+
+## finetune
+
+| cartella | scopo | stato |
+|---|---|---|
+| [`finetune/lr_scheduler`](finetune/lr_scheduler) | optimizer del finetune di yolo26p potato (Adam, MuSGD, SGD) | da rifare (esito AOD4: MuSGD 0.923 mAP50, adottato in `finetune=musgd`) |
+
+## quantization
+
+| cartella | scopo | stato |
+|---|---|---|
+| [`quantization/calibration`](quantization/calibration) | metodo di calibrazione dell'int8 `int8_full` di onnxruntime (MinMax, media mobile, Percentile, Entropy) | da rifare (esito AOD4: media mobile e Percentile 0.519 / 0.518 di mAP50-95, MinMax 0.463, fp32 0.561) |
+| [`quantization/int8_backend`](quantization/int8_backend) | int8 piu' lento di fp32 sul Pi: backend o nodi quantizzati? | da rifare (esito AOD4: conta quanti nodi sono int8; onnxruntime int8_full 22.0 ms, OpenVINO lento sul QDQ) |
+
+## deploy
+
+| cartella | scopo | stato |
+|---|---|---|
+| [`deploy/max_det`](deploy/max_det) | `max_det` (k del TopK nel grafo) da 1 a 300 sul yolo26p potato: latenza sul Pi e mAP | da rifare (esito AOD4: latenza piatta fino a 64, a 300 +0.5 ms; per AOD4 64) |
+| [`deploy/pre_post_processing`](deploy/pre_post_processing) | pre/post-processing sul Pi (OpenVINO fp32 640x640, API Python e Ultralytics predict) e `max_det` 300 contro 50 | da rifare (esito AOD4: end-to-end 27.0 ms con frame 640 e max_det 50; pre 2.4 ms, post 0.1 ms) |
+
+## benchmark
+
+| cartella | scopo | stato |
+|---|---|---|
+| [`benchmark/pruned_finetuned`](benchmark/pruned_finetuned) | latenza, mAP e RAM sul Pi del yolo26p potato e finetunato (OpenVINO fp32/fp16/int8, 4 core) | da rifare (esito AOD4: fp32 22.4 ms, int8 piu' lento, 32.9 ms) |
+| [`benchmark/yolo26p_baseline`](benchmark/yolo26p_baseline) | stesso benchmark con yolo26p non potato, per il guadagno di latenza del pruning | da rifare (esito AOD4: pruning 1.25× piu' veloce, 27.9 → 22.4 ms) |
+| [`benchmark/yolo26n`](benchmark/yolo26n) | stesso benchmark con yolo26n (fp32), riferimento per i modelli pico | da rifare (esito AOD4: 57.0 ms; pico potato 2.55× piu' veloce) |

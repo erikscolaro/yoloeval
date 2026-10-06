@@ -1,5 +1,5 @@
 # Come int8_full ma con la calibrazione MinMax globale (min e max assoluti), il default fino al
-# 2026-10-02: riferimento di experiments/ablation/quantization/calibration.
+# 2026-10-02: riferimento di experiments/quantization/calibration.
 # int8_full: come int8, ma per i backend QDQ (onnxruntime, openvino_qdq) quantizza tutti i tipi di nodo:
 # SiLU, Add, Concat, Resize, MaxPool restano in int8 tra una conv e l'altra, senza
 # Dequantize/Quantize attorno a ognuna. In float: la Softmax dell'attention e la coda della

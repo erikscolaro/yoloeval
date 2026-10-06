@@ -2,12 +2,12 @@
 `probe_edge` (quello della pipeline per le board) con onnxruntime a 2.4 GHz, per int8, fp16 e
 fp32 su cpu_1, cpu_2 e cpu_4.
 
-    .venv/bin/python experiments/rpi5_probe_n_vs_cores/run_experiment.py --after PID  # attende PID
-    .venv/bin/python experiments/rpi5_probe_n_vs_cores/run_experiment.py --report     # solo grafici
+    .venv/bin/python experiments/pruning/probe_n_vs_cores/run.py --after PID  # attende PID
+    .venv/bin/python experiments/pruning/probe_n_vs_cores/run.py --report     # solo grafici
 
 `stage.sweep.seed=1` (ordine casuale delle misure diverso da quello di default) da' ai probe
 un probe_id loro: non sovrascrivono results/probe/rpi5_cpu_1_int8_onnxruntime_134367b1, che e'
-quello da cui pit_auto prende N=8 (ed entra nelle chiavi delle search). Il cpu_1 int8 e' quindi
+quello da cui pit_auto prende N (n_source cpu_1 di default) (ed entra nelle chiavi delle search). Il cpu_1 int8 e' quindi
 anche una replica di quel probe.
 """
 import argparse
@@ -18,9 +18,11 @@ import time
 from collections import defaultdict
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))   # experiments/, per _lib
+from _lib import ROOT  # noqa: E402
+
 HERE = Path(__file__).resolve().parent
-ROOT = HERE.parents[1]
-sys.path.insert(0, str(ROOT))
+FIGURES = HERE / "figures"
 
 QUANTS = ("int8", "fp16", "fp32")
 CORES = ("cpu_1", "cpu_2", "cpu_4")
@@ -95,9 +97,10 @@ def report() -> None:
         fig.suptitle("Probe onnxruntime su Raspberry Pi 5 (conv 3x3 su 20x20, 4 layer, 2.4 GHz); "
                      "linee verticali ogni 8 canali", fontsize=11)
         fig.tight_layout()
-        fig.savefig(HERE / fname, dpi=150)
+        FIGURES.mkdir(exist_ok=True)
+        fig.savefig(FIGURES / fname, dpi=150)
         plt.close(fig)
-        print(HERE / fname)
+        print(FIGURES / fname)
 
     print("\n| precisione | " + " | ".join(CORES) + " |\n|---|" + "---|" * len(CORES))
     for q in QUANTS:

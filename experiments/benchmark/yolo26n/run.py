@@ -1,70 +1,33 @@
-"""Benchmark su Raspberry Pi 5 di yolo26n allenato su AOD4 (dai pesi COCO, 250 epoche, run della
-tesi), come riferimento per experiments/rpi5_finetuned_musgd e rpi5_yolo26p_baseline: stesso
+"""Benchmark su Raspberry Pi 5 di yolo26n (pipeline: train su AOD4, adapt su Svanstrom), come riferimento per experiments/benchmark/pruned_finetuned e benchmark/yolo26p_baseline: stesso
 setup (OpenVINO, cpu_4, governor performance a 2.4 GHz), solo fp32.
 
-    .venv/bin/python experiments/rpi5_yolo26n/run_experiment.py           # tutto
-    .venv/bin/python experiments/rpi5_yolo26n/run_experiment.py --report  # solo tabella
+    .venv/bin/python experiments/benchmark/yolo26n/run.py           # tutto
+    .venv/bin/python experiments/benchmark/yolo26n/run.py --report  # solo tabella
 
-I pesi vanno in cache con una chiave loro (`+train.source=thesis_baseline` nel gruppo train):
-il training non e' stato fatto con conf/train/, e con la chiave di train=default gli export
-verrebbero riusati per un yolo26n allenato dalla repo.
+Prima, dalla root: `run.py stage=train model=yolo26n train=default` e `stage=adapt` (stessi
+override); se i pesi mancano lo script lo dice ed esce.
 """
 import argparse
-import csv
 import json
-import shutil
 import subprocess
 import sys
 import time
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))   # experiments/, per _lib
+from _lib import ROOT, PiRam, make_cfg, weights_or_exit  # noqa: E402
+
 HERE = Path(__file__).resolve().parent
-ROOT = HERE.parents[1]
-sys.path.insert(0, str(ROOT))
-sys.path.insert(0, str(ROOT / "experiments/rpi5_finetuned_musgd"))
 
-from run_experiment import PiRam  # noqa: E402  stesso campionatore della RAM del Pi
-
-RUN = Path("/home/scolaroe/Desktop/thesis/runs/baseline-yolo26n/train")
 QUANTS = ("fp32",)
-COMMON = ["model=yolo26n", "train=default", "+train.source=thesis_baseline", "strategy=baseline",
+COMMON = ["model=yolo26n", "train=default", "strategy=baseline",
           "hardware=rpi5", "backend=openvino", "freq_target=max", "compute_target=cpu_4"]
-RAM_LOG = HERE / "ram.json"
+RESULTS = HERE / "results"
+RAM_LOG = RESULTS / "ram.json"
 
 
 def compose(quant: str):
-    from hydra import compose as hydra_compose
-    from hydra import initialize_config_dir
-
-    with initialize_config_dir(config_dir=str(ROOT / "conf"), version_base=None):
-        return hydra_compose("config", overrides=[f"project_root={ROOT}", *COMMON,
-                                                  f"quantization={quant}"])
-
-
-def register() -> None:
-    """best.pt della run della tesi come training della repo, con la sua chiave."""
-    from src.cache import read_dataset_hash, training_key, update_index, weights_dir
-    from src.jsonio import atomic_write_json
-
-    cfg = compose("fp32")
-    out = weights_dir(cfg)
-    if (out / "meta.json").exists():
-        print(f"pesi gia' registrati: {out.name}")
-        return
-    rows = [{k.strip(): v for k, v in r.items()} for r in csv.DictReader(open(RUN / "results.csv"))]
-    out.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(RUN / "weights/best.pt", out / "best.pt")
-    meta = {
-        "training_key": training_key(cfg), "model": "yolo26n", "dataset": "aod4",
-        "epochs": 250, "epochs_completed": int(rows[-1]["epoch"]),
-        "source": str(RUN), "note": "run della tesi (baseline-yolo26n): pesi COCO, 250 epoche",
-        "dataset_hash": read_dataset_hash(cfg.dataset.local_path),
-        "metrics": {"map50": max(float(r["metrics/mAP50(B)"]) for r in rows),
-                    "map50_95": max(float(r["metrics/mAP50-95(B)"]) for r in rows)},
-    }
-    atomic_write_json(out / "meta.json", meta)
-    update_index(ROOT / "artifacts/weights/index.json", meta["training_key"], meta)
-    print(f"pesi registrati: {out.name}")
+    return make_cfg(*COMMON, f"quantization={quant}")
 
 
 def run(*args: str) -> None:
@@ -83,6 +46,7 @@ def benchmark() -> None:
             run("stage=benchmark", *COMMON, f"quantization={q}")
         finally:
             ram[q] = sampler.stop()
+            RESULTS.mkdir(exist_ok=True)
             RAM_LOG.write_text(json.dumps(ram, indent=1))
         print(f"RAM del Pi ({q}): {ram[q]}", flush=True)
 
@@ -112,7 +76,7 @@ if __name__ == "__main__":
     ap.add_argument("--report", action="store_true", help="solo la tabella dei risultati")
     args = ap.parse_args()
     if not args.report:
-        register()
+        print(f"pesi: {weights_or_exit(*COMMON, 'quantization=fp32')}")
         run("-m", "stage=export", *COMMON, f"quantization={','.join(QUANTS)}")
         benchmark()
     report()

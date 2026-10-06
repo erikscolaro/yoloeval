@@ -1,28 +1,21 @@
 # yolo26p MuSGD: 15 epoche in piu' senza mosaic
 
-Il training da zero con MuSGD (`train=scratch_musgd`, `experiments/ablation/train/lr_scheduler`)
+Il training da zero con MuSGD (`train=scratch_musgd`, `experiments/train/lr_scheduler`)
 ha `close_mosaic: 10` su 250 epoche; nella tesi il pico aveva 100 su 1000. Qui si aggiungono 15
 epoche senza mosaic (25 in tutto, il 10% finale) per vedere se la mAP sale ancora.
 
+- Prima: `run.py stage=train model=yolo26p train=scratch_musgd` (AOD4); la run si ritrova in
+  cache con `find_weights`. Si allena e si valida su AOD4 (`pretrain_dataset`).
 - Partenza: `last.pt` all'epoca 250. Training nuovo di 15 epoche (a fine training last.pt non ha
   lo stato dell'optimizer, quindi niente resume): lr costante al valore finale del run
   (lr0 * lrf = 1e-4), niente warmup, mosaic spento, il resto come `scratch_musgd`.
-- Fuori dalla cache: pesi e risultati in `run/`; il best.pt del training resta quello a 250.
-- Le 15 epoche sono aggiunte a `results.csv` del run MuSGD come 251-265 (originale in
-  `results_e250.csv`).
-- Script: `run_experiment.py` (`--after PID` per partire a fine ablation, `--report` per i soli
+- Fuori dalla cache: pesi e risultati in `runs/run/`; il best.pt del training resta quello a 250.
+- Il `results.csv` del training in cache non viene toccato: le 15 epoche sono solo in
+  `runs/run/results.csv` (epoche 1-15, 251-265 nei grafici).
+- Script: `run.py` (`--after PID` per partire a fine ablation, `--report` per i soli
   grafici).
 
-## Risultati
+## Esito storico (AOD4)
+Con 15 epoche senza mosaic 0.960 / 0.649 → 0.962 / 0.652 (mAP50 / mAP50-95, epoca 250 → 265); la tesi (1000 epoche) arrivava a 0.662; dati e grafici nel tag git `aod4-results`.
 
-| | epoca | mAP50 | mAP50-95 |
-|---|---|---|---|
-| fine run | 250 | 0.960 | 0.649 |
-| +15 senza mosaic | 265 | **0.962** | **0.652** |
-
-+0.002 di mAP50 e +0.003 di mAP50-95, con la curva ancora in leggera salita alla 265. La
-mAP50-95 saliva gia' prima del mosaic spento (240): il guadagno non si separa da quello delle
-epoche in piu' a lr basso. La tesi (1000 epoche, `close_mosaic` 100) arrivava a 0.662.
-
-![mAP50](map50.png)
-![mAP50-95](map50_95.png)
+**Stato**: da rifare con la pipeline AOD4 → Svanström.

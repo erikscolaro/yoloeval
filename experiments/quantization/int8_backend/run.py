@@ -1,10 +1,11 @@
-"""int8 piu' lento di fp32 sul Pi: e' il backend? Stesso modello di experiments/rpi5_finetuned_musgd
-(yolo26p potato ep58, finetune MuSGD), onnxruntime int8 e fp32 contro i risultati OpenVINO gia'
+"""int8 piu' lento di fp32 sul Pi: e' il backend? Stesso modello di experiments/benchmark/pruned_finetuned
+(yolo26p potato, finetune MuSGD), onnxruntime int8 e fp32 contro i risultati OpenVINO gia'
 misurati (stesso modello, stesso setup): Pi a 2.4 GHz governor performance, 4 core, FIFO 80,
-attesa termica fino a 50 °C, mAP sul Pi.
+attesa termica fino a 50 °C, mAP sul Pi. Prima, dalla root: `run.py stage=train|adapt|search|finetune`
+con gli override di COMMON.
 
-    .venv/bin/python experiments/rpi5_int8_backend/run_experiment.py           # export + benchmark
-    .venv/bin/python experiments/rpi5_int8_backend/run_experiment.py --report  # solo tabella
+    .venv/bin/python experiments/quantization/int8_backend/run.py           # export + benchmark
+    .venv/bin/python experiments/quantization/int8_backend/run.py --report  # solo tabella
 
 - int8: QDQ statico di onnxruntime, quantizzati solo Conv, Gemm e MatMul (le SiLU restano fp32,
   con Quantize/Dequantize attorno a ogni conv);
@@ -17,12 +18,14 @@ import subprocess
 import sys
 from pathlib import Path
 
-HERE = Path(__file__).resolve().parent
-ROOT = HERE.parents[1]
-sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))   # experiments/, per _lib
+from _lib import ROOT, make_cfg, weights_or_exit  # noqa: E402
 
-COMMON = ["model=yolo26p", "train=scratch", "finetune=musgd", "strategy=pit_duccio_pico",
-          "strategy.name=pit_duccio_pico_ep58", "strategy.search.pit.n=8", "hardware=rpi5",
+HERE = Path(__file__).resolve().parent
+FIGURES = HERE / "figures"
+
+COMMON = ["model=yolo26p", "train=scratch_musgd", "strategy=pit_duccio_pico",
+          "strategy.n_source=cpu_4", "strategy.n_quantization=int8", "hardware=rpi5",
           "freq_target=max", "compute_target=cpu_4"]
 CELLS = [("onnxruntime", "fp32"), ("onnxruntime", "int8"), ("onnxruntime", "int8_full"),
          ("openvino", "fp32"), ("openvino", "int8"),
@@ -30,12 +33,7 @@ CELLS = [("onnxruntime", "fp32"), ("onnxruntime", "int8"), ("onnxruntime", "int8
 
 
 def compose(backend: str, quant: str):
-    from hydra import compose as hydra_compose
-    from hydra import initialize_config_dir
-
-    with initialize_config_dir(config_dir=str(ROOT / "conf"), version_base=None):
-        return hydra_compose("config", overrides=[f"project_root={ROOT}", *COMMON,
-                                                  f"backend={backend}", f"quantization={quant}"])
+    return make_cfg(*COMMON, f"backend={backend}", f"quantization={quant}")
 
 
 def run(*args: str) -> None:
@@ -53,7 +51,7 @@ def plots(rows: dict) -> None:
     colors = {"onnxruntime": "#2a78d6", "openvino": "#eb6834", "openvino_qdq": "#1baf7a"}
     for key, fname, title, xlabel, fmt in (
             ("median_ms", "latency.png", "Latenza mediana sul Pi 5 (4 core, 2.4 GHz)", "ms", "{:.1f}"),
-            ("map50_95", "accuracy.png", "mAP50-95 sul Pi 5 (val AOD4)", "mAP50-95", "{:.3f}")):
+            ("map50_95", "accuracy.png", "mAP50-95 sul Pi 5 (val Svanstrom)", "mAP50-95", "{:.3f}")):
         vals = [rows[k].get(key) for k in rows]
         fig, ax = plt.subplots(figsize=(8, 4.8))
         y = range(len(labels))[::-1]
@@ -69,9 +67,10 @@ def plots(rows: dict) -> None:
         for side in ("top", "right"):
             ax.spines[side].set_visible(False)
         fig.tight_layout()
-        fig.savefig(HERE / fname, dpi=150)
+        FIGURES.mkdir(exist_ok=True)
+        fig.savefig(FIGURES / fname, dpi=150)
         plt.close(fig)
-        print(HERE / fname)
+        print(FIGURES / fname)
 
 
 def report() -> None:
@@ -101,6 +100,7 @@ if __name__ == "__main__":
     ap.add_argument("--report", action="store_true", help="solo la tabella")
     args = ap.parse_args()
     if not args.report:
+        weights_or_exit(*COMMON, "backend=onnxruntime", "quantization=fp32")   # esce se mancano
         run("-m", "stage=export", *COMMON, "backend=onnxruntime", "quantization=fp32,int8,int8_full")
         run("-m", "stage=export", *COMMON, "backend=openvino_qdq", "quantization=int8,int8_full")
         run("-m", "stage=benchmark", *COMMON, "backend=onnxruntime", "quantization=int8,fp32,int8_full")

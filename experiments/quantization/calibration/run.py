@@ -1,10 +1,11 @@
 """Ablation sul metodo di calibrazione dell'int8 (QDQ di onnxruntime, tutti i nodi in int8 tranne
-Softmax e coda della testa: `int8_full`) per il yolo26p potato di experiments/rpi5_finetuned_musgd.
+Softmax e coda della testa: `int8_full`) per il yolo26p potato di experiments/benchmark/pruned_finetuned.
+Prima, dalla root: `run.py stage=train|adapt|search|finetune` con gli override di COMMON.
 Solo accuratezza, sulla workstation: la calibrazione cambia le scale e non il grafo, quindi la
-latenza resta quella di int8_full (22.0 ms sul Pi, experiments/rpi5_int8_backend).
+latenza resta quella di int8_full (22.0 ms sul Pi, experiments/quantization/int8_backend).
 
-    .venv/bin/python experiments/ablation/quantization/calibration/run_experiment.py           # tutto
-    .venv/bin/python experiments/ablation/quantization/calibration/run_experiment.py --report  # grafici
+    .venv/bin/python experiments/quantization/calibration/run.py           # tutto
+    .venv/bin/python experiments/quantization/calibration/run.py --report  # grafici
 
 Metodi (conf/quantization/): int8_full_minmax (MinMax globale), int8_full_ma (MinMax con media mobile,
 la piu' vicina al MEAN_MINMAX di NNCF), int8_full_pct (Percentile 99.999), int8_full_entropy
@@ -18,26 +19,23 @@ import sys
 import time
 from pathlib import Path
 
-HERE = Path(__file__).resolve().parents[0]
-ROOT = HERE.parents[3]
-sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))   # experiments/, per _lib
+from _lib import ROOT, make_cfg, weights_or_exit  # noqa: E402
 
-COMMON = ["model=yolo26p", "train=scratch", "finetune=musgd", "strategy=pit_duccio_pico",
-          "strategy.name=pit_duccio_pico_ep58", "strategy.search.pit.n=8", "hardware=rpi5",
+HERE = Path(__file__).resolve().parent
+FIGURES = HERE / "figures"
+
+COMMON = ["model=yolo26p", "train=scratch_musgd", "strategy=pit_duccio_pico",
+          "strategy.n_source=cpu_4", "strategy.n_quantization=int8", "hardware=rpi5",
           "freq_target=max", "compute_target=cpu_4", "backend=onnxruntime"]
 QUANTS = {"fp32": "fp32", "int8_full_minmax": "MinMax", "int8_full_ma": "MinMax media mobile",
           "int8_full_pct": "Percentile 99.999", "int8_full_entropy": "Entropy (KL)"}
-RESULTS = HERE / "results.json"
+RESULTS = HERE / "results/results.json"
 NNCF = {"map50": 0.883, "map50_95": 0.526}        # OpenVINO int8 (NNCF) sul Pi, stesso modello
 
 
 def compose(quant: str):
-    from hydra import compose as hydra_compose
-    from hydra import initialize_config_dir
-
-    with initialize_config_dir(config_dir=str(ROOT / "conf"), version_base=None):
-        return hydra_compose("config", overrides=[f"project_root={ROOT}", *COMMON,
-                                                  f"quantization={quant}"])
+    return make_cfg(*COMMON, f"quantization={quant}")
 
 
 def onnx_path(quant: str) -> Path:
@@ -47,6 +45,7 @@ def onnx_path(quant: str) -> Path:
 
 
 def export() -> dict:
+    weights_or_exit(*COMMON, "quantization=fp32")   # esce se mancano i pesi
     times = {}
     for q in QUANTS:
         if onnx_path(q).exists():
@@ -67,10 +66,11 @@ def accuracy(times: dict) -> None:
         if q in res or not onnx_path(q).exists():
             continue
         m = YOLO(str(onnx_path(q)), task="detect").val(
-            data=str(ROOT / "data/aod4/dataset.yaml"), imgsz=640, batch=1, conf=0.001, iou=0.7,
+            data=str(compose("fp32").dataset.yaml), imgsz=640, batch=1, conf=0.001, iou=0.7,
             max_det=300, device="cpu", plots=False, verbose=False, workers=4)
         res[q] = {"map50": float(m.box.map50), "map50_95": float(m.box.map),
                   "export_s": times.get(q)}
+        RESULTS.parent.mkdir(exist_ok=True)
         RESULTS.write_text(json.dumps(res, indent=1))
         print(f"{q}: mAP50 {m.box.map50:.4f}, mAP50-95 {m.box.map:.4f}", flush=True)
 
@@ -97,15 +97,16 @@ def report() -> None:
         lo = min(vals + [NNCF[key]]) * 0.9
         ax.set_xlim(lo, max(vals + [res["fp32"][key]]) * 1.04)
         ax.set_xlabel(title)
-        ax.set_title(f"{title} per calibrazione (int8_full, onnxruntime, val AOD4)", fontsize=11)
+        ax.set_title(f"{title} per calibrazione (int8_full, onnxruntime, val Svanstrom)", fontsize=11)
         ax.legend(frameon=False, fontsize=8, loc="lower right")
         ax.grid(axis="x", alpha=0.25)
         for side in ("top", "right"):
             ax.spines[side].set_visible(False)
         fig.tight_layout()
-        fig.savefig(HERE / fname, dpi=150)
+        FIGURES.mkdir(exist_ok=True)
+        fig.savefig(FIGURES / fname, dpi=150)
         plt.close(fig)
-        print(HERE / fname)
+        print(FIGURES / fname)
     print("\n| calibrazione | mAP50 | mAP50-95 | perdita mAP50-95 rispetto a fp32 | export (s) |\n|---|---|---|---|---|")
     for q in quants:
         r = res[q]

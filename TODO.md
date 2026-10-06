@@ -5,7 +5,7 @@ Cose rimandate, da riprendere quando c'e' tempo.
 ## Quantizzazione
 
 - **Entropy vero**: con `quantize_static` onnxruntime usa 128/128 bin e Entropy coincide con
-  MinMax (`experiments/ablation/quantization/calibration`). Serve un calibratore costruito a mano
+  MinMax (`experiments/quantization/calibration`). Serve un calibratore costruito a mano
   (es. 2048 bin come TensorRT) per provarlo davvero. Default attuale: MinMax a media mobile.
 - **NNCF parametrico** per `backend=openvino`: ignored scope (Ultralytics esclude tutte le
   Sigmoid e la testa) e correzione del bias.
@@ -16,7 +16,7 @@ Cose rimandate, da riprendere quando c'e' tempo.
 
 - **N per il target reale**: sul Pi a 4 core il probe da' N=2 (int8, fp16) e N=1 (fp32), la
   search ha usato N=8 (probe int8 su 1 core). Rifare la search con l'N giusto per il deploy
-  (`experiments/rpi5_probe_n_vs_cores`).
+  (`experiments/pruning/probe_n_vs_cores`).
 - **Stabilita' del probe**: su 1 core int8 e fp16 sono al confine tra N=4 e N=8 (soglia del 20%
   di multipli non allineati); valutare piu' passate o una soglia diversa.
 
@@ -32,6 +32,7 @@ Cose rimandate, da riprendere quando c'e' tempo.
   training e' stato cancellato; passare al vincitore (`scratch_musgd`) e lanciare lo sweep
   completo.
 - **Default del finetune** in `conf/config.yaml`: passare a `musgd`?
+- **`export_max_det: 64`**: riverificare su Svanstrom con `experiments/deploy/max_det` (la scelta era su AOD4, max 36 oggetti per immagine).
 - **`export_key` non include gli argomenti di quantizzazione**: per l'int8 dei backend QDQ
   l'export ora si rifa' da solo se gli argomenti sono cambiati (`_stale_quantization` in
   `src/stages/export.py`); per TensorRT e OpenVINO/NNCF serve ancora `force_reexport`.

@@ -1,32 +1,39 @@
 """Ablation su max_det (numero di box in uscita, fissato nel TopK del grafo all'export) per il
-yolo26p potato e finetunato (experiments/rpi5_finetuned_musgd), OpenVINO fp32 640x640 sul
+yolo26p potato e finetunato (experiments/benchmark/pruned_finetuned), OpenVINO fp32 640x640 sul
 Raspberry Pi 5: latenza e mAP per max_det 1, 2, 4, ..., 256 e 300 (default di Ultralytics).
 
-    .venv/bin/python experiments/ablation/deploy/max_det/run_experiment.py           # tutto
-    .venv/bin/python experiments/ablation/deploy/max_det/run_experiment.py --report  # solo grafici
+    .venv/bin/python experiments/deploy/max_det/run.py           # tutto
+    .venv/bin/python experiments/deploy/max_det/run.py --report  # solo grafici
 
 1. un IR per valore, esportato come fa src/backends/openvino.py (test fuori dalla pipeline: la
    chiave di export non distingue max_det);
 2. mAP sul val intero con model.val() dell'IR sulla workstation (CPU, batch 1, max_det uguale a
    quello del grafo): l'accuratezza non dipende dalla board;
 3. sul Pi (bench.sh): benchmark_app su ogni IR e pi_bench.py con le 300 immagini di
-   experiments/rpi5_pre_post_processing ridotte a 640x640 (frame di una camera a 640).
+   experiments/deploy/pre_post_processing ridotte a 640x640 (frame di una camera a 640).
 """
 import argparse
 import csv
 import json
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))   # experiments/, per _lib
+from _lib import ROOT, make_cfg, weights_or_exit  # noqa: E402
+
 HERE = Path(__file__).resolve().parent
-ROOT = HERE.parents[3]
-WEIGHTS = ROOT / "artifacts/finetune/yolo26p_aod4_pit_duccio_pico_ep58_1a905310/best.pt"
-WORK = ROOT / "outputs/ablation_max_det"         # IR, fuori da git
-IMAGES = ROOT / "outputs/rpi5_pre_post/images"   # 300 immagini del val (seed 0)
+# modello: yolo26p potato e finetunato della pipeline (stessi override di benchmark/pruned_finetuned);
+# prima `run.py stage=train|adapt|search|finetune` con questi override
+COMMON = ["model=yolo26p", "train=scratch_musgd", "strategy=pit_duccio_pico",
+          "strategy.n_source=cpu_4", "strategy.n_quantization=int8", "hardware=rpi5", "quantization=fp32"]
+WORK = HERE / "runs"                             # IR (ignorata da git)
+IMAGES = ROOT / "experiments/deploy/pre_post_processing/runs/images"   # 300 immagini del val (seed 0)
 PI_DIR = "/home/bench/bench/maxdet"
 MAX_DETS = (1, 2, 4, 8, 16, 32, 64, 128, 256, 300)
 RESULTS = HERE / "results"
+FIGURES = HERE / "figures"
 
 
 def sh(cmd: str) -> None:
@@ -44,7 +51,7 @@ def export() -> None:
     for md in MAX_DETS:
         if ir(md).exists():
             continue
-        produced = Path(YOLO(str(WEIGHTS), task="detect").export(
+        produced = Path(YOLO(str(weights_or_exit(*COMMON)), task="detect").export(
             format="openvino", imgsz=640, quantize="fp32", batch=1, nms=False, max_det=md,
             device="cpu"))
         ir(md).parent.mkdir(parents=True, exist_ok=True)
@@ -61,7 +68,7 @@ def accuracy() -> None:
         if str(md) in res:
             continue
         m = YOLO(str(ir(md)), task="detect").val(
-            data=str(ROOT / "data/aod4/dataset.yaml"), imgsz=640, batch=1, conf=0.001, iou=0.7,
+            data=str(make_cfg(*COMMON).dataset.yaml), imgsz=640, batch=1, conf=0.001, iou=0.7,
             max_det=md, device="cpu", plots=False, verbose=False, workers=4)
         res[str(md)] = {"map50": float(m.box.map50), "map50_95": float(m.box.map),
                         "precision": float(m.box.mp), "recall": float(m.box.mr)}
@@ -125,7 +132,8 @@ def report() -> None:
     style(ax, "Latenza mediana per max_det, yolo26p potato su Pi 5 (OpenVINO fp32, 640x640)", "ms")
     ax.legend(frameon=False, loc="center left", fontsize=9)
     fig.tight_layout()
-    fig.savefig(HERE / "latency.png", dpi=150)
+    FIGURES.mkdir(exist_ok=True)
+    fig.savefig(FIGURES / "latency.png", dpi=150)
     plt.close(fig)
 
     # 2. accuratezza
@@ -138,9 +146,9 @@ def report() -> None:
     style(ax, "mAP sul val per max_det (val: max 36 oggetti per immagine, 1.4 in media)", "mAP")
     ax.legend(frameon=False, loc="lower right", fontsize=9)
     fig.tight_layout()
-    fig.savefig(HERE / "accuracy.png", dpi=150)
+    fig.savefig(FIGURES / "accuracy.png", dpi=150)
     plt.close(fig)
-    print(HERE / "latency.png", HERE / "accuracy.png", sep="\n")
+    print(FIGURES / "latency.png", FIGURES / "accuracy.png", sep="\n")
 
     env = json.loads((RESULTS / "timings.json").read_text())
     temps = [env[k] for k in env if k.startswith("temp_")]

@@ -1,6 +1,6 @@
 """mAP50 e mAP50-95 per epoca dei tre finetune di prova (adam, musgd, sgd), un grafico per metrica.
-    .venv/bin/python experiments/ablation/finetune/lr_scheduler/plot_finetune.py
-Legge i results.csv in outputs/sweep_yolo26p/<nome>_test/run/ e salva i PNG qui accanto.
+    .venv/bin/python experiments/finetune/lr_scheduler/plot_finetune.py
+Legge i results.csv in runs/<nome>_test/run/ (scritti da run.py) e salva i PNG in figures/.
 """
 import csv
 from pathlib import Path
@@ -9,8 +9,9 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-HERE = Path(__file__).parent
-RUNS_DIR = Path(__file__).resolve().parents[4] / "outputs/sweep_yolo26p"
+HERE = Path(__file__).resolve().parent
+RUNS_DIR = HERE / "runs"
+FIGURES = HERE / "figures"
 RUNS = {"Adam": "adam", "MuSGD": "musgd", "SGD": "sgd"}
 COLORS = {"Adam": "#2a78d6", "MuSGD": "#eb6834", "SGD": "#1baf7a"}   # ordine categorico fisso
 METRICS = {"metrics/mAP50(B)": ("mAP50", "finetune_map50.png"),
@@ -41,7 +42,7 @@ for col, (title, fname) in METRICS.items():
                     textcoords="data", va="center", fontsize=9, color="#333333")
     ax.axvline(75, color="#999999", linewidth=1, linestyle=":")       # close_mosaic: 25
     ax.text(75.5, ax.get_ylim()[0], " senza mosaic", fontsize=8, color="#666666", va="bottom")
-    ax.set_title(f"{title} per epoca, finetune di yolo26p potato (search, epoca 58)", fontsize=11)
+    ax.set_title(f"{title} per epoca, finetune di yolo26p potato (dalla search)", fontsize=11)
     ax.set_xlabel("epoca")
     ax.set_ylabel(title)
     ax.set_xlim(1, 112)
@@ -50,6 +51,7 @@ for col, (title, fname) in METRICS.items():
         ax.spines[side].set_visible(False)
     ax.legend(frameon=False, loc="lower right")
     fig.tight_layout()
-    fig.savefig(HERE / fname, dpi=150)
+    FIGURES.mkdir(exist_ok=True)
+    fig.savefig(FIGURES / fname, dpi=150)
     plt.close(fig)
-    print(HERE / fname)
+    print(FIGURES / fname)

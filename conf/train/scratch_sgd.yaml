@@ -1,4 +1,4 @@
-# Training da zero di yolo26p con SGD: ablation sull'optimizer (experiments/ablation/train/lr_scheduler).
+# Training da zero di yolo26p con SGD: ablation sull'optimizer (experiments/train/lr_scheduler).
 # Identica a scratch_{adam,musgd,sgd}.yaml tranne optimizer e lr0; il resto come i default di
 # Ultralytics. I nomi delle chiavi coincidono 1:1 con gli argomenti di model.train().
 epochs: 250

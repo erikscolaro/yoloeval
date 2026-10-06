@@ -1,15 +1,14 @@
 """Pre-processing, inferenza e post-processing sul Raspberry Pi 5 del yolo26p potato e finetunato
-(experiments/rpi5_finetuned_musgd), OpenVINO fp32 a 640x640, piu' una piccola ablation su
+(experiments/benchmark/pruned_finetuned), OpenVINO fp32 a 640x640, piu' una piccola ablation su
 max_det (300, default di Ultralytics, contro 50: il val ha al massimo 36 oggetti per immagine).
 
-    .venv/bin/python experiments/rpi5_pre_post_processing/run_experiment.py           # tutto
-    .venv/bin/python experiments/rpi5_pre_post_processing/run_experiment.py --report  # solo grafici
+    .venv/bin/python experiments/deploy/pre_post_processing/run.py           # tutto
+    .venv/bin/python experiments/deploy/pre_post_processing/run.py --report  # solo grafici
 
 Test una tantum fuori dalla pipeline (la chiave di export non distingue max_det): due IR fp32
 esportati come fa src/backends/openvino.py, 300 immagini del val (seed 0) copiate sul Pi,
 misure con pi_bench.py (bench.sh: governor performance, 4 thread, FIFO 80, attesa termica a
-50 C). Configurazioni: frame gia' 640x640 (camera a 640) e frame 1024x1024 (resize nel
-pre-processing), OpenVINO diretto e model.predict() di Ultralytics.
+50 C). Configurazione: frame gia' 640x640 (camera a 640), OpenVINO diretto e model.predict() di Ultralytics.
 """
 import argparse
 import csv
@@ -17,12 +16,20 @@ import json
 import random
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))   # experiments/, per _lib
+from _lib import make_cfg, val_images, weights_or_exit  # noqa: E402
+
 HERE = Path(__file__).resolve().parent
-ROOT = HERE.parents[1]
-WEIGHTS = ROOT / "artifacts/finetune/yolo26p_aod4_pit_duccio_pico_ep58_1a905310/best.pt"
-WORK = ROOT / "outputs/rpi5_pre_post"           # IR e immagini, fuori da git
+# modello: yolo26p potato e finetunato della pipeline (stessi override di benchmark/pruned_finetuned);
+# prima `run.py stage=train|adapt|search|finetune` con questi override
+COMMON = ["model=yolo26p", "train=scratch_musgd", "strategy=pit_duccio_pico",
+          "strategy.n_source=cpu_4", "strategy.n_quantization=int8", "hardware=rpi5", "quantization=fp32"]
+WORK = HERE / "runs"                             # IR e immagini (ignorata da git)
+RESULTS = HERE / "results"
+FIGURES = HERE / "figures"
 PI_DIR = "/home/bench/bench/prepost"
 N_IMAGES, MAX_DETS = 300, (300, 50)
 STAGES = (("pre_ms", "pre-processing", "#2a78d6"), ("infer_ms", "inferenza", "#eb6834"),
@@ -41,7 +48,7 @@ def export() -> None:
         target = WORK / "models" / f"max_det_{md}_openvino_model"
         if target.exists():
             continue
-        produced = Path(YOLO(str(WEIGHTS), task="detect").export(
+        produced = Path(YOLO(str(weights_or_exit(*COMMON)), task="detect").export(
             format="openvino", imgsz=640, quantize="fp32", batch=1, nms=False, max_det=md,
             device="cpu"))
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -53,7 +60,7 @@ def sample() -> None:
     out = WORK / "images"
     if out.exists():
         return
-    val = sorted((ROOT / "data/aod4/images/val").glob("*.jpg"))
+    val = val_images(make_cfg(*COMMON))
     out.mkdir(parents=True)
     for p in random.Random(0).sample(val, N_IMAGES):
         shutil.copy2(p, out / p.name)
@@ -63,8 +70,8 @@ def bench() -> None:
     sh(f"ssh rpi5 'mkdir -p {PI_DIR}'")
     sh(f"rsync -a --delete {WORK}/models {WORK}/images {HERE}/pi_bench.py {HERE}/bench.sh rpi5:{PI_DIR}/")
     sh(f"ssh rpi5 'bash {PI_DIR}/bench.sh'")
-    (HERE / "results").mkdir(exist_ok=True)
-    sh(f"scp rpi5:{PI_DIR}/timings.csv rpi5:{PI_DIR}/timings.json {HERE}/results/")
+    RESULTS.mkdir(exist_ok=True)
+    sh(f"scp rpi5:{PI_DIR}/timings.csv rpi5:{PI_DIR}/timings.json {RESULTS}/")
 
 
 def label(r) -> str:
@@ -78,8 +85,8 @@ def report() -> None:
     import matplotlib.pyplot as plt
     import numpy as np
 
-    rows = list(csv.DictReader(open(HERE / "results/timings.csv")))
-    env = json.loads((HERE / "results/timings.json").read_text())
+    rows = list(csv.DictReader(open(RESULTS / "timings.csv")))
+    env = json.loads((RESULTS / "timings.json").read_text())
     groups: dict[str, list[dict]] = {}
     for r in rows:
         groups.setdefault(label(r), []).append(r)
@@ -106,7 +113,8 @@ def report() -> None:
         ax.spines[side].set_visible(False)
     ax.legend(frameon=False, loc="upper center", bbox_to_anchor=(0.5, -0.14), ncol=3, fontsize=9)
     fig.tight_layout()
-    fig.savefig(HERE / "breakdown.png", dpi=150)
+    FIGURES.mkdir(exist_ok=True)
+    fig.savefig(FIGURES / "breakdown.png", dpi=150)
     plt.close(fig)
 
     # 2. distribuzione della latenza end-to-end
@@ -119,9 +127,9 @@ def report() -> None:
     for side in ("top", "right"):
         ax.spines[side].set_visible(False)
     fig.tight_layout()
-    fig.savefig(HERE / "end_to_end.png", dpi=150)
+    fig.savefig(FIGURES / "end_to_end.png", dpi=150)
     plt.close(fig)
-    print(HERE / "breakdown.png", HERE / "end_to_end.png", sep="\n")
+    print(FIGURES / "breakdown.png", FIGURES / "end_to_end.png", sep="\n")
 
     print(f"\nimread (fuori dalle misure): mediana {env['imread_ms_median']:.2f} ms; temp "
           f"{env['temp_start_c']:.0f} C -> {env[f'temp_round{2}_c']:.0f} C\n")
