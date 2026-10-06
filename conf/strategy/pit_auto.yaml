@@ -6,6 +6,7 @@
 name: pit_auto
 method: pit
 n_source: cpu_1
+n_quantization: null      # precisione del probe da cui prendere N; null = quella della cella
 probe:
   backend: onnxruntime    # N sempre dal probe onnxruntime, per ogni backend di export
   stage: null             # preset di conf/stage/; null -> probe_edge su CPU delle board, probe altrove

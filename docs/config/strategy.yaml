@@ -37,6 +37,10 @@ probe:
   freq_target: null
     # Profilo della board durante il probe. null: il freq_target della config se la board lo
     # dichiara, altrimenti il primo profilo della board.
+n_quantization: null
+  # Facoltativo, solo con search.pit.n: auto. Nome di conf/quantization/ del probe da cui
+  # prendere N; null = la quantizzazione della cella. Fissarlo (es. int8) da' lo stesso
+  # modello potato a tutte le precisioni, invece di una ricerca per precisione.
 
 search:
   # Solo method: pit. Argomenti di PITYOLO di yolopit: quelli di model.train() di Ultralytics

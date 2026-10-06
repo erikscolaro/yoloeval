@@ -301,6 +301,7 @@ def find_n(cfg, source: str | None = None) -> tuple[int, Path]:
     target della config, o `n_source` della strategia (cpu_1 su CPU: il caso peggiore)."""
     target = source or cfg.compute_target
     backend = probe_backend(cfg)
+    qname = _n_quantization(cfg)
     if target is None:
         raise ValueError("pit.n: auto richiede un compute target (strategy.search.n_source o "
                          "compute_target=...) per scegliere quale probe usare")
@@ -309,13 +310,12 @@ def find_n(cfg, source: str | None = None) -> tuple[int, Path]:
     for p in sorted(root.glob("*.summary.json")) if root.is_dir() else []:
         s = read_json(p) or {}
         if (s.get("board"), s.get("compute_target"), s.get("quantization"),
-                s.get("backend")) == (cfg.hardware.board, target, cfg.quantization.name,
-                                      backend):
+                s.get("backend")) == (cfg.hardware.board, target, qname, backend):
             found.append((s.get("created_at") or "", s, p))
     if not found:
         raise FileNotFoundError(
             f"nessun probe per board={cfg.hardware.board} compute_target={target} "
-            f"quantization={cfg.quantization.name} backend={backend}: eseguire prima "
+            f"quantization={qname} backend={backend}: eseguire prima "
             f"`stage=probe` con questi valori")
     _, s, p = max(found, key=lambda t: t[0])       # il piu' recente
     if not s.get("n_opt"):
@@ -333,7 +333,7 @@ def ensure_n(cfg, source: str | None = None) -> tuple[int | None, Path | None]:
         pass
     pcfg = probe_cfg(cfg, source)
     what = (f"board={cfg.hardware.board} compute_target={pcfg.compute_target} "
-            f"quantization={cfg.quantization.name} backend={pcfg.backend.name}")
+            f"quantization={pcfg.quantization.name} backend={pcfg.backend.name}")
     how = f"stage={pcfg.stage.preset} freq_target={pcfg.freq_target}"
     if cfg.dry_run:
         log.warning("[dry-run] nessun probe per %s: verrebbe lanciato ora (%s)", what, how)
@@ -343,6 +343,12 @@ def ensure_n(cfg, source: str | None = None) -> tuple[int | None, Path | None]:
     n, path = find_n(cfg, source)
     log.warning("probe concluso: N=%d (%s)", n, path.name)
     return n, path
+
+
+def _n_quantization(cfg) -> str:
+    """Precisione del probe da cui prendere N: `strategy.n_quantization`, altrimenti quella
+    della config. Fissarla tiene lo stesso modello potato per tutte le precisioni misurate."""
+    return (cfg.get("strategy") or {}).get("n_quantization") or cfg.quantization.name
 
 
 def probe_cfg(cfg, source: str | None = None):
@@ -367,6 +373,9 @@ def probe_cfg(cfg, source: str | None = None):
         if cfg.backend.name != probe_backend(cfg):
             pcfg.backend = OmegaConf.load(
                 Path(cfg.project_root) / "conf" / "backend" / f"{probe_backend(cfg)}.yaml")
+        if _n_quantization(cfg) != cfg.quantization.name:
+            pcfg.quantization = OmegaConf.load(
+                Path(cfg.project_root) / "conf" / "quantization" / f"{_n_quantization(cfg)}.yaml")
         pcfg.stage = stage
         pcfg.compute_target = target
         pcfg.freq_target = freq
