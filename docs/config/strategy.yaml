@@ -55,6 +55,13 @@ search:
   warmup_epochs: 0
     # Il modello di partenza e' gia' allenato: warmup sconsigliato (yolopit avvisa).
   seed: 42
+  patience: 100
+    # Epoche senza miglioramento prima dello stop anticipato. 0 lo disattiva. Con valore >= epochs
+    # niente early stopping (la mAP scende per costruzione mentre PIT pota).
+  close_mosaic: 20
+    # Intero. Epoche finali senza mosaic augmentation (mosaic a 0).
+  cache: disk
+    # ram | disk | false. Dove tenere in cache le immagini. Fuori dalla search_key, come workers.
   pit:
     # Spazio di ricerca.
     n: 16

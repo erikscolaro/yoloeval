@@ -21,6 +21,9 @@ batch: 16
   # VRAM da usare, oppure -1 per l'auto-batch.
 workers: 12
   # Intero. Processi del dataloader. Fuori dal training_key.
+cache: disk
+  # ram | disk | false. Dove tenere in cache le immagini del dataset. ram e' piu' veloce
+  # ma occupa molta memoria; disk salva i .npy accanto alle immagini. Fuori dal training_key.
 imgsz: 640
   # Intero. Risoluzione di training.
 optimizer: auto
@@ -36,6 +39,9 @@ warmup_epochs: 3
   # Puo' essere frazionario.
 patience: 50
   # Epoche senza miglioramento prima dello stop anticipato. 0 lo disattiva.
+close_mosaic: 25
+  # Intero. Epoche finali senza mosaic augmentation (mosaic a 0). 0 la tiene
+  # attiva fino alla fine.
 seed: 42
   # Intero. Riproducibilita' del training.
 

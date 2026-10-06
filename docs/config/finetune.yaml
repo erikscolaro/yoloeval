@@ -23,6 +23,10 @@ momentum: 0.937
 weight_decay: 0.0005
 warmup_epochs: 0
 patience: 20
+close_mosaic: 25
+  # Intero. Epoche finali senza mosaic augmentation (mosaic a 0).
+cos_lr: false
+  # true | false. Scheduler coseno del learning rate al posto di quello lineare.
 seed: 42
 mosaic: 1.0
 mixup: 0.0

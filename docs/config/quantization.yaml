@@ -87,9 +87,13 @@ backend_args:
     calibration_method: minmax
       # minmax (default) | percentile | entropy. Metodo del calibratore di
       # onnxruntime: minmax prende min e max assoluti sul calibration set.
-    calibration_options: {CalibMovingAverage: true, CalibMovingAverageConstant: 0.01}
+    calibration_options:
+      CalibMovingAverage: true
+      CalibMovingAverageConstant: 0.01
+      CalibPercentile: 99.999
       # Dict | assente. extra_options del calibratore di onnxruntime:
-      # CalibMovingAverage(+Constant) per minmax, CalibPercentile per percentile,
+      # CalibMovingAverage(+Constant) per minmax, CalibPercentile per percentile
+      # (float: percentile del calibratore Percentile, es. 99.999),
       # CalibMaxIntermediateOutputs per tutti. entropy con quantize_static usa 128/128
       # bin (non modificabili) e coincide con minmax. Vedi int8_full_{ma,pct,entropy}.yaml.
   openvino:
