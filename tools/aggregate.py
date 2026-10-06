@@ -94,9 +94,12 @@ def main(argv=None) -> int:
         print("pandas non installato: pip install pandas pyarrow", file=sys.stderr)
         return 2
 
-    df = pd.DataFrame(rows).sort_values(
-        ["board", "backend", "quantization", "model"], na_position="last"
-    )
+    from tools.order import natural_key
+
+    df = pd.DataFrame(rows)
+    order = [c for c in ("board", "backend", "quantization", "compute_target", "model")
+             if c in df.columns]
+    df = df.sort_values(order, na_position="last", key=natural_key)
     out = args.out or Path("data.parquet")
     out.parent.mkdir(parents=True, exist_ok=True)
     df.to_parquet(out, index=False)

@@ -26,6 +26,8 @@ import json
 import sys
 from pathlib import Path
 
+from tools.order import natural
+
 
 def _read(path: Path):
     try:
@@ -191,7 +193,7 @@ def main(argv=None) -> int:
     groups: dict[tuple, list[dict]] = {}
     for r in rows:
         groups.setdefault(group_key(r), []).append(r)
-    for key, grp in sorted(groups.items()):
+    for key, grp in sorted(groups.items(), key=lambda kv: [natural(k) for k in kv[0]]):
         roof = find_roof(roofs, *key)
         datasheet = (roof or {}).get("datasheet") or {}
         ds = None
