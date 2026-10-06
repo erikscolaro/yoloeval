@@ -16,5 +16,13 @@ validation:
 
 backend_args:
   tensorrt: ["--int8"]
-  onnxruntime: {quant_format: QDQ, per_channel: true, reduce_range: false}
+  onnxruntime:
+    quant_format: QDQ
+    per_channel: true
+    reduce_range: false
+    calibration_method: minmax
+    calibration_options: {CalibMovingAverage: true, CalibMovingAverageConstant: 0.01}   # media mobile: experiments/ablation/quantization/calibration
+    # solo i nodi con pesi, come Ultralytics: la coda della testa in int8 (box 0-640 e
+    # score 0-1 con una sola scala) porta tutti gli score a 0
+    quantize_op_types: [Conv, Gemm, MatMul]
   openvino: {preset: performance}

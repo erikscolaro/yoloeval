@@ -224,8 +224,19 @@ def export_key(cfg: DictConfig) -> str:
     )
 
 
+# Argomenti di quantizzazione che valgono solo per i backend che usano il QDQ di onnxruntime:
+# per gli altri restano fuori dalla chiave della cella, che non cambia aggiungendoli.
+ONNXRUNTIME_ONLY_ARGS = ("quantize_op_types", "quantize_exclude_op_types", "quantize_exclude_regex",
+                         "calibration_method", "calibration_options")
+QDQ_BACKENDS = ("onnxruntime", "openvino_qdq")
+
+
 def cell_key(cfg: DictConfig) -> str:
     payload = {k: _group(cfg, k) for k in cfg.cell_key_fields}
+    ort_args = (payload.get("quantization") or {}).get("backend_args", {}).get("onnxruntime")
+    if isinstance(ort_args, dict) and cfg.backend.name not in QDQ_BACKENDS:
+        for k in ONNXRUNTIME_ONLY_ARGS:
+            ort_args.pop(k, None)
     # Il gruppo `dataset` contiene solo path e nomi delle classi: due dataset
     # diversi allo stesso path darebbero la stessa chiave, e al rilancio la
     # cella verrebbe saltata come gia' completata pur misurando un modello

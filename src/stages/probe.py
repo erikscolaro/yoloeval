@@ -107,6 +107,9 @@ def _run_one(cfg, pid: str, summary_path: Path) -> Path:
     backend = get_backend(cfg.backend.name, cfg)
     precision = cfg.quantization.precision
     int8_args = dict(cfg.quantization.get("backend_args", {}).get("onnxruntime", {}) or {})
+    for k in ("quantize_op_types", "quantize_exclude_op_types", "quantize_exclude_regex",
+              "calibration_method", "calibration_options"):
+        int8_args.pop(k, None)                   # reti dummy: si quantizza tutto
     onnx_dir = Path(cfg.artifacts_dir) / "probe" / "onnx"
     cs = list(range(int(sw.c_min), int(sw.c_max) + 1, int(sw.c_step)))
     plan = [(s, c) for s in shapes(cfg) for c in cs]

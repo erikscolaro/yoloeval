@@ -178,7 +178,8 @@ def _unquantize_scalars(path: Path) -> int:
     return len(folded)
 
 
-def quantize_onnx_static(src: Path, dst: Path, cfg, symmetric: bool = False) -> Path:
+def quantize_onnx_static(src: Path, dst: Path, cfg, symmetric: bool = False,
+                         op_types: list[str] | None = None) -> Path:
     """PTQ statica su ONNX, formato QDQ.
 
     QDQ (e non QOperator) perche' e' il formato che ONNX Runtime, TensorRT e
@@ -189,7 +190,24 @@ def quantize_onnx_static(src: Path, dst: Path, cfg, symmetric: bool = False) -> 
     con zero point nullo (con UINT8 il parser si ferma con "unsupported input
     type of UINT8") e bias non quantizzati. Immagini e metodo di calibrazione
     restano gli stessi, cambia solo la rappresentazione.
+
+    `op_types` sceglie quali nodi quantizzare, per tipo: gli altri restano in float. Se manca,
+    per onnxruntime vale `quantize_op_types` di backend_args.onnxruntime; TensorRT passa il
+    suo `backend.int8.quantize_op_types`. `quantize_op_types: null` quantizza tutti i tipi.
+
+    Calibrazione da backend_args.onnxruntime: `calibration_method` (minmax, il default;
+    percentile; entropy) e `calibration_options`, le extra_options del calibratore di
+    onnxruntime (CalibMovingAverage, CalibMovingAverageConstant, CalibPercentile,
+    CalibMaxIntermediateOutputs). Con quantize_static entropy usa 128 bin e 128 bin quantizzati,
+    non modificabili: c'e' una sola soglia candidata e il risultato coincide con minmax.
+
+    Da backend_args.onnxruntime, sempre (anche con `op_types`):
+    - `quantize_exclude_op_types`: tipi che restano in float (es. Softmax);
+    - `quantize_exclude_regex`: regex sul nome dei nodi che restano in float (es. la coda della
+      testa: decode, ultima conv di box e score, TopK).
     """
+    import re
+
     import onnx
     from onnxruntime.quantization import (
         CalibrationMethod,
@@ -211,6 +229,34 @@ def quantize_onnx_static(src: Path, dst: Path, cfg, symmetric: bool = False) -> 
     prepped = dst.with_suffix(".prep.onnx")
     quant_pre_process(str(src), str(prepped), skip_symbolic_shape=False)
 
+    if op_types is None and not symmetric:
+        op_types = args.get("quantize_op_types")
+    skip_types = set(args.get("quantize_exclude_op_types") or [])
+    patterns = [re.compile(r) for r in (args.get("quantize_exclude_regex") or [])]
+    # per nome del nodo e non con op_types_to_quantize: cosi' la calibrazione resta su tutti i
+    # tensori (ORT si blocca sulla Softmax dell'attention non calibrata)
+    exclude = [n.name for n in onnx.load(str(prepped)).graph.node
+               if (op_types and n.op_type not in set(op_types)) or n.op_type in skip_types
+               or any(p.search(n.name) for p in patterns)] or None
+    if exclude:
+        log.info("quantizzo %s (esclusi i tipi %s e %d regex): %d nodi restano in float",
+                 list(op_types) if op_types else "tutti i tipi", sorted(skip_types),
+                 len(patterns), len(exclude))
+
+    methods = {"minmax": CalibrationMethod.MinMax, "percentile": CalibrationMethod.Percentile,
+               "entropy": CalibrationMethod.Entropy}
+    method = str(args.get("calibration_method") or "minmax").lower()
+    if method not in methods:
+        raise ValueError(f"calibration_method {method!r}: ammessi {sorted(methods)}")
+    extra = dict(args.get("calibration_options") or {})
+    if symmetric:
+        # Per TensorRT: bias in FP32, perche' il parser non accetta un DequantizeLinear su bias
+        # INT32; e' TensorRT a fonderlo nella conv.
+        extra.update({"ActivationSymmetric": True, "WeightSymmetric": True,
+                      "QuantizeBias": False})
+    if method != "minmax" or extra:
+        log.info("calibrazione %s %s", method, extra or "")
+
     fmt = QuantFormat.QDQ if str(args.get("quant_format", "QDQ")).upper() == "QDQ" \
         else QuantFormat.QOperator
     quantize_static(
@@ -222,12 +268,9 @@ def quantize_onnx_static(src: Path, dst: Path, cfg, symmetric: bool = False) -> 
         reduce_range=bool(args.get("reduce_range", False)),
         activation_type=QuantType.QInt8 if symmetric else QuantType.QUInt8,
         weight_type=QuantType.QInt8,
-        calibrate_method=CalibrationMethod.MinMax,
-        # Per TensorRT: bias in FP32, perche' il parser non accetta un
-        # DequantizeLinear su bias INT32; e' TensorRT a fonderlo nella conv.
-        extra_options={"ActivationSymmetric": True, "WeightSymmetric": True,
-                       "QuantizeBias": False}
-        if symmetric else None,
+        calibrate_method=methods[method],
+        nodes_to_exclude=exclude,
+        extra_options=extra or None,
     )
     prepped.unlink(missing_ok=True)
     if symmetric:

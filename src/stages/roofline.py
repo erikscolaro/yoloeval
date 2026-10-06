@@ -69,6 +69,9 @@ def _measure(cfg, path: Path) -> Path:
     timer = PhaseTimer(device=cfg.hardware.board)
     precision = cfg.quantization.precision
     int8_args = dict(cfg.quantization.get("backend_args", {}).get("onnxruntime", {}) or {})
+    for k in ("quantize_op_types", "quantize_exclude_op_types", "quantize_exclude_regex",
+              "calibration_method", "calibration_options"):
+        int8_args.pop(k, None)                   # reti dummy: si quantizza tutto
     onnx_dir = Path(cfg.artifacts_dir) / "roofline" / "onnx"
     with read_write(cfg):                       # meno iterazioni: le reti sono grandi
         cfg.backend.benchmark.iters = int(st.iters)

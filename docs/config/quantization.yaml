@@ -72,6 +72,26 @@ backend_args:
     reduce_range: false
       # true | false. true usa 7 bit invece di 8, serve solo su CPU x86
       # vecchie senza VNNI.
+    quantize_op_types: [Conv, Gemm, MatMul]
+      # Lista di op_type ONNX | null. Si quantizzano solo i nodi di questi tipi,
+      # gli altri restano in float; null quantizza tutto. Default come Ultralytics:
+      # solo i nodi con pesi, perche' la coda della testa in int8 (box 0-640 e
+      # score 0-1 con una sola scala) porta tutti gli score a 0. Solo per i
+      # backend QDQ (onnxruntime, openvino_qdq): il QDQ di TensorRT e i probe lo ignorano.
+    quantize_exclude_op_types: [Softmax]
+      # Lista di op_type | assente. Restano in float anche se in quantize_op_types
+      # (o con quantize_op_types: null). Vedi int8_full.yaml.
+    quantize_exclude_regex: ['^/(model|net/layers)\.23/...']
+      # Lista di regex | assente. Restano in float i nodi il cui nome corrisponde:
+      # in int8_full la coda della testa (decode, ultima conv di box e score, TopK).
+    calibration_method: minmax
+      # minmax (default) | percentile | entropy. Metodo del calibratore di
+      # onnxruntime: minmax prende min e max assoluti sul calibration set.
+    calibration_options: {CalibMovingAverage: true, CalibMovingAverageConstant: 0.01}
+      # Dict | assente. extra_options del calibratore di onnxruntime:
+      # CalibMovingAverage(+Constant) per minmax, CalibPercentile per percentile,
+      # CalibMaxIntermediateOutputs per tutti. entropy con quantize_static usa 128/128
+      # bin (non modificabili) e coincide con minmax. Vedi int8_full_{ma,pct,entropy}.yaml.
   openvino:
     preset: performance
       # performance | mixed
