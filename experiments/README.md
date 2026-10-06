@@ -71,4 +71,5 @@ la pipeline AOD4 → Svanström.
 |---|---|---|
 | [`benchmark/pruned_finetuned`](benchmark/pruned_finetuned) | latenza, mAP e RAM sul Pi del yolo26p potato e finetunato (OpenVINO fp32/fp16/int8, 4 core) | da rifare (esito AOD4: fp32 22.4 ms, int8 piu' lento, 32.9 ms) |
 | [`benchmark/yolo26p_baseline`](benchmark/yolo26p_baseline) | stesso benchmark con yolo26p non potato, per il guadagno di latenza del pruning | da rifare (esito AOD4: pruning 1.25× piu' veloce, 27.9 → 22.4 ms) |
+| [`benchmark/yolo26p_p2`](benchmark/yolo26p_p2) | stesso benchmark con yolo26p con uscita P2 non potato | misurato (fp32 43.14 ms: +54% sul p, 1.32x piu' veloce del nano) |
 | [`benchmark/yolo26n`](benchmark/yolo26n) | stesso benchmark con yolo26n (fp32), riferimento per i modelli pico | da rifare (esito AOD4: 57.0 ms; pico potato 2.55× piu' veloce) |
