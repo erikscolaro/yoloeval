@@ -11,9 +11,9 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[2]
-# path relativo alla root, sempre scritto cosi': entra nel training_key
+# Hydra fa chdir nella cartella del run: al train il teacher va dato con path assoluto (entra nel training_key)
 TEACHER = "artifacts/weights/yolo26n_aod4_e250_00a6209e/best.pt"
-COMMON = ["model=yolo26p", "train=scratch_musgd", f"+train.distill_model={TEACHER}"]
+COMMON = ["model=yolo26p", "train=scratch_musgd", f"+train.distill_model={ROOT / TEACHER}"]
 # workers e patience come il pico adattato di riferimento (c3b39818), il resto da conf/adapt/default.yaml
 ADAPT = ["stage=adapt", "adapt.workers=6", "adapt.patience=15"]
 
