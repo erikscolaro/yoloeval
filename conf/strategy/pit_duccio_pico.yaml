@@ -1,0 +1,21 @@
+# pit_auto (N dal probe della board) con i parametri di ricerca per yolo26p
+# (model=yolo26p train=scratch): DUCCIO a -50% di MAC e di parametri, batch 64,
+# lr dei pesi basso e costante, warmup dei soli pesi. Maschere come pit_auto (AdamW).
+#   python run.py stage=search model=yolo26p train=scratch strategy=pit_duccio_pico hardware=rpi5 quantization=int8
+defaults:
+  - pit_auto
+  - _self_
+
+name: pit_duccio_pico
+
+search:
+  epochs: 60              # satura verso l'epoca 45: 15 epoche per stabilizzarsi
+  batch: 64
+  lr0: 0.001              # basso: i pesi si adattano al pruning senza stravolgersi
+  lrf: 1.0                # lr dei pesi costante durante la ricerca
+  warmup_epochs: 3        # solo i pesi; le maschere partono subito (pit.warmup_epochs)
+  patience: 100           # niente early stopping: la mAP scende per costruzione mentre PIT pota
+  close_mosaic: 20
+  cache: disk             # ram: ~58 GB per processo, ha esaurito la memoria
+  regularizer:
+    target: {ops: 50%, params: 50%}
