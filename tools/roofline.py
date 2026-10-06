@@ -119,17 +119,20 @@ def plot_group(rows: list[dict], roof: dict | None, datasheet: dict | None, path
     import matplotlib.pyplot as plt
     import numpy as np
 
-    fig, ax = plt.subplots(figsize=(8, 5.5))
+    from tools.plots import GRAY, STYLE, WIDTH, save
+
+    plt.style.use(STYLE)
+    fig, ax = plt.subplots(figsize=(WIDTH, 0.7 * WIDTH))
     xs = [r["intensity_mac_per_byte"] for r in rows]
     lo, hi = min(xs + [1]) / 4, max(xs + [100]) * 4
     grid = np.logspace(np.log10(lo), np.log10(hi), 200)
     if roof:
-        ax.plot(grid, np.minimum(roof["peak_gmacs"], roof["bandwidth_gbs"] * grid), "k-",
-                linewidth=2, label=f"measured roof ({roof['backend']})")
-        ax.axvline(roof["ridge_mac_per_byte"], color="k", alpha=.2, linestyle=":")
+        ax.plot(grid, np.minimum(roof["peak_gmacs"], roof["bandwidth_gbs"] * grid), "-",
+                color="#333333", label=f"measured roof ({roof['backend']})")
+        ax.axvline(roof["ridge_mac_per_byte"], color=GRAY, linestyle=":")
     if datasheet and datasheet.get("gmacs") and datasheet.get("bandwidth_gbs"):
-        ax.plot(grid, np.minimum(datasheet["gmacs"], datasheet["bandwidth_gbs"] * grid), "k--",
-                alpha=.5, label="datasheet roof")
+        ax.plot(grid, np.minimum(datasheet["gmacs"], datasheet["bandwidth_gbs"] * grid), "--",
+                color=GRAY, label="datasheet roof")
     markers = "osD^v<>p*h"
     for i, r in enumerate(sorted(rows, key=lambda r: (r["strategy"] != "baseline",
                                                       r["label"]))):
@@ -143,12 +146,9 @@ def plot_group(rows: list[dict], roof: dict | None, datasheet: dict | None, path
     ax.set_ylabel("performance [GMAC/s]")
     b, c, q, be = group_key(rows[0])
     ax.set_title(f"{b} · {c} · {q} · {be}")
-    ax.grid(alpha=.3, which="both")
-    ax.legend(fontsize=8)
-    fig.tight_layout()
-    fig.savefig(path, dpi=140)
-    plt.close(fig)
-    return path
+    ax.grid(which="both")
+    ax.legend()
+    return save(fig, path)
 
 
 COLUMNS = ["model", "label", "latency_ms", "gmac", "intensity_mac_per_byte", "achieved_gmacs",

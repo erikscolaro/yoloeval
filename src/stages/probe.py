@@ -250,8 +250,12 @@ def plot(records: list[dict], summary: dict, path: Path, xtick: int = 4) -> Path
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
+    from tools.plots import GRAY, STYLE, WIDTH, save
+
+    plt.style.use(STYLE)
     names = list(summary["per_shape"])
-    fig, axes = plt.subplots(2, len(names), figsize=(6 * len(names), 7), squeeze=False)
+    fig, axes = plt.subplots(2, len(names), figsize=(WIDTH * len(names), 0.8 * WIDTH),
+                             squeeze=False)
     for j, name in enumerate(names):
         lat, _ = point_latency([r for r in records if r["shape"] == name])
         macs = {r["c"]: r["macs"] for r in records if r["shape"] == name}
@@ -265,25 +269,21 @@ def plot(records: list[dict], summary: dict, path: Path, xtick: int = 4) -> Path
             a.plot(cs, series[i], marker=".", linewidth=1)
             # linee ai multipli di N (non per N=1: sarebbero una per ogni C)
             for m in (range(-(-cs[0] // n) * n, cs[-1] + 1, n) if n and n > 1 else []):
-                a.axvline(m, color="grey", alpha=.25, linewidth=.8)
+                a.axvline(m, color=GRAY, alpha=.4, linewidth=.8)
             a.set_xlabel("neurons C" if name.startswith("linear") else "channels C")
             step = int(xtick or 4)
             ticks = list(range(-(-cs[0] // step) * step, cs[-1] + 1, step))
             a.set_xticks(ticks)
-            a.tick_params(axis="x", labelsize=7 if len(ticks) > 20 else 9,
+            a.tick_params(axis="x", labelsize=6 if len(ticks) > 20 else 8,
                           labelrotation=90 if len(ticks) > 20 else 0)
             a.set_ylabel(label)
-            a.grid(alpha=.3)
             if i == 0:
                 a.set_title(f"{name}: N = {n if n else 'not found'}" + (
                     "" if summary["per_shape"][name].get("in_global", True)
                     else " (informative)"))
     fig.suptitle(f"{summary['board']} {summary['compute_target']} {summary['quantization']} "
-                 f"{summary['backend']} — N = {summary['n_opt']}")
-    fig.tight_layout()
-    fig.savefig(path, dpi=130)
-    plt.close(fig)
-    return path
+                 f"{summary['backend']} — N = {summary['n_opt']}", fontsize=10)
+    return save(fig, path)
 
 
 def probe_backend(cfg) -> str:
