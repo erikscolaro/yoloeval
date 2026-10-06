@@ -27,7 +27,7 @@ la pipeline AOD4 → Svanström.
 |---|---|---|
 | [`train/lr_scheduler`](train/lr_scheduler) | optimizer del training da zero di yolo26p (Adam, MuSGD, SGD) | da rifare (esito AOD4: MuSGD 0.960 / 0.649 alla 250, davanti dall'inizio; SGD 0.643, Adam 0.637) |
 | [`train/imgsz`](train/imgsz) | risoluzione di training e validazione: yolo26p da zero a 1024 contro i training a 640, validati a 640 e 1024 | da rifare (esito AOD4: in corso, nessun risultato) |
-| [`train/p2`](train/p2) | yolo26p con uscita P2/4 in piu' (686 k parametri, 2.5 GFLOPs contro 1.7), da zero su AOD4 e poi adapt | in corso |
+| [`train/p2`](train/p2) | yolo26p con uscita P2/4 in piu' (686 k parametri, 2.5 GFLOPs contro 1.7), da zero su AOD4 e poi adapt | in corso (AOD4: 0.964 / 0.654, p 0.960 / 0.649, nano 0.969 / 0.684) |
 | [`train/close_mosaic`](train/close_mosaic) | 15 epoche in piu' senza mosaic sul yolo26p MuSGD da zero | da rifare (esito AOD4: 0.960 / 0.649 → 0.962 / 0.652) |
 
 ## adapt
