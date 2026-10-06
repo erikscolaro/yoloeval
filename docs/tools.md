@@ -20,6 +20,11 @@ Da un'altra cartella (per esempio `notebooks/`) Python non trova il pacchetto
 | [`report`](#toolsreport) | `results/*.json` | `reports/<data>/` | figure, tabelle e report |
 | [`roofline`](#toolsroofline) | `results/*.json`, `results/roofline/*.json` | `reports/roofline/` | efficienza dei modelli e confronto con la baseline |
 | [`artifacts`](#toolsartifacts) | `artifacts/`, `results/` | niente (tranne `prune --apply`) | vedere e ripulire la cache di pesi ed export |
+| [`svanstrom`](datasets.md#svanström) | GitHub (video e label) | `data/svanstrom/`, `data/svanstrom_src/` | costruire il dataset Svanström |
+
+Le figure di tutti i tool, degli esperimenti e dei notebook usano
+`tools/thesis.mplstyle` e `tools/plots.py` (`save`, `color`, `WIDTH`): stesso
+stile, stesso colore per la stessa entità, PNG e PDF per LaTeX.
 
 ---
 
