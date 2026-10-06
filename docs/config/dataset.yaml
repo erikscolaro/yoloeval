@@ -10,7 +10,7 @@ local_path: ${project_root}/data/aod4
   # dimensioni, salvata in .dataset_hash e RICALCOLATA a ogni chiamata) e
   # l'rsync verso le board.
 
-yaml: ${dataset.local_path}/dataset.yaml
+yaml: ${.local_path}/dataset.yaml
   # OBBLIGATORIO. Path assoluto al data yaml in formato Ultralytics, quello
   # con path/train/val/names. Viene passato a model.train() e al calcolo
   # della mAP. Sulla board ne viene riscritta una copia con `path` corretto:

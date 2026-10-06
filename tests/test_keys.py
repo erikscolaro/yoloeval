@@ -175,3 +175,11 @@ def test_export_e_cella_distinguono_strategia_e_baseline():
     assert export_key(pit) != export_key(base)
     assert cell_key(pit) != cell_key(base)
     assert model_label("yolo26n", "baseline") == "yolo26n"
+
+
+def test_pretrain_dataset_punta_ad_aod4():
+    """I campi del dataset si risolvono nel loro gruppo: con `${dataset.local_path}` il training
+    di `pretrain_dataset` finirebbe sul dataset di destinazione."""
+    cfg = make_cfg()
+    assert cfg.pretrain_dataset.yaml.endswith("data/aod4/dataset.yaml")
+    assert cfg.dataset.yaml.endswith("data/svanstrom/all/dataset.yaml")
