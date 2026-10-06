@@ -58,6 +58,14 @@ cell_key_fields: [model, train, dataset, quantization, backend,
   # diverse si sovrascrivono il risultato; il training_key viene aggiunto in
   # automatico, cosi' un riallenamento non passa per una cella gia' fatta.
 
+export_max_det: 64
+  # Intero. k del TopK della testa one-to-one negli export: box in uscita
+  # ([1, k, 6]). 64 non perde detection su AOD4 (max 36 oggetti per immagine) e
+  # costa ~0.5 ms meno di 300 (default di Ultralytics), vedi
+  # experiments/ablation/deploy/max_det. Fuori dalle chiavi: stage=export rifa'
+  # un export che ha un k diverso (forma dell'uscita in meta.json); le celle gia'
+  # misurate restano con la stessa chiave, per rimisurarle serve force=true.
+
 # --- flag ------------------------------------------------------------------
 
 dry_run: false

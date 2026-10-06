@@ -20,7 +20,7 @@ from ..cache import (export_key, final_weights, is_baseline, strategy_name, trai
                      weights_key)
 from ..env import collect_versions
 from ..errors import MissingWeights
-from ..jsonio import atomic_write_json
+from ..jsonio import atomic_write_json, read_json
 from ..remote.connection import LocalConnection, connection, is_remote
 from ..remote.provision import ensure_env
 from ..remote.sync import ensure_dataset, sync_artifact
@@ -28,6 +28,37 @@ from ..timing import PhaseTimer
 from ..validation.graph import e2e_fallback_reason
 
 log = logging.getLogger(__name__)
+
+
+def _stale_quantization(cfg, dst_dir: Path) -> str | None:
+    """L'export_key non contiene gli argomenti di quantizzazione: per l'int8 dei backend QDQ
+    (onnxruntime, openvino_qdq) un export fatto con argomenti diversi (nodi, calibrazione)
+    va rifatto. Ritorna la differenza, o None se l'export e' valido."""
+    from omegaconf import OmegaConf
+
+    from ..cache import QDQ_BACKENDS
+
+    if cfg.quantization.precision != "int8" or cfg.backend.name not in QDQ_BACKENDS:
+        return None
+    meta = read_json(dst_dir / "meta.json") or {}
+    stored = (((meta.get("config") or {}).get("quantization") or {}).get("backend_args")
+              or {}).get("onnxruntime") or {}
+    current = OmegaConf.to_container(
+        cfg.quantization.backend_args.get("onnxruntime") or {}, resolve=True)
+    diff = sorted(k for k in set(stored) | set(current) if stored.get(k) != current.get(k))
+    return ", ".join(diff) or None
+
+
+def _stale_max_det(cfg, dst_dir: Path) -> str | None:
+    """`export_max_det` e' fuori dall'export_key: un export one-to-one con un altro numero di
+    box in uscita ([1, max_det, 6]) va rifatto."""
+    want = cfg.get("export_max_det")
+    insp = (read_json(dst_dir / "meta.json") or {}).get("inspection") or {}
+    shapes = insp.get("output_shapes") or []
+    if not want or insp.get("head") != "one_to_one" or not shapes or len(shapes[0]) != 3:
+        return None
+    have = int(shapes[0][1])
+    return None if have == int(want) else f"max_det {have} invece di {want}"
 
 
 def run_export(cfg) -> Path:
@@ -45,13 +76,23 @@ def run_export(cfg) -> Path:
     ekey = export_key(cfg)
     dst_dir = export_dir_for(cfg)
     if (dst_dir / "meta.json").exists() and not cfg.force_reexport:
-        log.info("export gia' in cache: %s", ekey)
-        return dst_dir
+        stale = _stale_quantization(cfg, dst_dir) or _stale_max_det(cfg, dst_dir)
+        if not stale:
+            log.info("export gia' in cache: %s", ekey)
+            return dst_dir
+        log.warning("export %s fatto con altri parametri (%s): lo rifaccio",
+                    ekey, stale)
 
     if cfg.dry_run:
         log.info("[dry-run] export %s", ekey)
         return dst_dir
 
+    if (dst_dir / "meta.json").exists():
+        # i backend riusano l'artefatto se c'e' gia' (export()): per rifarlo davvero (stale o
+        # force_reexport) la cartella va svuotata
+        import shutil
+
+        shutil.rmtree(dst_dir)
     backend = get_backend(cfg.backend.name, cfg)
     dst_dir.mkdir(parents=True, exist_ok=True)
     timer = PhaseTimer(device=cfg.hardware.board if backend.builds_on_target

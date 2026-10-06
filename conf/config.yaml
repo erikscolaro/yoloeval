@@ -28,6 +28,11 @@ cell_key_fields: [model, train, dataset, quantization, backend,
 
 skip_invalid: true
 continue_on_error: true
+# k del TopK della testa one-to-one negli export (box in uscita): 64 non perde detection su
+# AOD4 (max 36 oggetti per immagine) e costa ~0.5 ms meno di 300, il default di Ultralytics
+# (experiments/ablation/deploy/max_det). Fuori dalle chiavi: un export con un altro k viene
+# rifatto (controllo sulla forma dell'uscita in stage=export).
+export_max_det: 64
 force: false
 retry_failed: false
 force_retrain: false

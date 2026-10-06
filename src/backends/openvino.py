@@ -56,6 +56,7 @@ class OpenVINOBackend(Backend):
             quantize=cfg.quantization.precision,   # "fp32" | "fp16" | "int8"
             batch=1,
             nms=False,            # testa one-to-one, vedi onnxruntime.py
+            max_det=int(cfg.export_max_det),
             data=data,
         ))
         if produced.resolve() != target.resolve():

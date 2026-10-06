@@ -83,6 +83,7 @@ class OnnxRuntimeBackend(Backend):
             # Da Ultralytics 8.4 il default nms=None esporta la testa
             # one-to-many: la one-to-one (senza NMS) va chiesta esplicitamente.
             nms=False,
+            max_det=int(cfg.export_max_det),
         ))
         if produced.resolve() != target.resolve():
             shutil.move(str(produced), target)
