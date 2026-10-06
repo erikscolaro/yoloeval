@@ -64,6 +64,54 @@ if [[ "${BENCH_ORT_CUDA:-1}" != 0 ]] && nvidia-smi >/dev/null 2>&1; then
 fi
 env "${ORT_ENV[@]}" bash "$WORKDIR/scripts/remote/build_ort_perf_test.sh"
 
+# Dataset sulla workstation; le board li ricevono da sync.py al primo uso.
+# AOD4 (Mendeley, doi 10.17632/cd5z895tr2.1) serve solo al training da zero:
+# ha leakage tra split, la mAP che da' e' ottimistica. `calib` sono 512
+# immagini di train a seed fisso, disgiunte da val e test.
+AOD4="$WORKDIR/data/aod4"
+if [[ -f "$AOD4/dataset.yaml" ]]; then
+  say "dataset aod4: gia' presente"
+else
+  tmp="$WORKDIR/data/aod4_zip"
+  mkdir -p "$tmp"
+  say "scarico AOD4 (1.9 GB)"
+  # il proxy cade spesso: 10 tentativi a 10 s, ripartendo da dove si era fermo
+  curl -L -C - --retry 10 --retry-delay 10 --retry-all-errors -# -o "$tmp/aod4.zip" \
+    "https://data.mendeley.com/public-files/datasets/cd5z895tr2/files/fb36418a-ca4d-4628-8e42-c6e5b2575ac2/file_downloaded"
+  echo "fac56b9c0494312bcd4c63dfefcbcd8ed07ab55d4b00584131c0b55273d24518  $tmp/aod4.zip" | sha256sum -c -
+  unzip -q -o "$tmp/aod4.zip" -d "$tmp"
+  # find -exec ... +: con 15k file il glob di `mv dir/*` supera ARG_MAX
+  move_all() { mkdir -p "$2" && find "$1" -mindepth 1 -maxdepth 1 -exec mv -t "$2" {} +; }
+  for pair in train:train valid:val test:test; do
+    src=${pair%%:*} dst=${pair##*:}
+    move_all "$tmp/AOD 4/Images/$src" "$AOD4/images/$dst"
+    move_all "$tmp/AOD 4/Annotations/YOLOv8 format/$src/labels" "$AOD4/labels/$dst"
+  done
+  mkdir -p "$AOD4/images/calib" "$AOD4/labels/calib"
+  find "$AOD4/images/train" -name '*.jpg' | sort \
+    | shuf -n 512 --random-source=<(yes 42) | while read -r img; do
+      stem=$(basename "${img%.*}")
+      cp "$img" "$AOD4/images/calib/"
+      cp "$AOD4/labels/train/$stem.txt" "$AOD4/labels/calib/" 2>/dev/null || true
+    done
+  printf '%s\n' "train: images/train" "val: images/val" "test: images/test" \
+    "calib: images/calib    # solo calibrazione INT8, disgiunto da val/test" "" \
+    "nc: 4" "names:" "    0: airplane" "    1: bird" "    2: drone" "    3: helicopter" \
+    > "$AOD4/dataset.yaml"
+  rm -rf "$tmp"
+fi
+
+# Svanstrom (video visibili): finetune prima del pruning e tutto il resto.
+if [[ -f "$WORKDIR/data/svanstrom/all/dataset.yaml" ]]; then
+  say "dataset svanstrom: gia' presente"
+else
+  python "$WORKDIR/tools/svanstrom.py" --out "$WORKDIR/data/svanstrom" \
+    --src "$WORKDIR/data/svanstrom_src"
+  # i subset sono hardlink ai frame: cancellare i sorgenti non tocca i dati, e
+  # con `set -e` qui ci si arriva solo se il build e' andato a buon fine
+  rm -rf "$WORKDIR/data/svanstrom_src"
+fi
+
 for tool in onnxruntime_perf_test trtexec benchmark_app pandoc; do
   if [[ "$tool" == trtexec && -x "$TRTEXEC" ]]; then
     say "$tool: $TRTEXEC"

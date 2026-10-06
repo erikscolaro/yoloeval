@@ -23,3 +23,12 @@ nc: 4
 names: [airplane, bird, drone, helicopter]
   # Descrittivo qui: i nomi che contano sono quelli dentro il data yaml.
   # Averli anche qui serve a leggere il file senza aprirne un altro.
+
+subset: all
+  # Solo svanstrom: all | small | medium | large | background. `all` e'
+  # tutto, background compreso; small/medium/large sono le immagini con
+  # oggetti per fascia COCO del box piu' grande (sqrt(area) < 32, 32-96,
+  # > 96 px); `background` solo i frame senza, da aggiungere a mano. Entra
+  # in `name` e `local_path`, quindi ogni sottoinsieme ha artefatti e copia
+  # sulla board suoi. Split identici fra sottoinsiemi: tools/svanstrom.py li
+  # fa per video, per classe, bilanciando le fasce.

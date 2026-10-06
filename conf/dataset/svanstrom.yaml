@@ -1,0 +1,6 @@
+subset: all       # all (tutto, background incluso) | small | medium | large | background
+name: svanstrom_${dataset.subset}
+local_path: ${project_root}/data/svanstrom/${dataset.subset}   # generato da tools/svanstrom.py
+yaml: ${dataset.local_path}/dataset.yaml    # data yaml in formato Ultralytics
+nc: 4
+names: [airplane, bird, drone, helicopter]
