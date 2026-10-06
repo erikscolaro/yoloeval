@@ -67,16 +67,17 @@ def compute_dataset_hash(root: str | Path) -> str:
     rimozione e la sostituzione di immagini, che e' il caso da cui proteggersi:
     il riuso silenzioso di pesi allenati su un dataset diverso.
 
-    Restano fuori lo split di calibrazione, che non tocca il training, e i
-    `*.cache` che Ultralytics riscrive accanto alle label: dentro l'hash
-    cambierebbero il `training_key` al primo training.
+    Restano fuori lo split di calibrazione, che non tocca il training, i
+    `*.cache` che Ultralytics riscrive accanto alle label e i `*.npy` che scrive
+    accanto alle immagini con `cache: disk`: dentro l'hash cambierebbero il
+    `training_key` al primo training.
     """
     root = Path(root)
     entries = []
     for p in sorted(root.rglob("*")):
         rel = p.relative_to(root)
         if (not p.is_file() or p.name == DATASET_HASH_FILE
-                or p.suffix == ".cache"
+                or p.suffix in (".cache", ".npy")
                 or NON_TRAINING_SPLITS & set(rel.parts)):
             continue
         entries.append((str(rel), p.stat().st_size))
@@ -115,10 +116,25 @@ def read_dataset_hash(root: str | Path) -> str | None:
     return value
 
 
+# Argomenti di model.train() che cambiano solo come si caricano i dati, non il risultato:
+# fuori dalle chiavi, cosi' cambiarli non rifa' training, ricerche e celle gia' in cache.
+RUNTIME_ONLY_ARGS = ("workers", "cache")
+
+
+def _strip_runtime(args: Any) -> None:
+    if isinstance(args, dict):
+        for k in RUNTIME_ONLY_ARGS:
+            args.pop(k, None)
+
+
 def _group(cfg: DictConfig, key: str) -> Any:
     value = cfg[key]
     if isinstance(value, (DictConfig, list)) or OmegaConf.is_config(value):
-        return OmegaConf.to_container(value, resolve=True)
+        value = OmegaConf.to_container(value, resolve=True)
+    if key in ("train", "finetune"):
+        _strip_runtime(value)
+    elif key == "strategy" and isinstance(value, dict):
+        _strip_runtime(value.get("search"))
     return value
 
 

@@ -14,6 +14,7 @@ probe:
 search:
   epochs: 30
   batch: 16
+  workers: 12
   optimizer: SGD
   lr0: 0.001
   lrf: 0.01

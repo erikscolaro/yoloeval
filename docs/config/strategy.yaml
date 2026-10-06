@@ -45,6 +45,9 @@ search:
   # calcolati a model.imgsz (la risoluzione di deploy).
   epochs: 30
   batch: 16
+  workers: 12
+    # Intero. Processi del dataloader. Con `cache` (ram | disk | false) resta fuori dalla
+    # search_key: cambiano solo come si caricano i dati.
   optimizer: SGD
     # Pesi. Qualsiasi optimizer di Ultralytics, anche auto: le maschere hanno il loro.
   lr0: 0.001

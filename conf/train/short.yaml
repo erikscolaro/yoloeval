@@ -1,6 +1,7 @@
 # Run breve per smoke test e fixture di integrazione.
 epochs: 2
 batch: 32
+workers: 12
 imgsz: 160
 optimizer: auto
 lr0: 0.001

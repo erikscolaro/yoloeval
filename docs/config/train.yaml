@@ -9,8 +9,9 @@
 # Quello che NON va messo qui: `data` (arriva da dataset.yaml), `project` e
 # `name` (li decide la cache degli artefatti).
 #
-# Attenzione: ogni campo di questo file entra nel training_key. Cambiarne uno
-# vuol dire un modello nuovo e un riallenamento.
+# Attenzione: ogni campo di questo file entra nel training_key (tranne `workers`
+# e `cache`, che non cambiano il risultato). Cambiarne uno vuol dire un modello
+# nuovo e un riallenamento.
 
 epochs: 300
   # Intero. Con `patience` attiva Ultralytics puo' fermarsi prima: nel
@@ -18,6 +19,8 @@ epochs: 300
 batch: 16
   # Intero (immagini per batch), oppure un float fra 0 e 1 per la frazione di
   # VRAM da usare, oppure -1 per l'auto-batch.
+workers: 12
+  # Intero. Processi del dataloader. Fuori dal training_key.
 imgsz: 640
   # Intero. Risoluzione di training.
 optimizer: auto

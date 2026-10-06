@@ -8,10 +8,13 @@
 # Quello che NON va messo qui: `data` (arriva da dataset.yaml), `project` e `name` (li decide
 # la cache). `imgsz`, se manca, e' train.imgsz.
 #
-# Ogni campo entra nella chiave del fine-tuning (finetune_key).
+# Ogni campo entra nella chiave del fine-tuning (finetune_key), tranne `workers` e
+# `cache`, che non cambiano il risultato.
 
 epochs: 50
 batch: 16
+workers: 12
+  # Intero. Processi del dataloader. Fuori dal finetune_key.
 optimizer: SGD
   # yolopit usa SGD di default: il modello parte gia' allenato.
 lr0: 0.001
