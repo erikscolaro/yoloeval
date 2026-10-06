@@ -35,7 +35,7 @@ la pipeline AOD4 → Svanström.
 
 | cartella | scopo | stato |
 |---|---|---|
-| [`adapt/model_size`](adapt/model_size) | adapt di yolo26 n, s, m con la ricetta scelta, confronto con pico e pico con P2 | in corso |
+| [`adapt/model_size`](adapt/model_size) | adapt di yolo26 n, s, m con la ricetta scelta, confronto con pico e pico con P2 | chiuso (val mAP50-95: p 0.470, P2 0.476, n 0.517, s 0.530, m 0.538) |
 | [`adapt/optimizer`](adapt/optimizer) | optimizer dell'adattamento su Svanström (Adam, SGD, MuSGD), rete intera e backbone congelato | chiuso (6 run: MuSGD e SGD pari 0.462, Adam 0.436; il backbone congelato non aiuta) |
 | [`adapt/imgsz`](adapt/imgsz) | risoluzione dell'adattamento su Svanström (1024 contro 640) | chiuso (nessun vantaggio: val 0.462 / 0.462, test 0.445 contro 0.471) |
 | [`adapt/lr`](adapt/lr) | lr0 del finetune di adattamento su Svanström (0.005 contro 0.001) | chiuso (val mAP50-95 0.442 / 0.462 / 0.470 con lr0 0.001 / 0.0002 / 0.0001 + mosaic; ricetta in `conf/adapt/default.yaml`) |
