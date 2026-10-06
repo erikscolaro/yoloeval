@@ -23,7 +23,7 @@ def test_training_key_stabile():
     "model=yolo26s",
     "train.epochs=42",
     "train.seed=1",
-    "dataset.name=altro",
+    "pretrain_dataset.name=altro",
 ])
 def test_training_key_cambia_con_model_train_dataset(override):
     assert training_key(make_cfg()) != training_key(make_cfg(override))
@@ -36,9 +36,12 @@ def test_training_key_cambia_con_model_train_dataset(override):
     "freq_target=w15",
     "compute_target=cpu_1",
     "eval.bench_conf=0.5",
+    "dataset.name=altro",
+    "adapt.epochs=7",
 ])
 def test_training_key_non_cambia_con_gli_altri_assi(override):
-    """Backend, quantizzazione, hardware e profilo NON entrano nel training."""
+    """Backend, quantizzazione, hardware, profilo e dataset di destinazione NON entrano nel
+    training: il training su AOD4 si fa una volta sola."""
     base = make_cfg("hardware=jetson_orin")
     other = make_cfg("hardware=jetson_orin", override)
     assert training_key(base) == training_key(other)
@@ -53,6 +56,8 @@ def test_training_key_non_cambia_con_gli_altri_assi(override):
     "compute_target=cpu_1",
     "eval.map_iou=0.5",
     "train.epochs=7",
+    "adapt.epochs=7",
+    "dataset.name=altro",
 ])
 def test_cell_key_cambia_per_ogni_asse(override):
     base = make_cfg("hardware=wks4_rtx6000", "compute_target=gpu")
@@ -84,16 +89,39 @@ def test_export_key_cambia_con_arch():
 
 # --- strategie di compressione (yolopit) -----------------------------------------------
 
-from src.cache import (finetune_key, is_baseline, model_label,  # noqa: E402
+from src.cache import (adapt_key, finetune_key, is_baseline, model_label,  # noqa: E402
                        search_key, weights_key)
 
 
+@pytest.mark.parametrize("override", [
+    "adapt.epochs=7",
+    "dataset.name=altro",
+    "train.epochs=42",
+    "pretrain_dataset.name=altro",
+    "model=yolo26s",
+])
+def test_adapt_key_cambia_con_adapt_destinazione_e_training(override):
+    assert adapt_key(make_cfg()) != adapt_key(make_cfg(override))
+
+
+@pytest.mark.parametrize("override", [
+    "backend=tensorrt",
+    "quantization=int8",
+    "hardware=jetson_orin",
+    "finetune.epochs=7",
+    "strategy=pit_duccio",
+])
+def test_adapt_key_non_cambia_con_export_hardware_e_pruning(override):
+    """Un solo adattamento per modello: vale per ogni board, backend e strategia."""
+    assert adapt_key(make_cfg()) == adapt_key(make_cfg(override))
+
+
 def test_baseline_default_e_chiavi_invariate():
-    """Con strategy=baseline i pesi che vanno all'export sono quelli del training, e il gruppo
-    finetune (che la baseline non usa) non entra in nessuna chiave."""
+    """Con strategy=baseline i pesi che vanno all'export sono quelli dell'adattamento, e il
+    gruppo finetune (che la baseline non usa) non entra in nessuna chiave."""
     base = make_cfg()
     assert is_baseline(base)
-    assert weights_key(base) == training_key(base)
+    assert weights_key(base) == adapt_key(base)
     other = make_cfg("finetune.epochs=7")
     assert cell_key(base) == cell_key(other)
     assert export_key(base) == export_key(other)
@@ -123,6 +151,8 @@ def test_search_key_non_cambia_con_hardware_export_e_finetune(override):
     "train.epochs=42",
     "model=yolo26s",
     "model.imgsz=320",
+    "adapt.epochs=7",
+    "dataset.name=altro",
 ])
 def test_search_key_cambia_con_strategia_training_e_risoluzione(override):
     assert search_key(make_cfg("strategy=pit_duccio")) != \

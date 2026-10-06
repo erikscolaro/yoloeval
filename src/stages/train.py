@@ -1,4 +1,7 @@
-"""Stadio `train` — wrapper sottile sulle API standard di Ultralytics.
+"""Stadio `train` — wrapper sottile sulle API standard di Ultralytics, su `pretrain_dataset`.
+
+Allena (da zero o dai pesi pretrained) sul dataset di pre-training, AOD4: il passo dopo e'
+`stage=adapt`, che porta il modello sul dataset di destinazione.
 
 Gira una volta per modello, sulla workstation. Non conosce l'hardware di
 destinazione: se lo conoscesse, il `training_key` dipenderebbe dalla board e lo
@@ -48,7 +51,7 @@ def run_training(cfg) -> Path:
 
     with timer.phase("compute"):
         results = model.train(
-            data=str(cfg.dataset.yaml),
+            data=str(cfg.pretrain_dataset.yaml),
             project=str(out_dir),
             name="run",
             exist_ok=True,
@@ -64,7 +67,7 @@ def run_training(cfg) -> Path:
         meta = {
             "training_key": tkey,
             "config": OmegaConf.to_container(cfg, resolve=True),
-            "dataset_hash": read_dataset_hash(cfg.dataset.local_path),
+            "dataset_hash": read_dataset_hash(cfg.pretrain_dataset.local_path),
             "metrics": {
                 "map50": float(results.box.map50),
                 "map50_95": float(results.box.map),

@@ -63,11 +63,11 @@ def _stale_max_det(cfg, dst_dir: Path) -> str | None:
 
 def run_export(cfg) -> Path:
     tkey = training_key(cfg)
-    # baseline: best.pt del training; strategie (pit): best.pt del fine-tuning
+    # baseline: best.pt dell'adattamento; strategie (pit): best.pt del fine-tuning
     src_pt, wkey = final_weights(cfg)
     if src_pt is None:
-        prima = ("`stage=train`" if is_baseline(cfg)
-                 else "`stage=train`, `stage=search` e `stage=finetune`")
+        prima = ("`stage=train` e `stage=adapt`" if is_baseline(cfg)
+                 else "`stage=train`, `stage=adapt`, `stage=search` e `stage=finetune`")
         raise MissingWeights(
             f"nessun peso per {cfg.model.name} con strategy={strategy_name(cfg)} "
             f"(chiave {wkey}): eseguire prima {prima}"

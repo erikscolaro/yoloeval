@@ -62,9 +62,9 @@ def test_export_key_composto_in_un_solo_posto():
     cancella engine che costano ore di compilazione."""
     cfg = make_cfg("model=yolo26s", "quantization=int8", "backend=axelera",
                    "hardware=rpi5")
-    from src.cache import export_key, training_key
+    from src.cache import export_key, weights_key
 
-    atteso = compose_export_key("yolo26s", training_key(cfg), "int8",
+    atteso = compose_export_key("yolo26s", weights_key(cfg), "int8",
                                 "axelera", "aarch64", "1.8.0")
     assert export_key(cfg) == atteso
 

@@ -4,8 +4,11 @@
 # alcuni stadi, come indicato.
 
 name: benchmark
-  # OBBLIGATORIO. Valori: train | search | finetune | export | benchmark | provision
-  #   train     -> allena e mette i pesi in artifacts/weights/
+  # OBBLIGATORIO. Valori: train | adapt | search | finetune | probe | roofline | export |
+  #                       benchmark | provision
+  #   train     -> allena su pretrain_dataset (AOD4) e mette i pesi in artifacts/weights/
+  #   adapt     -> fine-tuning su dataset (Svanstrom) dei pesi di train, per ogni modello:
+  #                artifacts/adapt/; pesi della baseline e partenza della ricerca
   #   roofline  -> misura i tetti del roofline model (picco di calcolo, banda):
   #                results/roofline/, usati da tools.roofline
   #   (i file probe_edge.yaml e roofline_edge.yaml sono preset per le board lente, con

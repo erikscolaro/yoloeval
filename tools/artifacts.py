@@ -22,7 +22,8 @@ from src.cache import model_label
 
 
 #: tipi di artefatto e il campo del meta.json che ne e' la chiave
-KINDS = {"weights": "training_key", "search": "search_key", "finetune": "finetune_key",
+KINDS = {"weights": "training_key", "adapt": "adapt_key", "search": "search_key",
+         "finetune": "finetune_key",
          "exports": "export_key"}
 
 
@@ -105,8 +106,10 @@ def referenced_keys(results_dir: Path) -> set[str]:
         if not tkey:
             continue
         keys.add(tkey)
-        # pesi arrivati all'export: il training_key per la baseline (e per i risultati
-        # scritti prima delle strategie), il finetune_key per le strategie
+        if axes.get("adapt_key"):
+            keys.add(axes["adapt_key"])
+        # pesi arrivati all'export: l'adapt_key per la baseline (il training_key nei risultati
+        # scritti prima dello stadio adapt), il finetune_key per le strategie
         wkey = axes.get("weights_key") or tkey
         keys.add(wkey)
         if axes.get("backend"):

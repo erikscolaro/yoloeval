@@ -1,0 +1,39 @@
+# Riferimento dei campi di conf/adapt/<nome>.yaml
+#
+# Adattamento al dataset di destinazione (`dataset`, Svanstrom) dei pesi di stage=train
+# (allenati su `pretrain_dataset`, AOD4). Obbligatorio per ogni modello, scratch o
+# pretrained: i suoi pesi vanno all'export per la baseline e sono il punto di partenza della
+# ricerca PIT. Trainer standard di Ultralytics.
+# I nomi coincidono con gli argomenti di model.train() di Ultralytics (vedi train.yaml): puoi
+# aggiungere qualsiasi argomento accettato da Ultralytics.
+#
+# Quello che NON va messo qui: `data` (arriva da dataset.yaml), `project` e `name` (li decide
+# la cache). `imgsz`, se manca, e' train.imgsz.
+#
+# Ogni campo entra nella chiave dell'adattamento (adapt_key), tranne `workers` e `cache`,
+# che non cambiano il risultato.
+
+epochs: 50
+batch: 16
+workers: 12
+  # Intero. Processi del dataloader. Fuori dal adapt_key.
+optimizer: SGD
+  # yolopit usa SGD di default: il modello parte gia' allenato.
+lr0: 0.001
+lrf: 0.01
+momentum: 0.937
+weight_decay: 0.0005
+warmup_epochs: 0
+patience: 20
+close_mosaic: 25
+  # Intero. Epoche finali senza mosaic augmentation (mosaic a 0).
+cos_lr: false
+  # true | false. Scheduler coseno del learning rate al posto di quello lineare.
+seed: 42
+mosaic: 1.0
+mixup: 0.0
+hsv_h: 0.015
+hsv_s: 0.7
+hsv_v: 0.4
+imgsz: 640
+  # Facoltativo. Se manca, train.imgsz.

@@ -4,13 +4,15 @@ defaults:
   - stage: benchmark
   - model: yolo26n
   - train: short
-  - dataset: aod4
+  - dataset: svanstrom                 # destinazione: adapt, search, finetune, export, misure
+  - dataset@pretrain_dataset: aod4      # solo stage=train
   - quantization: fp32
   - backend: onnxruntime
   - hardware: wks4_rtx6000
   - eval: default
   - logging: wandb
   - strategy: baseline
+  - adapt: default
   - finetune: default
   - _self_
 
@@ -22,7 +24,7 @@ project_root: ${hydra:runtime.cwd}
 artifacts_dir: ${project_root}/artifacts
 results_dir: ${project_root}/results
 
-training_key_fields: [model, train, dataset]
+training_key_fields: [model, train, pretrain_dataset]
 cell_key_fields: [model, train, dataset, quantization, backend,
                   hardware, freq_target, compute_target, eval]
 
@@ -30,12 +32,13 @@ skip_invalid: true
 continue_on_error: true
 # k del TopK della testa one-to-one negli export (box in uscita): 64 non perde detection su
 # AOD4 (max 36 oggetti per immagine) e costa ~0.5 ms meno di 300, il default di Ultralytics
-# (experiments/ablation/deploy/max_det). Fuori dalle chiavi: un export con un altro k viene
+# (experiments/deploy/max_det). Fuori dalle chiavi: un export con un altro k viene
 # rifatto (controllo sulla forma dell'uscita in stage=export).
 export_max_det: 64
 force: false
 retry_failed: false
 force_retrain: false
+force_adapt: false
 force_search: false
 force_finetune: false
 force_reexport: false

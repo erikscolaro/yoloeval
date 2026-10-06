@@ -1,6 +1,6 @@
 """Stadio `search` — ricerca PIT con yolopit, solo per le strategie `method: pit`.
 
-Parte dai pesi di `stage=train` (stesso training_key) e produce il modello potato in
+Parte dai pesi di `stage=adapt` (stesso adapt_key) e produce il modello potato in
 `artifacts/search/`. Come il training, gira sulla workstation e non conosce l'hardware di
 destinazione: la stessa ricerca vale per ogni board.
 
@@ -15,8 +15,8 @@ from pathlib import Path
 
 from omegaconf import OmegaConf
 
-from ..cache import (find_weights, is_baseline, read_dataset_hash, resolve_n, search_dir,
-                     search_key, strategy_name, training_key, update_index,
+from ..cache import (adapt_key, find_by_key, is_baseline, read_dataset_hash, resolve_n,
+                     search_dir, search_key, strategy_name, training_key, update_index,
                      yolopit_version)
 from ..env import collect_versions
 from ..errors import MissingWeights
@@ -59,11 +59,12 @@ def run_search(cfg) -> Path | None:
         log.info("strategy=%s: nessuna ricerca da fare", strategy_name(cfg))
         return None
     tkey = training_key(cfg)
-    weights = find_weights(cfg.artifacts_dir, tkey)
+    akey = adapt_key(cfg)
+    weights = find_by_key(cfg.artifacts_dir, "adapt", "adapt_key", akey)
     if weights is None:
         raise MissingWeights(
-            f"nessun artefatto con training_key={tkey}: eseguire prima `stage=train` per "
-            f"{cfg.model.name}")
+            f"nessun adattamento con adapt_key={akey}: eseguire prima `stage=train` e "
+            f"`stage=adapt` per {cfg.model.name}")
     skey = search_key(cfg)
     out_dir = search_dir(cfg)
     meta_path = out_dir / "meta.json"
@@ -94,6 +95,7 @@ def run_search(cfg) -> Path | None:
         meta = {
             "search_key": skey,
             "training_key": tkey,
+            "adapt_key": akey,
             "strategy": strategy_name(cfg),
             "yolopit": yolopit_version(),
             "config": OmegaConf.to_container(cfg, resolve=True),

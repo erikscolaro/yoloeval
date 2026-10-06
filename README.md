@@ -2,8 +2,9 @@
 
 Misura latenza, accuratezza ed energia di YOLO26 su hardware edge. Confronta i modelli
 Ultralytics (baseline) con quelli potati da [yolopit](https://github.com/erikscolaro/yolopit)
-(ricerca PIT di PLiNIO, canali a blocchi di N). Dataset: AOD4 (airplane, bird, drone,
-helicopter).
+(ricerca PIT di PLiNIO, canali a blocchi di N). Classi: airplane, bird, drone, helicopter.
+Dataset ([docs/datasets.md](docs/datasets.md)): AOD4 solo per il training, Svanström (video
+visibili, split per video) per adattamento, pruning, fine-tuning e tutte le misure.
 
 Un solo entry point, `run.py`, con configurazione [Hydra](https://hydra.cc): ogni asse è un
 gruppo in `conf/`, ogni campo è documentato in [`docs/config/`](docs/config/).
@@ -60,7 +61,8 @@ Si lanciano in quest'ordine; ognuno salta quello che trova già in cache.
 
 | stadio | dove | cosa produce |
 |---|---|---|
-| `train` | workstation | pesi in `artifacts/weights/` |
+| `train` | workstation | pesi allenati su AOD4 (`pretrain_dataset`) in `artifacts/weights/` |
+| `adapt` | workstation | fine-tuning su Svanström (`dataset`), per ogni modello, in `artifacts/adapt/`: pesi della baseline e partenza della ricerca |
 | `search` | workstation | solo strategie pit: modello potato in `artifacts/search/` |
 | `finetune` | workstation | solo strategie pit: fine-tuning in `artifacts/finetune/` |
 | `probe` / `probe_edge` | board | N che premia l'hardware, in `results/probe/` |
@@ -77,6 +79,7 @@ Jetson.
 
 ```bash
 python run.py -m stage=train model=yolo26n,yolo26s
+python run.py -m stage=adapt model=yolo26n,yolo26s
 python run.py -m stage=export model=yolo26n,yolo26s quantization=fp32,int8 backend=onnxruntime
 python run.py -m stage=benchmark model=yolo26n,yolo26s quantization=fp32,int8 \
   backend=onnxruntime hardware=rpi5 freq_target=max compute_target=cpu_1,cpu_4
@@ -86,6 +89,7 @@ python run.py -m stage=benchmark model=yolo26n,yolo26s quantization=fp32,int8 \
 
 ```bash
 python run.py stage=train model=yolo26n
+python run.py stage=adapt model=yolo26n
 python run.py -m stage=search   strategy=pit_standard,pit_duccio
 python run.py -m stage=finetune strategy=pit_standard,pit_duccio
 python run.py -m stage=export    strategy=baseline,pit_standard,pit_duccio quantization=fp32,int8

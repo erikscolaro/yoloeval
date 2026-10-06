@@ -12,8 +12,9 @@ from pathlib import Path
 
 from omegaconf import OmegaConf
 
-from ..cache import (find_by_key, finetune_dir, finetune_key, is_baseline, read_dataset_hash,
-                     search_key, strategy_name, training_key, update_index, yolopit_version)
+from ..cache import (adapt_key, find_by_key, finetune_dir, finetune_key, is_baseline,
+                     read_dataset_hash, search_key, strategy_name, training_key, update_index,
+                     yolopit_version)
 from ..env import collect_versions
 from ..errors import MissingWeights
 from ..jsonio import atomic_write_json
@@ -73,6 +74,7 @@ def run_finetune(cfg) -> Path | None:
             "finetune_key": fkey,
             "search_key": skey,
             "training_key": training_key(cfg),
+            "adapt_key": adapt_key(cfg),
             "strategy": strategy_name(cfg),
             "yolopit": yolopit_version(),
             "config": OmegaConf.to_container(cfg, resolve=True),

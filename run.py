@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """yolo-bench — unico entry point.
 
-    python run.py stage=train model=yolo26n
+    python run.py stage=train model=yolo26n             # su AOD4 (pretrain_dataset)
+    python run.py stage=adapt model=yolo26n             # su Svanstrom (dataset), sempre
     python run.py stage=search strategy=pit_duccio      # poi stage=finetune
     python run.py -m stage=benchmark hardware=jetson_orin freq_target=maxn,w15
 
@@ -64,6 +65,12 @@ def main(cfg: DictConfig) -> None:
         run_training(cfg)
         return
 
+    if stage == "adapt":
+        from src.stages.adapt import run_adapt
+
+        run_adapt(cfg)
+        return
+
     if stage == "search":
         from src.stages.search import run_search
 
@@ -102,7 +109,7 @@ def main(cfg: DictConfig) -> None:
 
     raise ValueError(
         f"stadio sconosciuto: {stage!r} "
-        f"(stage=train|search|finetune|probe|roofline|export|benchmark|provision)"
+        f"(stage=train|adapt|search|finetune|probe|roofline|export|benchmark|provision)"
     )
 
 
