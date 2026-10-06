@@ -63,6 +63,10 @@ def is_valid(cfg, conn=None) -> tuple[bool, str | None]:
     # precisione imposta dal backend: il Voyager SDK quantizza e compila
     # sempre a INT8 per l'architettura mixed-precision dell'AIPU, quindi una
     # cella "axelera + fp32" misurerebbe un modello INT8 etichettandolo fp32.
+    precisions = be.get("precisions")
+    if precisions and cfg.quantization.precision not in precisions:
+        return False, (f"{be.name} vale solo per {list(precisions)}: con "
+                       f"{cfg.quantization.name} e' identico a un altro backend")
     forced_bits = be.get("build", {}).get("quantize")
     if forced_bits and cfg.quantization.precision != f"int{forced_bits}":
         return False, (

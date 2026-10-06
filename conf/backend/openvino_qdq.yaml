@@ -1,0 +1,31 @@
+# OpenVINO sul QDQ di onnxruntime: lo stesso ONNX int8 di backend=onnxruntime (nodi da
+# quantization.backend_args.onnxruntime) convertito in IR, invece dell'int8 di NNCF. Solo int8.
+name: openvino_qdq
+precisions: [int8]
+export_format: openvino
+supports_gpu: false
+requires:
+  arch: [x86_64, aarch64]     # su aarch64: plugin CPU ARM (Pi 5, Jetson)
+
+build:
+  on_target: false
+  from_format: onnx
+  opset: 17                    # ONNX fp32 da cui si fa il QDQ, come backend=onnxruntime
+
+benchmark:
+  tool: benchmark_app
+  cmd: >
+    benchmark_app
+      -m {model}
+      -d {device}
+      -b 1
+      -hint none
+      -nstreams 1
+      -niter {iters}
+      -nthreads {threads}
+      -report_type no_counters
+  iters: 200
+  warmup_iters: 50
+  parse: benchmark_app
+  scope: end_to_end_with_transfers
+  metrics: [mean_ms, median_ms, p90_ms, p99_ms, throughput_qps]

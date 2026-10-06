@@ -5,8 +5,11 @@
 
 name: onnxruntime
   # OBBLIGATORIO. Deve coincidere col `name` della classe registrata.
-  # Quelli che esistono: onnxruntime | onnxruntime_py | tensorrt | openvino |
-  #                      executorch | axelera
+  # Quelli che esistono: onnxruntime | onnxruntime_py | tensorrt |
+  #                      tensorrt_implicit | openvino | openvino_qdq | executorch |
+  #                      axelera
+  # openvino_qdq: solo int8, IR dallo stesso ONNX QDQ di backend=onnxruntime
+  # (nodi e calibrazione da quantization.backend_args.onnxruntime) invece di NNCF.
 
 export_format: onnx
   # OBBLIGATORIO. Decide che file si cerca dentro la cartella dell'export.
@@ -25,6 +28,11 @@ supports_cpu: false
   # Facoltativo (default: true). true | false
   # false -> le celle con compute device: cpu diventano "skipped".
   # E' il caso di tensorrt: esiste solo su GPU.
+
+precisions: [int8]
+  # Facoltativo (default: tutte). Lista di quantization.precision ammesse: le
+  # altre celle diventano "skipped". E' il caso di tensorrt_implicit, che con
+  # fp32 e fp16 costruirebbe lo stesso engine di tensorrt.
 
 requires:
   # Requisiti confrontati con i campi della board. Ognuno che non torna
@@ -77,6 +85,24 @@ build:
     # provision.container: true.
   image: yolo-bench-axelera:ubuntu22
     # Nome dell'immagine docker, costruita dallo script di provisioning.
+
+int8:
+  # Solo tensorrt e tensorrt_implicit: come si ottiene l'engine INT8.
+  quantize_op_types: [Conv, Gemm, MatMul]
+    # Solo tensorrt (QDQ esplicito). Lista di op_type ONNX | null: si
+    # quantizzano solo questi nodi, gli altri restano in float. null quantizza
+    # tutto, e la coda della testa in INT8 porta gli score a 0.
+  fp16: true
+    # true | false. Aggiunge --fp16: i layer non INT8 girano in FP16 invece
+    # che FP32. Con tensorrt_implicit lascia scegliere a TensorRT fra INT8 e
+    # FP16 layer per layer, come Ultralytics.
+  calibration: minmax
+    # Solo tensorrt_implicit. minmax | entropy2: algoritmo del calibratore di
+    # TensorRT, eseguito sulla workstation sulle immagini di calibrazione; la
+    # cache arriva alla board con --calib.
+  head_fp32: true
+    # Solo tensorrt_implicit. true -> Sigmoid della testa in FP32, conv finali
+    # della testa e DFL in FP16 (--precisionConstraints=obey), come Ultralytics.
 
 benchmark:
   tool: onnxruntime_perf_test

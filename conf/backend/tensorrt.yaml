@@ -13,6 +13,12 @@ build:
   workspace_mb: 4096
   timeout_s: 1800
 
+# INT8 esplicito: ONNX QDQ (stessa calibrazione di onnxruntime), resa simmetrica per TensorRT.
+int8:
+  quantize_op_types: [Conv, Gemm, MatMul]   # nodi quantizzati, gli altri restano in float;
+                                            # null quantizza tutto (la testa porta gli score a 0)
+  fp16: true                   # i layer non quantizzati in FP16 invece che FP32 (--fp16)
+
 benchmark:
   tool: trtexec
   # --noDataTransfers=false e' obbligatorio: al default trtexec esclude i

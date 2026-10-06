@@ -177,3 +177,45 @@ class OpenVINOBackend(Backend):
             "output_shapes": [list(s) for s in outputs],
             "source": "openvino_ir",
         }
+
+
+@register
+class OpenVINOQDQBackend(OpenVINOBackend):
+    """OpenVINO sul QDQ di onnxruntime: lo stesso ONNX int8 di backend=onnxruntime (stessi nodi
+    quantizzati, dalla `quantization`), convertito in IR. Separa l'effetto del backend da quello
+    della quantizzazione: con backend=openvino l'int8 lo fa NNCF, con nodi scelti da lui.
+    Solo int8 (conf/backend/openvino_qdq.yaml)."""
+
+    name = "openvino_qdq"
+
+    def export(self, conn, cfg, src: Path, dst: Path) -> Path:
+        import openvino as ov
+        from ultralytics import YOLO
+
+        from ..errors import ExportFailed
+        from ..stages.quantize import quantize_onnx_static
+        from .onnxruntime import OnnxRuntimeBackend
+
+        if cfg.quantization.precision != "int8":
+            raise ExportFailed(f"{self.name}: solo int8")
+        dst = Path(dst)
+        dst.mkdir(parents=True, exist_ok=True)
+        target = dst / f"{cfg.model.name}_{cfg.quantization.name}_openvino_model"
+        if target.exists():
+            log.info("artefatto gia' presente: %s", target.name)
+            return target
+
+        # IR fp32 di Ultralytics: da' cartella e metadata.yaml (nomi, stride, end2end) che
+        # servono a YOLO() per la mAP sulla board; i pesi vengono poi sostituiti dal QDQ
+        produced = Path(YOLO(str(src), task="detect").export(
+            format="openvino", imgsz=int(cfg.model.imgsz), quantize="fp32", batch=1, nms=False,
+            max_det=int(cfg.export_max_det)))
+        xml = sorted(produced.glob("*.xml"))[0]
+        base = OnnxRuntimeBackend(cfg)._export_fp32(cfg, Path(src), dst)
+        qdq = quantize_onnx_static(base, dst / f"{cfg.model.name}_{cfg.quantization.name}_qdq.onnx",
+                                   cfg)
+        ov.save_model(ov.convert_model(str(qdq)), str(xml), compress_to_fp16=False)
+        base.unlink(missing_ok=True)
+        shutil.move(str(produced), target)
+        log.info("IR dal QDQ di onnxruntime: %s", target.name)
+        return target
