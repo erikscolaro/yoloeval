@@ -3,6 +3,7 @@ di `conf/adapt/default.yaml`; l'unica differenza dal pico di riferimento e' `+tr
 
     .venv/bin/python experiments/train/distill/run.py --smoke   # 2 epoche di train + 1 di adapt, controllo
     .venv/bin/python experiments/train/distill/run.py           # 250 epoche di train, poi adapt
+    .venv/bin/python experiments/train/distill/run.py --dis 1.0 # come sopra con peso di distillazione 1.0 (default 6.0)
 """
 import argparse
 import subprocess
@@ -28,10 +29,14 @@ def run(log: str, *args: str) -> None:
 if __name__ == "__main__":
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--smoke", action="store_true", help="2 epoche di train e 1 di adapt, per vedere che parte")
+    ap.add_argument("--dis", type=float, help="peso della perdita di distillazione (default di Ultralytics: 6.0)")
     args = ap.parse_args()
     if not (ROOT / TEACHER).exists():
         sys.exit(f"teacher mancante: {TEACHER} (importarlo con scripts/import_thesis_baselines.py)")
     (HERE / "runs").mkdir(exist_ok=True)
+    if args.dis is not None:
+        COMMON.append(f"+train.dis={args.dis}")   # entra nel training_key: stesso override per train e adapt
+    tag = f"_dis{args.dis:g}" if args.dis is not None else ""
     smoke = ["train.epochs=2"] if args.smoke else []
-    run("smoke_train" if args.smoke else "train", "stage=train", *smoke)
-    run("smoke_adapt" if args.smoke else "adapt", *ADAPT, *smoke, *(["adapt.epochs=1"] if args.smoke else []))
+    run(("smoke_train" if args.smoke else "train") + tag, "stage=train", *smoke)
+    run(("smoke_adapt" if args.smoke else "adapt") + tag, *ADAPT, *smoke, *(["adapt.epochs=1"] if args.smoke else []))
