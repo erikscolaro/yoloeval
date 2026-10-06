@@ -1,0 +1,9 @@
+# YOLO26p: variante sotto la nano (larghezza 0.125, circa 0.7 M parametri, 1.7 GFLOPs a 640).
+# Nessun checkpoint preaddestrato: si addestra da zero con train=scratch.
+name: yolo26p
+source: local
+weights: null
+cfg: ${project_root}/models/yolo26p.yaml     # formato Ultralytics nativo
+scale: p
+imgsz: 640
+nc: 4
