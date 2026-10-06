@@ -38,24 +38,25 @@ def _load(results_dir: Path, out_dir: Path):
     return df
 
 
-def _savefig(fig, figures: Path, name: str) -> str:
-    figures.mkdir(parents=True, exist_ok=True)
-    for ext in ("png", "pdf"):
-        fig.savefig(figures / f"{name}.{ext}", bbox_inches="tight", dpi=200)
-    import matplotlib.pyplot as plt
-
-    plt.close(fig)
-    return f"figures/{name}.png"
-
-
 def _figures(df, out_dir: Path) -> dict:
     import matplotlib
 
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
+    from .plots import GRAY, STYLE, WIDTH, color, save
+
+    plt.style.use(STYLE)
     figures_dir = out_dir / "figures"
     made = {}
+
+    def _save(fig, name):
+        save(fig, figures_dir / name)
+        made[name] = f"figures/{name}.png"
+
+    def _bars(pivot, ax, **kw):
+        pivot.plot.bar(ax=ax, color=[color(c, i) for i, c in enumerate(pivot.columns)],
+                       **kw)
     ok = df[df["status"] == "ok"].copy()
     if ok.empty:
         return made
@@ -66,13 +67,12 @@ def _figures(df, out_dir: Path) -> dict:
             index="backend", columns="quantization", values="lat_median_ms",
             aggfunc="median",
         )
-        fig, ax = plt.subplots(figsize=(7, 4))
-        pivot.plot.bar(ax=ax)
+        fig, ax = plt.subplots()
+        _bars(pivot, ax)
         ax.set_ylabel("latenza mediana [ms]")
         ax.set_xlabel("")
         ax.set_title("Latenza mediana per backend e quantizzazione")
-        made["latency_by_backend"] = _savefig(fig, figures_dir,
-                                              "latency_by_backend")
+        _save(fig, "latency_by_backend")
 
     # fronte di Pareto latenza / accuratezza, per entrambe le mAP
     for metric, label, name in (("acc_map50", "mAP@50", "pareto"),
@@ -82,17 +82,18 @@ def _figures(df, out_dir: Path) -> dict:
         pts = ok.dropna(subset=["lat_median_ms", metric])
         if pts.empty:
             continue
-        fig, ax = plt.subplots(figsize=(6, 4.5))
-        for key, grp in pts.groupby("backend"):
-            ax.scatter(grp["lat_median_ms"], grp[metric], label=key, s=28)
+        fig, ax = plt.subplots(figsize=(WIDTH, 0.7 * WIDTH))
+        for i, (key, grp) in enumerate(pts.groupby("backend")):
+            ax.scatter(grp["lat_median_ms"], grp[metric], label=key, s=28,
+                       color=color(key, i))
         front = _pareto(pts, metric)
-        ax.plot(front["lat_median_ms"], front[metric], "k--", lw=1,
+        ax.plot(front["lat_median_ms"], front[metric], "--", color=GRAY, lw=1,
                 label="fronte di Pareto")
         ax.set_xlabel("latenza mediana [ms]")
         ax.set_ylabel(label)
         ax.set_title(f"Latenza / {label}")
-        ax.legend(fontsize=8)
-        made[name] = _savefig(fig, figures_dir, name)
+        ax.legend()
+        _save(fig, name)
 
     # mAP@50-95 per modello, backend e quantizzazione: quanto costa quantizzare.
     # Per modello e backend, perche' la mediana fra yolo26n e yolo26m non
@@ -108,25 +109,24 @@ def _figures(df, out_dir: Path) -> dict:
             pivot = pivot[[q for q in ("fp32", "fp16", "int8")
                            if q in pivot.columns]]
             pivot.index = [f"{m}\n{b}" for m, b in pivot.index]
-            fig, ax = plt.subplots(figsize=(max(7, 0.9 * len(pivot)), 4))
-            pivot.plot.bar(ax=ax, rot=0)
+            fig, ax = plt.subplots(figsize=(max(WIDTH, 0.9 * len(pivot)), 3.6))
+            _bars(pivot, ax, rot=0)
             ax.set_ylabel("mAP@50-95")
             ax.set_xlabel("")
             ax.set_title("mAP@50-95 per modello, backend e quantizzazione")
-            made["map50_95_by_quantization"] = _savefig(
-                fig, figures_dir, "map50_95_by_quantization")
+            _save(fig, "map50_95_by_quantization")
 
     # latenza vs ordine di esecuzione: se correla, il termico ha inquinato
     if {"order_index", "lat_median_ms"} <= set(ok.columns):
         pts = ok.dropna(subset=["order_index", "lat_median_ms"])
         pts = pts[pts["order_index"] >= 0]
         if len(pts) > 3:
-            fig, ax = plt.subplots(figsize=(6.5, 3.5))
+            fig, ax = plt.subplots()
             ax.scatter(pts["order_index"], pts["lat_median_ms"], s=20)
             ax.set_xlabel("indice di esecuzione nello sweep")
             ax.set_ylabel("latenza mediana [ms]")
             ax.set_title("Latenza rispetto all'ordine di esecuzione")
-            made["order_drift"] = _savefig(fig, figures_dir, "order_drift")
+            _save(fig, "order_drift")
     return made
 
 

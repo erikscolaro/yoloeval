@@ -1,0 +1,39 @@
+# Stile unico dei grafici: plt.style.use(tools.plots.STYLE).
+# Dimensioni pensate per la stampa 1:1 nella tesi (figure.figsize = larghezza
+# del testo): i font restano quelli scritti qui anche dentro il PDF finale.
+
+figure.figsize: 5.9, 3.6
+figure.dpi: 120
+figure.constrained_layout.use: True
+savefig.dpi: 300
+savefig.bbox: tight
+savefig.pad_inches: 0.03
+pdf.fonttype: 42
+ps.fonttype: 42
+
+font.size: 9
+axes.titlesize: 10
+axes.labelsize: 9
+xtick.labelsize: 8
+ytick.labelsize: 8
+legend.fontsize: 8
+legend.frameon: False
+
+axes.spines.top: False
+axes.spines.right: False
+axes.edgecolor: 666666
+axes.labelcolor: 333333
+xtick.color: 666666
+ytick.color: 666666
+axes.grid: True
+axes.axisbelow: True
+grid.color: e5e5e5
+grid.linewidth: 0.6
+
+lines.linewidth: 2
+lines.markersize: 5
+image.cmap: Blues
+
+# palette categorica validata (colorblind-safe sulle coppie adiacenti), in
+# ordine fisso: blu, arancio, acqua, giallo, magenta, verde, viola, rosso
+axes.prop_cycle: cycler('color', ['2a78d6', 'eb6834', '1baf7a', 'eda100', 'e87ba4', '008300', '4a3aa7', 'e34948'])
