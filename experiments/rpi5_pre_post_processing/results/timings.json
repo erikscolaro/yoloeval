@@ -1,0 +1,12 @@
+{
+ "openvino": "2026.4.0-22959-99c81491cc3-releases/2026/4",
+ "cv2": "5.0.0",
+ "images": 300,
+ "imread_ms_median": 4.675611497077625,
+ "imread_ms_max": 7.536167002399452,
+ "temp_start_c": 50.7,
+ "freq_khz": 2400000,
+ "temp_round0_c": 69.4,
+ "temp_round1_c": 69.4,
+ "temp_round2_c": 69.4
+}

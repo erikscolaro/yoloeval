@@ -1,0 +1,87 @@
+pesi registrati: yolo26n_aod4_e300_5e0bf295
+>>> run.py -m stage=export model=yolo26n train=default +train.source=thesis_baseline strategy=baseline hardware=rpi5 backend=openvino freq_target=max compute_target=cpu_4 quantization=fp32
+[2026-10-01 16:17:22,784][HYDRA] Launching 1 jobs locally
+[2026-10-01 16:17:22,785][HYDRA] 	#0 : stage=export model=yolo26n train=default +train.source=thesis_baseline strategy=baseline hardware=rpi5 backend=openvino freq_target=max compute_target=cpu_4 quantization=fp32
+Ultralytics 8.4.165 🚀 Python-3.12.3 torch-2.12.1+cu130 CPU (Intel Xeon Silver 4410Y)
+YOLO26n summary (fused): 122 layers, 2,375,616 parameters, 0 gradients, 5.3 GFLOPs
+
+[34m[1mPyTorch:[0m starting from '/home/scolaroe/Desktop/yoloeval/artifacts/weights/yolo26n_aod4_e300_5e0bf295/best.pt' with input shape (1, 3, 640, 640) BCHW and output shape(s) (1, 300, 6) (5.2 MB)
+
+[34m[1mOpenVINO:[0m starting export with openvino 2026.4.0-22959-99c81491cc3-releases/2026/4...
+[34m[1mOpenVINO:[0m export success ✅ 2.2s, saved as '/home/scolaroe/Desktop/yoloeval/artifacts/weights/yolo26n_aod4_e300_5e0bf295/best_openvino_model/' (9.5 MB)
+
+Export complete (2.5s)
+Results saved to [1m/home/scolaroe/Desktop/yoloeval/artifacts/weights/yolo26n_aod4_e300_5e0bf295/best_openvino_model[0m
+Predict:         yolo predict task=detect model=/home/scolaroe/Desktop/yoloeval/artifacts/weights/yolo26n_aod4_e300_5e0bf295/best_openvino_model/ imgsz=640 
+Validate:        yolo val task=detect model=/home/scolaroe/Desktop/yoloeval/artifacts/weights/yolo26n_aod4_e300_5e0bf295/best_openvino_model/ imgsz=640 data=/home/scolaroe/Desktop/thesis/datasets/AOD4/raw/dataset.yaml  
+Visualize:       https://netron.app
+Ultralytics 8.4.165 🚀 Python-3.12.3 torch-2.12.1+cu130 CPU (Intel Xeon Silver 4410Y)
+YOLO26n summary (fused): 120 layers, 2,375,616 parameters, 0 gradients, 5.3 GFLOPs
+
+[34m[1mPyTorch:[0m starting from '/home/scolaroe/Desktop/yoloeval/artifacts/complexity/_onnx/5e0bf295_640/best.pt' with input shape (1, 3, 640, 640) BCHW and output shape(s) (1, 8, 8400) (5.2 MB)
+
+[34m[1mONNX:[0m starting export with onnx 1.23.0 opset 18...
+[34m[1mONNX:[0m slimming with onnxslim 0.1.96...
+[34m[1mONNX:[0m export success ✅ 2.6s, saved as '/home/scolaroe/Desktop/yoloeval/artifacts/complexity/_onnx/5e0bf295_640/best.onnx' (9.3 MB)
+
+Export complete (3.0s)
+Results saved to [1m/home/scolaroe/Desktop/yoloeval/artifacts/complexity/_onnx/5e0bf295_640/best.onnx[0m
+Predict:         yolo predict task=detect model=/home/scolaroe/Desktop/yoloeval/artifacts/complexity/_onnx/5e0bf295_640/best.onnx imgsz=640 
+Validate:        yolo val task=detect model=/home/scolaroe/Desktop/yoloeval/artifacts/complexity/_onnx/5e0bf295_640/best.onnx imgsz=640 data=/home/scolaroe/Desktop/thesis/datasets/AOD4/raw/dataset.yaml  
+Visualize:       https://netron.app
+[2026-10-01 16:18:27,473][INFO][src.measure.complexity] complessita' 5e0bf295 @640: 2.657 GMAC, 106 layer di calcolo
+[2026-10-01 16:18:27,640][INFO][src.stages.export] export completato: yolo26n_5e0bf295_fp32_openvino_aarch64 (one_to_one, validazione ok)
+>>> run.py stage=benchmark model=yolo26n train=default +train.source=thesis_baseline strategy=baseline hardware=rpi5 backend=openvino freq_target=max compute_target=cpu_4 quantization=fp32
+[2026-10-01 16:18:54,337][INFO][src.remote.connection] connessione a rpi5
+[2026-10-01 16:19:01,814][INFO][src.remote.sync] rsync /home/scolaroe/Desktop/yoloeval/artifacts/exports/yolo26n_5e0bf295_fp32_openvino_aarch64/yolo26n_fp32_openvino_model/ -> rpi5:/home/bench/bench/exports/yolo26n_5e0bf295_fp32_openvino_aarch64/yolo26n_fp32_openvino_model/
+[2026-10-01 16:19:05,283][INFO][src.stages.benchmark] misura: sudo -n prlimit --rtprio=99:99 --pid $$ >/dev/null 2>&1; env OMP_NUM_THREADS=4 OPENBLAS_NUM_THREADS=4 MKL_NUM_THREADS=4 chrt -f 80 taskset -c 0-3 /home/bench/bench/.venv/bin/benchmark_app -m /home/bench/bench/exports/yolo26n_5e0bf295_fp32_openvino_aarch64/yolo26n_fp32_openvino_model/*.xml -d CPU -b 1 -hint none -nstreams 1 -niter 200 -nthreads 4 -report_type no_counters
+[2026-10-01 16:19:21,446][WARNING][src.stages.benchmark] benchmark_app non riporta percentili: in analisi restera' solo il valore centrale
+[2026-10-01 16:19:21,449][INFO][src.measure.accuracy] calcolo mAP di yolo26n_fp32_openvino_model
+[2026-10-01 16:24:26,216][WARNING][src.stages.benchmark] record f959870a8f2d non conforme: latency.p99_ms mancante
+wandb: [wandb.login()] Loaded credentials for https://api.wandb.ai from /home/scolaroe/.netrc.
+wandb: Currently logged in as: erikscolaro31 (yolo-bench) to https://api.wandb.ai. Use `wandb login --relogin` to force relogin
+wandb: WARNING Using a boolean value for 'reinit' is deprecated. Use 'return_previous' or 'finish_previous' instead.
+wandb: setting up run 61e7taf9
+wandb: Tracking run with wandb version 0.30.0
+wandb: Run data is saved locally in /tmp/wandb-dk_czzk1/wandb/run-20261001_162428-61e7taf9
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Syncing run f959870a8f2d
+wandb: ⭐️ View project at https://wandb.ai/yolo-bench/yolo-bench
+wandb: 🚀 View run at https://wandb.ai/yolo-bench/yolo-bench/runs/61e7taf9
+wandb: updating run metadata
+wandb: uploading wandb-metadata.json; uploading requirements.txt; uploading wandb-summary.json; uploading config.yaml
+wandb: 
+wandb: Run history:
+wandb:      acc_conf ▁
+wandb:     acc_imgsz ▁
+wandb:       acc_iou ▁
+wandb:     acc_map50 ▁
+wandb:  acc_map50_95 ▁
+wandb: acc_precision ▁
+wandb:    acc_recall ▁
+wandb:    acc_wall_s ▁
+wandb:     lat_iters ▁
+wandb:    lat_max_ms ▁
+wandb:           +16 ...
+wandb: 
+wandb: Run summary:
+wandb:        acc_conf 0.001
+wandb:       acc_imgsz 640
+wandb:         acc_iou 0.7
+wandb:       acc_map50 0.96704
+wandb:    acc_map50_95 0.673
+wandb: acc_measured_on rpi5
+wandb:   acc_precision 0.9532
+wandb:      acc_recall 0.93889
+wandb:      acc_source ultralytics_val
+wandb:       acc_split val
+wandb:             +45 ...
+wandb: 
+wandb: 🚀 View run f959870a8f2d at: https://wandb.ai/yolo-bench/yolo-bench/runs/61e7taf9
+wandb: ⭐️ View project at: https://wandb.ai/yolo-bench/yolo-bench
+wandb: Synced 4 W&B file(s), 0 media file(s), 0 artifact file(s) and 0 other file(s)
+wandb: Find logs at: /tmp/wandb-dk_czzk1/wandb/run-20261001_162428-61e7taf9/logs
+RAM del Pi (fp32): {'before_mb': 272, 'peak_latency_mb': 406, 'peak_map_mb': None, 'peak_mb': 406, 'min_available_mb': 7656}
+| precisione | latenza mediana (ms) | media (ms) | max (ms) | FPS medi | mAP50 | mAP50-95 | RAM prima / latenza (MB) | temp. inizio→fine (°C) |
+|---|---|---|---|---|---|---|---|---|
+| fp32 | 57.02 | 57.44 | 68.65 | 17.4 | 0.967 | 0.673 | 272 / 406 | 48→63 |

@@ -1,0 +1,23 @@
+{
+ "fp32": {
+  "before_mb": 271,
+  "peak_latency_mb": 381,
+  "peak_map_mb": null,
+  "peak_mb": 381,
+  "min_available_mb": 7680
+ },
+ "fp16": {
+  "before_mb": 276,
+  "peak_latency_mb": 413,
+  "peak_map_mb": null,
+  "peak_mb": 413,
+  "min_available_mb": 7649
+ },
+ "int8": {
+  "before_mb": 272,
+  "peak_latency_mb": 479,
+  "peak_map_mb": null,
+  "peak_mb": 479,
+  "min_available_mb": 7583
+ }
+}

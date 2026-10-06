@@ -1,0 +1,80 @@
+{
+ "search_dir": "yolo26p_aod4_pit_duccio_pico_5b5558e3",
+ "search_key": "5b5558e3",
+ "pit_summary": {
+  "yolopit": "0.3.0",
+  "ultralytics": "8.4.165",
+  "model": "/home/scolaroe/Desktop/yoloeval/artifacts/weights/yolo26p_aod4_e250_658d6388/best.pt",
+  "n": 8,
+  "remainder": true,
+  "imgsz": 640,
+  "detect_branch": "one2many",
+  "regularizer": {
+   "mode": "duccio",
+   "target": {
+    "ops": {
+     "requested": "50%",
+     "target_total": 367464000.0,
+     "target_fraction": 0.5,
+     "target_pit": 201880000.0
+    },
+    "params": {
+     "requested": "50%",
+     "target_total": 307800.0,
+     "target_fraction": 0.5,
+     "target_pit": 163648.0
+    }
+   },
+   "margin": 0.05
+  },
+  "costs": {
+   "ops": {
+    "initial": 734928000.0,
+    "final": 368822400.0,
+    "final_fraction": 0.5018483443276076,
+    "min": 306486400.0,
+    "fixed": 165584000.0,
+    "target": 367464000.0,
+    "target_met": false,
+    "within_margin": true
+   },
+   "params": {
+    "initial": 615600.0,
+    "final": 315120.0,
+    "final_fraction": 0.5118908382066277,
+    "min": 218992.0,
+    "fixed": 144152.0,
+    "target": 307800.0,
+    "target_met": false,
+    "within_margin": true
+   }
+  },
+  "prunable_channels": {
+   "before": 1864,
+   "kept": 960
+  },
+  "duccio_strengths": {
+   "ops": 5.696102700625261e-09,
+   "params": 6.800236405979376e-06
+  },
+  "epochs": 60,
+  "best_epoch": 60,
+  "best_within_budget": true,
+  "metrics": {
+   "metrics/precision(B)": 0.90803,
+   "metrics/recall(B)": 0.87094,
+   "metrics/mAP50(B)": 0.91527,
+   "metrics/mAP50-95(B)": 0.5673,
+   "val/box_loss": 1.39877,
+   "val/cls_loss": 0.68017,
+   "val/l1_loss": 0.00996,
+   "val/ops": 0.50185,
+   "val/params": 0.51189,
+   "val/reg": 0.0
+  }
+ },
+ "metrics": {
+  "map50": 0.91527,
+  "map50_95": 0.5673
+ }
+}

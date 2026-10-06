@@ -1,0 +1,9 @@
+{
+ "fp32": {
+  "before_mb": 272,
+  "peak_latency_mb": 406,
+  "peak_map_mb": null,
+  "peak_mb": 406,
+  "min_available_mb": 7656
+ }
+}

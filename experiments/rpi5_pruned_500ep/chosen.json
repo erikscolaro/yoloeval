@@ -1,0 +1,23 @@
+{
+ "variant": "finetune",
+ "epoch": 500,
+ "map50": 0.95941,
+ "map50_95": 0.6453,
+ "epochs_done": 500,
+ "candidates": [
+  {
+   "variant": "finetune",
+   "epoch": 500,
+   "map50": 0.95941,
+   "map50_95": 0.6453,
+   "epochs_done": 500
+  },
+  {
+   "variant": "scratch",
+   "epoch": 500,
+   "map50": 0.9542,
+   "map50_95": 0.63882,
+   "epochs_done": 500
+  }
+ ]
+}
