@@ -1,15 +1,18 @@
-# Fine-tuning del modello potato (PrunedTrainer di yolopit). I nomi coincidono con gli
-# argomenti di model.train() di Ultralytics. Usato solo dalle strategie, non dalla baseline.
-epochs: 50
-batch: 16
+# Fine-tuning del modello potato con MuSGD (Muon + SGD, l'optimizer dei pesi ufficiali YOLO26),
+# batch 64, lr da 5e-3 a 5e-5 lineare. Il resto come adam.yaml.
+# I nomi coincidono con gli argomenti di model.train() di Ultralytics.
+epochs: 100
+batch: 64
 workers: 12
-optimizer: SGD
-lr0: 0.001
+optimizer: MuSGD
+lr0: 0.005              # come i pesi ufficiali di yolo26n
 lrf: 0.01
+cos_lr: false
 momentum: 0.937
 weight_decay: 0.0005
 warmup_epochs: 0
-patience: 20
+patience: 100
+close_mosaic: 25
 seed: 42
 mosaic: 1.0
 mixup: 0.0
