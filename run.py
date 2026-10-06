@@ -16,6 +16,7 @@ stessi core producono numeri inutilizzabili.
 from __future__ import annotations
 
 import logging
+import os
 import re
 import sys
 
@@ -106,5 +107,9 @@ def main(cfg: DictConfig) -> None:
 
 
 if __name__ == "__main__":
+    if not sys.stdout.isatty():
+        # output su file o pipe: la barra di Ultralytics scrive una riga per ogni aggiornamento;
+        # da "non interattiva" scrive solo la riga finale di ogni epoca
+        os.environ.setdefault("GITHUB_ACTIONS", "1")
     sys.argv[1:] = normalize_flag_overrides(sys.argv[1:])
     sys.exit(main())
