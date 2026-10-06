@@ -1,0 +1,20 @@
+# Training da zero (modelli senza pesi preaddestrati, es. model=yolo26p): lr alto e molte
+# epoche. I nomi delle chiavi coincidono 1:1 con gli argomenti di model.train() di Ultralytics.
+epochs: 250
+batch: 64
+workers: 12
+imgsz: 640
+optimizer: SGD
+lr0: 0.1
+lrf: 0.001
+momentum: 0.937
+weight_decay: 0.0005
+warmup_epochs: 3
+patience: 100
+close_mosaic: 100
+seed: 42
+mosaic: 1.0
+mixup: 0.0
+hsv_h: 0.015
+hsv_s: 0.7
+hsv_v: 0.4
