@@ -31,3 +31,5 @@ setup_host.sh
 data/**
 !data/.gitkeep
 wandb/
+experiments/**/runs/
+.claude/settings.local.json
