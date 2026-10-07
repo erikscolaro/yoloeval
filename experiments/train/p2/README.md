@@ -28,8 +28,8 @@ il tensore piu' grande e' la concat P2 (64x160x160 = 1.64 M valori); la Detect v
 ## Dopo l'adapt: il P2 non serve su Svanström
 
 Adapt su Svanström (ricetta di `conf/adapt/default.yaml`, misura omogenea, vedi `../../adapt/model_size`): P2 contro p
-val 0.874 / 0.476 contro 0.861 / 0.470 (+0.006), test 0.810 / 0.456 contro 0.825 / 0.465 (-0.009), drone mAP50-95
-0.392 / 0.330 contro 0.390 / 0.326. Costo sul Pi 5 (OpenVINO fp32, 4 core): 43.14 ms contro 27.95 (+54%).
+val 0.874 / 0.476 contro 0.861 / 0.470 (+0.006), drone mAP50-95
+0.392 contro 0.390. Costo sul Pi 5 (OpenVINO fp32, 4 core): 43.14 ms contro 27.95 (+54%).
 
 - Nessun guadagno dimostrato: differenze dentro il rumore di un seed, su tutte le classi e sul drone, a +47% di FLOPs e +54% di latenza.
 - Probabile motivo (ipotesi, non provata con un test diretto): in Svanström nessun oggetto scende sotto circa 13 px (lato maggiore

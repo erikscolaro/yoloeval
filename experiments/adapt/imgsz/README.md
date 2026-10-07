@@ -9,14 +9,14 @@ Le immagini di Svanström sono 640x512 e gli oggetti hanno lato mediano 35 px (5
 - Validazione a 1024 (come il training) per il run a 1024, a 640 per il riferimento; stessa misura degli altri
   esperimenti (mAP a `conf` 0.001, drone con F1 alla `conf` del picco sul val).
 
-| imgsz | val tutte mAP50 / mAP50-95 | val drone F1 / mAP50-95 | test tutte mAP50 / mAP50-95 | test drone F1 / mAP50-95 |
-|---|---|---|---|---|
-| 640 (`577b097f`) | 0.851 / 0.462 | 0.868 / 0.386 | 0.853 / 0.471 | 0.814 / 0.335 |
-| 1024 (`f172c7c3`) | 0.866 / 0.462 | 0.828 / 0.396 | 0.818 / 0.445 | 0.741 / 0.328 |
+| imgsz | val tutte mAP50 / mAP50-95 | val drone F1 / mAP50-95 |
+|---|---|---|
+| 640 (`577b097f`) | 0.851 / 0.462 | 0.868 / 0.386 |
+| 1024 (`f172c7c3`) | 0.866 / 0.462 | 0.828 / 0.396 |
 
 ## Esito
 
-A 1024 il mAP50-95 sul val e' identico (0.462), il mAP50 e' piu' alto (+0.015), ma il test e il drone sono peggiori
-(0.445 contro 0.471; F1 del drone 0.741 contro 0.814) e il costo e' circa 2.5x di tempo e di GPU. Non conviene.
+A 1024 il mAP50-95 sul val e' identico (0.462), il mAP50 e' piu' alto (+0.015), il drone ha F1 piu' basso (0.828 contro 0.868)
+e mAP50-95 simile (0.396 contro 0.386); il costo e' circa 2.5x di tempo e di GPU. Non conviene.
 
 **Stato**: chiuso.

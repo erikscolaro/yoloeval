@@ -42,7 +42,7 @@ run intero.
 ## Come si legge
 
 Su AOD4 si confronta la mAP del training (val di AOD4, `meta.json`) con `e5930f9c`; su Svanström la misura di `eval.py`
-(val e test, mAP a `conf` 0.001, F1 per classe alla `conf` del picco F1 sul val). Un solo seed: differenze sotto circa
+(val, mAP a `conf` 0.001, F1 per classe alla `conf` del picco F1 sul val). Un solo seed: differenze sotto circa
 0.005 di mAP50-95 sono nel rumore.
 
 ## Esito
@@ -58,27 +58,25 @@ Training su AOD4 (val AOD4), 250 epoche:
 | yolo26p (`e5930f9c`) | 0.960 / 0.649 | 276 min (altro carico) |
 | yolo26p distillato `dis` 6 (`26a1fa7b`) | 0.955 / 0.643 | 149 min |
 | yolo26p distillato `dis` 1 (`8f90ac31`) | 0.961 / 0.652 | 148 min |
-| yolo26n teacher (`00a6209e`) | 0.969 / 0.684 | |
+| yolo26n teacher (`00a6209e`) | 0.969 / 0.684 |  |
 
 Con `dis` 6 il distillato parte indietro (-0.06 di mAP50-95 alle epoche 5-6) e resta di circa -0.005 / -0.007 per tutto il training.
 Il teacher non allunga il tempo per epoca (circa 35 s: il training e' limitato dai dati).
 
 Adapt su Svanström (stessa ricetta di `conf/adapt/default.yaml`, patience 15; misura omogenea: `best.pt`, mAP a `conf` 0.001,
-`conf` per classe al picco F1 sul val e stessa soglia sul test):
+`conf` per classe al picco F1 sul val):
 
-| modello | val tutte mAP50 / mAP50-95 | test tutte mAP50 / mAP50-95 | drone val F1 / mAP50-95 | drone test F1 / mAP50-95 |
-|---|---|---|---|---|
-| yolo26p adattato (`c3b39818`) | 0.861 / 0.470 | 0.825 / 0.465 | 0.861 / 0.390 | 0.772 / 0.326 |
-| distillato `dis` 6 adattato (`c1f78224`) | 0.852 / 0.458 | 0.805 / 0.444 | 0.843 / 0.395 | 0.776 / 0.313 |
-| **distillato `dis` 1 adattato** (`8f4e1ad7`) | **0.884 / 0.481** | **0.838 / 0.467** | 0.852 / **0.409** | 0.779 / **0.348** |
+| modello | val tutte mAP50 / mAP50-95 | drone val F1 / mAP50-95 |
+|---|---|---|
+| yolo26p adattato (`c3b39818`) | 0.861 / 0.470 | 0.861 / 0.390 |
+| distillato `dis` 6 adattato (`c1f78224`) | 0.852 / 0.458 | 0.843 / 0.395 |
+| **distillato `dis` 1 adattato** (`8f4e1ad7`) | **0.884 / 0.481** | 0.852 / **0.409** |
 
-- **`dis` 6 non aiuta:** -0.012 di mAP50-95 sul val e -0.021 sul test rispetto al pico normale.
-- **`dis` 1 aiuta poco sul totale e di piu' sul drone:** val +0.011 (oltre la soglia di rumore), test +0.002 (pari merito);
-  sul drone mAP50-95 +0.019 sul val e +0.022 sul test, F1 +0.007 sul test. Per il criterio del progetto (migliore in assoluto,
-  a pari merito il drone) vince il distillato `dis` 1. Resta lontano dal nano adattato (0.517 / 0.530 sul val e sul test)
-  e davanti di poco al P2 (0.476 sul val).
-- Bird e airplane: airplane migliora sul val (0.608 contro 0.585 di mAP50-95), sul test e' pari o peggio (0.529 contro 0.570);
-  bird e' pari.
+- **`dis` 6 non aiuta:** -0.012 di mAP50-95 sul val rispetto al pico normale.
+- **`dis` 1 aiuta poco sul totale e di piu' sul drone:** val +0.011 (oltre la soglia di rumore); sul drone mAP50-95 +0.019 sul val.
+  Per il criterio del progetto (migliore in assoluto) vince il distillato `dis` 1. Resta lontano dal nano adattato
+  (0.517 sul val) e davanti di poco al P2 (0.476 sul val).
+- Bird e airplane: airplane migliora sul val (0.608 contro 0.585 di mAP50-95); bird e' pari.
 - Il peso della distillazione conta piu' del fatto di distillare: sono stati provati solo due valori, 6 e 1; non so se 0.5 o 2
   sarebbero meglio. L'effetto resta piccolo e da confermare con piu' seed.
 
