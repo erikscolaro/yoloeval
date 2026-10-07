@@ -25,4 +25,19 @@ Attivazioni (un'immagine 640x640, uscita di ogni layer): somma 9.33 M valori con
 fp32), picco con i tensori vivi 3.64 M contro 1.79 M (13.9 contro 6.8 MiB fp32, 3.5 contro 1.7 MiB int8);
 il tensore piu' grande e' la concat P2 (64x160x160 = 1.64 M valori); la Detect vede 34000 candidati contro 8400.
 
-**Stato**: training su AOD4 concluso; adapt su Svanström, latenza sul Pi e confronto in corso.
+## Dopo l'adapt: il P2 non serve su Svanström
+
+Adapt su Svanström (ricetta di `conf/adapt/default.yaml`, misura omogenea, vedi `../../adapt/model_size`): P2 contro p
+val 0.874 / 0.476 contro 0.861 / 0.470 (+0.006), test 0.810 / 0.456 contro 0.825 / 0.465 (-0.009), drone mAP50-95
+0.392 / 0.330 contro 0.390 / 0.326. Costo sul Pi 5 (OpenVINO fp32, 4 core): 43.14 ms contro 27.95 (+54%).
+
+- Nessun guadagno dimostrato: differenze dentro il rumore di un seed, su tutte le classi e sul drone, a +47% di FLOPs e +54% di latenza.
+- Probabile motivo (ipotesi, non provata con un test diretto): in Svanström nessun oggetto scende sotto circa 13 px (lato maggiore
+  minimo 13.0, 0.27% sotto 16 px, 0% sotto 8 px, mediana 35 px; `scale: 0` nell'adapt), cioe' sopra il limite pratico dello stride 8 della
+  testa P3, e il livello P2 (stride 4) serve per oggetti sotto circa 8-16 px.
+- In AOD4 il training vede oggetti molto piu' piccoli: dopo il resize 1024 → 640 (×0.625) e con `scale` 0.5 (×0.5 al minimo) il lato
+  maggiore minimo e' 1.6 px, 0.1° percentile 4.1 px, 1° 7.0 px, e nel caso peggiore il 15.7% delle box sta sotto 16 px. Eppure su
+  AOD4 il P2 e' solo +0.005 di mAP50-95 sul p (dentro il rumore).
+- Conclusione: P2 non adottato per Svanström; avrebbe senso solo con oggetti sotto 16 px in modo sostanziale (o a risoluzione piu' bassa).
+
+**Stato**: chiuso (training su AOD4, adapt su Svanström e latenza sul Pi misurati).
