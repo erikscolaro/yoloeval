@@ -18,7 +18,7 @@ import shutil
 import sys
 from pathlib import Path
 
-from src.cache import model_label
+from src.cache import compose_export_key, model_label
 
 
 #: tipi di artefatto e il campo del meta.json che ne e' la chiave
@@ -108,24 +108,19 @@ def referenced_keys(results_dir: Path) -> set[str]:
         keys.add(tkey)
         if axes.get("adapt_key"):
             keys.add(axes["adapt_key"])
-        # pesi arrivati all'export: l'adapt_key per la baseline (il training_key nei risultati
-        # scritti prima dello stadio adapt), il finetune_key per le strategie
+        # pesi arrivati all'export: l'adapt_key, o con adapt=none il training_key (baseline,
+        # e i risultati scritti prima dello stadio adapt) o il finetune_key (strategie)
         wkey = axes.get("weights_key") or tkey
         keys.add(wkey)
         if axes.get("backend"):
-            label = model_label(axes.get("model"), axes.get("strategy"))
-            ekey = (
-                f"{label}_{wkey}_{axes.get('quantization')}"
-                f"_{axes.get('backend')}_{axes.get('arch')}"
+            sdk = (
+                ((rec.get("config") or {}).get("backend") or {})
+                .get("build", {})
+                .get("sdk_version")
             )
-            if axes.get("backend") == "axelera":
-                sdk = (
-                    ((rec.get("config") or {}).get("backend") or {})
-                    .get("build", {})
-                    .get("sdk_version")
-                )
-                ekey += f"_sdk{sdk}"
-            keys.add(ekey)
+            keys.add(compose_export_key(
+                model_label(axes.get("model"), axes.get("strategy")), wkey,
+                axes.get("quantization"), axes.get("backend"), axes.get("arch"), sdk))
     return keys
 
 
@@ -138,11 +133,14 @@ def cmd_prune(args) -> int:
         )
         return 1
 
-    # una ricerca e' referenziata se lo e' un fine-tuning che parte da lei
-    for d in _dirs(args.artifacts, "finetune"):
-        meta = _read(d / "meta.json") or {}
-        if meta.get("finetune_key") in keys and meta.get("search_key"):
-            keys.add(meta["search_key"])
+    # a ritroso lungo la catena: un fine-tuning e' referenziato se lo e' l'adattamento che
+    # parte da lui, una ricerca se lo e' un fine-tuning che parte da lei
+    for kind, field, parent in (("adapt", "adapt_key", "finetune_key"),
+                                ("finetune", "finetune_key", "search_key")):
+        for d in _dirs(args.artifacts, kind):
+            meta = _read(d / "meta.json") or {}
+            if meta.get(field) in keys and meta.get(parent):
+                keys.add(meta[parent])
 
     victims = []
     for kind, field in KINDS.items():

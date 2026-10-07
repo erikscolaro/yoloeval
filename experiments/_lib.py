@@ -60,9 +60,9 @@ def make_cfg(*overrides: str):
 def chain_hint(cfg, overrides, upto: str | None = None) -> str:
     """Gli `run.py stage=...` che producono i pesi di `final_weights(cfg)`, nell'ordine
     (fino a `upto` compreso, se dato)."""
-    from src.cache import is_baseline
+    from src.cache import weights_chain
 
-    stages = ["train", "adapt"] + ([] if is_baseline(cfg) else ["search", "finetune"])
+    stages = weights_chain(cfg)
     if upto:
         stages = stages[:stages.index(upto) + 1]
     return "\n".join(f"  .venv/bin/python run.py stage={s} {' '.join(overrides)}" for s in stages)

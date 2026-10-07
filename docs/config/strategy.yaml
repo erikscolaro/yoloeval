@@ -1,8 +1,9 @@
 # Riferimento dei campi di conf/strategy/<nome>.yaml
 #
 # La strategia decide come si arriva ai pesi che vanno all'export:
-#   baseline -> il modello di stage=train, nient'altro (solo Ultralytics)
-#   pit      -> stage=search (ricerca PIT con yolopit) e stage=finetune sul modello potato
+#   baseline -> il modello di stage=train, poi stage=adapt (solo Ultralytics)
+#   pit      -> stage=search (ricerca PIT con yolopit) e stage=finetune sul modello potato,
+#               su pretrain_dataset (AOD4), poi stage=adapt del potato (adapt=none lo salta)
 # E' un asse della matrice: `-m strategy=baseline,pit_duccio` confronta le due.
 #
 # Con method: pit il gruppo entra nella chiave della ricerca (search_key) insieme al

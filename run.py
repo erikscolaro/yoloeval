@@ -2,8 +2,8 @@
 """yolo-bench — unico entry point.
 
     python run.py stage=train model=yolo26n             # su AOD4 (pretrain_dataset)
-    python run.py stage=adapt model=yolo26n             # su Svanstrom (dataset), sempre
-    python run.py stage=search strategy=pit_duccio      # poi stage=finetune
+    python run.py stage=search strategy=pit_duccio      # su AOD4, poi stage=finetune
+    python run.py stage=adapt model=yolo26n             # su Svanstrom (dataset); adapt=none lo salta
     python run.py -m stage=benchmark hardware=jetson_orin freq_target=maxn,w15
 
 Il dispatch avviene per `cfg.stage.name`: ogni stadio ha il suo entry point e
@@ -28,8 +28,8 @@ log = logging.getLogger("yolo-bench")
 
 #: flag dichiarati in conf/config.yaml con un default
 RUN_FLAGS = (
-    "dry_run", "force", "retry_failed", "force_retrain", "force_search", "force_finetune",
-    "force_reexport",
+    "dry_run", "force", "retry_failed", "force_retrain", "force_adapt", "force_search",
+    "force_finetune", "force_reexport",
     "allow_reboot", "skip_invalid", "continue_on_error",
 )
 

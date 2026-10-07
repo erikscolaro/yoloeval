@@ -52,9 +52,10 @@ results_dir: ${project_root}/results
 training_key_fields: [model, train, pretrain_dataset]
   # Quali gruppi entrano nella chiave del training. NON aggiungere backend,
   # hardware, freq_target o compute_target: lo stesso modello verrebbe
-  # riallenato per ogni cella della matrice. Il training usa `pretrain_dataset`
-  # (AOD4, gruppo `dataset` montato in un'altra chiave); il resto della pipeline
-  # usa `dataset` (Svanstrom), che entra nell'adapt_key e nella chiave della cella.
+  # riallenato per ogni cella della matrice. Training, search e finetune usano
+  # `pretrain_dataset` (AOD4, gruppo `dataset` montato in un'altra chiave); adapt,
+  # export e misure usano `dataset` (Svanstrom), che entra nell'adapt_key e nella
+  # chiave della cella.
 
 cell_key_fields: [model, train, dataset, quantization, backend,
                   hardware, freq_target, compute_target, eval]

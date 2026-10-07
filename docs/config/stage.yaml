@@ -7,16 +7,19 @@ name: benchmark
   # OBBLIGATORIO. Valori: train | adapt | search | finetune | probe | roofline | export |
   #                       benchmark | provision
   #   train     -> allena su pretrain_dataset (AOD4) e mette i pesi in artifacts/weights/
-  #   adapt     -> fine-tuning su dataset (Svanstrom) dei pesi di train, per ogni modello:
-  #                artifacts/adapt/; pesi della baseline e partenza della ricerca
+  #   adapt     -> fine-tuning su dataset (Svanstrom) dei pesi di train (baseline) o del
+  #                potato di finetune (strategie pit): artifacts/adapt/, i pesi dell'export.
+  #                Facoltativo: adapt=none lo salta
   #   roofline  -> misura i tetti del roofline model (picco di calcolo, banda):
   #                results/roofline/, usati da tools.roofline
   #   (i file probe_edge.yaml e roofline_edge.yaml sono preset per le board lente, con
   #   name: probe / name: roofline)
   #   probe     -> misura con reti dummy quale N (canali a blocchi) premia la board:
   #                results/probe/, usato dalle strategie con pit.n: auto
-  #   search    -> solo strategie pit: ricerca PIT, modello potato in artifacts/search/
-  #   finetune  -> solo strategie pit: fine-tuning del potato in artifacts/finetune/
+  #   search    -> solo strategie pit: ricerca PIT dai pesi di train, su pretrain_dataset
+  #                (AOD4), modello potato in artifacts/search/
+  #   finetune  -> solo strategie pit: fine-tuning del potato su pretrain_dataset in
+  #                artifacts/finetune/
   #   export    -> esporta (e quantizza) in artifacts/exports/
   #   benchmark -> misura, e scrive un JSON per cella in results/
   #   provision -> prepara la board e verifica che sia usabile

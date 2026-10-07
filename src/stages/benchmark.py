@@ -24,8 +24,8 @@ from pathlib import Path
 from omegaconf import read_write
 
 from ..backends import get_backend
-from ..cache import (adapt_key, cell_key, export_key, find_export, locate_artifact,
-                     training_key, weights_key)
+from ..cache import (adapt_enabled, adapt_key, cell_key, export_key, find_export,
+                     locate_artifact, training_key, weights_key)
 from ..env import collect_versions
 from ..errors import BenchmarkFailed, MissingExport
 from ..jsonio import atomic_write_json, atomic_write_text, read_json
@@ -135,7 +135,7 @@ def run_cell(cfg, cid: str, dest: Path) -> Path:
     """
     timer = PhaseTimer(device=cfg.hardware.board)
     rec = base_record(cfg, cid, training_key=training_key(cfg), weights_key=weights_key(cfg),
-                      adapt_key=adapt_key(cfg))
+                      adapt_key=adapt_key(cfg) if adapt_enabled(cfg) else None)
     try:
         valid, reason = is_valid(cfg)
         if not valid:
@@ -478,13 +478,12 @@ def _validation_block(cfg, validation: dict, export_meta: dict,
     validation["head"] = inspection.get("head")
 
     ref_map50 = None
-    # riferimento: il modello che e' andato all'export (baseline: l'adattamento; strategie: il
-    # fine-tuning)
-    baseline = export_meta.get("strategy", "baseline") == "baseline"
-    index = "adapt" if baseline else "finetune"
+    # riferimento: il modello che e' andato all'export, se e' un adattamento. Con adapt=none
+    # i pesi arrivano dal training o dal fine-tuning, con la mAP del dataset di pretraining:
+    # non confrontabile con quella misurata qui su `dataset`, quindi nessun delta
     key = export_meta.get("weights_key")
     weights_meta = read_json(
-        Path(cfg.artifacts_dir) / index / "index.json", default={}
+        Path(cfg.artifacts_dir) / "adapt" / "index.json", default={}
     ) or {}
     entry = weights_meta.get(key)
     if entry and entry.get("metrics"):

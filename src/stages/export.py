@@ -17,7 +17,7 @@ from omegaconf import OmegaConf
 from ..backends import get_backend
 from ..cache import export_dir as export_dir_for
 from ..cache import (export_key, final_weights, is_baseline, strategy_name, training_key,
-                     weights_key)
+                     weights_chain, weights_key)
 from ..env import collect_versions
 from ..errors import MissingWeights
 from ..jsonio import atomic_write_json, read_json
@@ -63,11 +63,10 @@ def _stale_max_det(cfg, dst_dir: Path) -> str | None:
 
 def run_export(cfg) -> Path:
     tkey = training_key(cfg)
-    # baseline: best.pt dell'adattamento; strategie (pit): best.pt del fine-tuning
+    # best.pt dell'adattamento; con adapt=none del training (baseline) o del fine-tuning (pit)
     src_pt, wkey = final_weights(cfg)
     if src_pt is None:
-        prima = ("`stage=train` e `stage=adapt`" if is_baseline(cfg)
-                 else "`stage=train`, `stage=adapt`, `stage=search` e `stage=finetune`")
+        prima = ", ".join(f"`stage={s}`" for s in weights_chain(cfg))
         raise MissingWeights(
             f"nessun peso per {cfg.model.name} con strategy={strategy_name(cfg)} "
             f"(chiave {wkey}): eseguire prima {prima}"
@@ -202,8 +201,7 @@ def _reference_for(conn, cfg, src_pt: Path, backend):
     if not backend.builds_on_target or not is_remote(cfg):
         return src_pt
     # Sotto la chiave dei pesi: due modelli diversi hanno entrambi un `best.pt`,
-    # e in una cartella piatta il secondo export sovrascriverebbe il primo. Per la
-    # baseline e' il training_key; un modello potato ha lo stesso training_key della
-    # sua baseline, quindi serve la chiave del fine-tuning.
+    # e in una cartella piatta il secondo export sovrascriverebbe il primo. Un modello
+    # potato ha lo stesso training_key della sua baseline: serve la chiave dei pesi.
     return sync_artifact(conn, cfg, src_pt, subdir="weights",
                          key=weights_key(cfg))

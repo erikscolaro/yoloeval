@@ -1,11 +1,12 @@
 # Riferimento dei campi di conf/finetune/<nome>.yaml
 #
-# Fine-tuning del modello potato dalla ricerca (PrunedTrainer di yolopit). Usato solo dalle
+# Fine-tuning del modello potato dalla ricerca (PrunedTrainer di yolopit), su
+# `pretrain_dataset` (AOD4) come la ricerca; dopo viene stage=adapt. Usato solo dalle
 # strategie con method: pit; la baseline lo ignora e il gruppo non entra nelle sue chiavi.
 # I nomi coincidono con gli argomenti di model.train() di Ultralytics (vedi train.yaml): puoi
 # aggiungere qualsiasi argomento accettato da Ultralytics.
 #
-# Quello che NON va messo qui: `data` (arriva da dataset.yaml), `project` e `name` (li decide
+# Quello che NON va messo qui: `data` (arriva da pretrain_dataset.yaml), `project` e `name` (li decide
 # la cache). `imgsz`, se manca, e' train.imgsz.
 #
 # Ogni campo entra nella chiave del fine-tuning (finetune_key), tranne `workers` e
@@ -35,3 +36,9 @@ hsv_s: 0.7
 hsv_v: 0.4
 imgsz: 640
   # Facoltativo. Se manca, train.imgsz.
+cache: disk
+  # ram | disk | false. Dove tenere in cache le immagini. Fuori dal finetune_key.
+pretrained: true
+  # true | false. Il fine-tuning parte dai pesi ereditati dal pruned.pt della ricerca: va lasciato true.
+scale: 0.5
+  # Intervallo di scala casuale dell'immagine: fattore tra 1-scale e 1+scale (0 = nessun ridimensionamento).

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Costruisce il dataset Svanstrom (Drone-detection-dataset, solo video visibili).
 
-AOD4 resta per il training da zero; questo serve al finetune prima del pruning e
-a tutto quello che viene dopo. Passi:
+AOD4 resta per training, search e finetune; questo serve all'adapt (l'ultimo
+passo prima dell'export) e a tutto quello che viene dopo. Passi:
 
 1. scarica `Data/Video_V/*` e l'xlsx con classe e distance bin da GitHub;
 2. per ogni video legge le label (.mat MATLAB groundTruth) e tiene solo i frame

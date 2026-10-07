@@ -1,8 +1,10 @@
 """Stadio `search` — ricerca PIT con yolopit, solo per le strategie `method: pit`.
 
-Parte dai pesi di `stage=adapt` (stesso adapt_key) e produce il modello potato in
-`artifacts/search/`. Come il training, gira sulla workstation e non conosce l'hardware di
-destinazione: la stessa ricerca vale per ogni board.
+Parte dai pesi di `stage=train` (stesso training_key), lavora sul dataset di pretraining
+(`pretrain_dataset`, AOD4) e produce il modello potato in `artifacts/search/`; l'adattamento
+al dataset di destinazione viene dopo il fine-tuning (`stage=adapt`). Come il training, gira
+sulla workstation e non conosce l'hardware di destinazione: la stessa ricerca vale per ogni
+board.
 
 La logica della ricerca sta tutta in yolopit; qui ci sono solo cache, argomenti e meta.json.
 """
@@ -15,9 +17,8 @@ from pathlib import Path
 
 from omegaconf import OmegaConf
 
-from ..cache import (adapt_key, find_by_key, is_baseline, read_dataset_hash, resolve_n,
-                     search_dir, search_key, strategy_name, training_key, update_index,
-                     yolopit_version)
+from ..cache import (find_weights, is_baseline, read_dataset_hash, resolve_n, search_dir,
+                     search_key, strategy_name, training_key, update_index, yolopit_version)
 from ..env import collect_versions
 from ..errors import MissingWeights
 from ..jsonio import atomic_write_json
@@ -30,7 +31,7 @@ log = logging.getLogger(__name__)
 def search_args(cfg) -> dict:
     """Config di PITYOLO dalla strategia: dataset e risoluzioni dal resto della config.
 
-    - `data` arriva sempre da dataset.yaml (se la strategia lo mette, errore);
+    - `data` arriva sempre da pretrain_dataset.yaml (se la strategia lo mette, errore);
     - `imgsz` del training della ricerca: quello della strategia, altrimenti train.imgsz;
     - `pit.trace_imgsz` (risoluzione dei costi e dei target): model.imgsz, la risoluzione di
       deploy, se la strategia non dice altro.
@@ -40,8 +41,8 @@ def search_args(cfg) -> dict:
         if vietata in conf:
             raise ValueError(
                 f"strategy.search.{vietata} non va indicato: lo decide yoloeval "
-                f"(data da dataset.yaml, project/name dalla cache)")
-    conf["data"] = str(cfg.dataset.yaml)
+                f"(data da pretrain_dataset.yaml, project/name dalla cache)")
+    conf["data"] = str(cfg.pretrain_dataset.yaml)
     conf.setdefault("imgsz", int(cfg.train.imgsz))
     pit = dict(conf.get("pit") or {})
     pit.setdefault("trace_imgsz", int(cfg.model.imgsz))
@@ -59,12 +60,11 @@ def run_search(cfg) -> Path | None:
         log.info("strategy=%s: nessuna ricerca da fare", strategy_name(cfg))
         return None
     tkey = training_key(cfg)
-    akey = adapt_key(cfg)
-    weights = find_by_key(cfg.artifacts_dir, "adapt", "adapt_key", akey)
+    weights = find_weights(cfg.artifacts_dir, tkey)
     if weights is None:
         raise MissingWeights(
-            f"nessun adattamento con adapt_key={akey}: eseguire prima `stage=train` e "
-            f"`stage=adapt` per {cfg.model.name}")
+            f"nessun artefatto con training_key={tkey}: eseguire prima `stage=train` per "
+            f"{cfg.model.name}")
     skey = search_key(cfg)
     out_dir = search_dir(cfg)
     meta_path = out_dir / "meta.json"
@@ -95,12 +95,11 @@ def run_search(cfg) -> Path | None:
         meta = {
             "search_key": skey,
             "training_key": tkey,
-            "adapt_key": akey,
             "strategy": strategy_name(cfg),
             "yolopit": yolopit_version(),
             "config": OmegaConf.to_container(cfg, resolve=True),
             "search_args": conf,
-            "dataset_hash": read_dataset_hash(cfg.dataset.local_path),
+            "dataset_hash": read_dataset_hash(cfg.pretrain_dataset.local_path),
             # mAP dell'architettura finale, sulla validazione di fine ricerca: e' anche la mAP
             # del modello potato appena esportato, prima del fine-tuning
             "metrics": {

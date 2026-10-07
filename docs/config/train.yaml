@@ -16,6 +16,13 @@
 epochs: 300
   # Intero. Con `patience` attiva Ultralytics puo' fermarsi prima: nel
   # meta.json trovi epochs_completed accanto al tempo.
+pretrained: true
+  # true | false | path. Se partire da pesi pretrained (con model.source pretrained o checkpoint dato a YOLO()).
+  # I conf del repo che allenano da zero (scratch) o importano baseline lo lasciano al default di Ultralytics.
+deterministic: true
+  # true | false. Operazioni deterministiche di PyTorch (piu' lente, riproducibili).
+cos_lr: false
+  # true | false. Scheduler coseno del learning rate al posto di quello lineare (con lrf il valore finale).
 batch: 16
   # Intero (immagini per batch), oppure un float fra 0 e 1 per la frazione di
   # VRAM da usare, oppure -1 per l'auto-batch.
@@ -56,3 +63,13 @@ hsv_s: 0.7
   # Saturazione.
 hsv_v: 0.4
   # Luminosita'.
+scale: 0.5
+  # Intervallo di scala casuale dell'immagine: fattore tra 1-scale e 1+scale (0 = nessun ridimensionamento).
+  # Con scale 0.5 un oggetto puo' diventare meta' o una volta e mezza piu' grande; per gli oggetti piccoli di
+  # Svanstrom nell'adapt si usa 0.
+translate: 0.1
+  # Traslazione casuale, frazione della dimensione dell'immagine.
+degrees: 0.0
+  # Rotazione casuale massima, in gradi.
+fliplr: 0.5
+  # Probabilita' di specchiatura orizzontale.

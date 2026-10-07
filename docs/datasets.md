@@ -2,8 +2,8 @@
 
 | dataset | uso | dove | come si ottiene |
 |---|---|---|---|
-| AOD4 | solo training da zero | `data/aod4/` | `scripts/provision/x86_local.sh` (Mendeley) |
-| Svanström | finetune prima del pruning e tutto il resto (search, finetune, valutazione, calibrazione) | `data/svanstrom/<subset>/` | `python tools/svanstrom.py` (anche dal provisioning) |
+| AOD4 | training da zero, search e finetune dei potati | `data/aod4/` | `scripts/provision/x86_local.sh` (Mendeley) |
+| Svanström | adapt (ultimo passo prima dell'export) e tutto il resto (valutazione, calibrazione) | `data/svanstrom/<subset>/` | `python tools/svanstrom.py` (anche dal provisioning) |
 
 Entrambi hanno le stesse 4 classi nello stesso ordine: `0 airplane`, `1 bird`,
 `2 drone`, `3 helicopter`. La testa del modello resta compatibile.

@@ -109,11 +109,38 @@ def test_adapt_key_cambia_con_adapt_destinazione_e_training(override):
     "quantization=int8",
     "hardware=jetson_orin",
     "finetune.epochs=7",
-    "strategy=pit_duccio",
 ])
-def test_adapt_key_non_cambia_con_export_hardware_e_pruning(override):
-    """Un solo adattamento per modello: vale per ogni board, backend e strategia."""
+def test_adapt_key_non_cambia_con_export_e_hardware(override):
+    """Un solo adattamento per modello: vale per ogni board e backend; la baseline ignora il
+    gruppo finetune."""
     assert adapt_key(make_cfg()) == adapt_key(make_cfg(override))
+
+
+def test_adapt_key_baseline_invariata():
+    """Lo stesso payload di prima dello spostamento dell'adapt: le cache in artifacts/adapt/
+    della baseline restano valide."""
+    from src.cache import _group, _sha
+
+    cfg = make_cfg()
+    assert adapt_key(cfg) == _sha({
+        "training_key": training_key(cfg),
+        "adapt": _group(cfg, "adapt"),
+        "dataset": _group(cfg, "dataset"),
+        "dataset_hash": None,
+    })[:8]
+
+
+@pytest.mark.parametrize("override", [
+    "finetune.epochs=7",
+    "strategy.search.regularizer.target.ops=30%",
+    "adapt.epochs=7",
+    "dataset.name=altro",
+])
+def test_adapt_key_pit_a_valle_del_finetune(override):
+    """Per le strategie l'adapt parte dal potato finetunato: cambia con ricerca e finetune."""
+    base = make_cfg("strategy=pit_duccio")
+    assert adapt_key(base) != adapt_key(make_cfg("strategy=pit_duccio", override))
+    assert adapt_key(base) != adapt_key(make_cfg())
 
 
 def test_baseline_default_e_chiavi_invariate():
@@ -151,11 +178,18 @@ def test_search_key_non_cambia_con_hardware_export_e_finetune(override):
     "train.epochs=42",
     "model=yolo26s",
     "model.imgsz=320",
-    "adapt.epochs=7",
-    "dataset.name=altro",
+    "pretrain_dataset.name=altro",
 ])
 def test_search_key_cambia_con_strategia_training_e_risoluzione(override):
     assert search_key(make_cfg("strategy=pit_duccio")) != \
+        search_key(make_cfg("strategy=pit_duccio", override))
+
+
+@pytest.mark.parametrize("override", ["adapt.epochs=7", "dataset.name=altro", "adapt=none"])
+def test_search_key_senza_adapt_ne_destinazione(override):
+    """La ricerca parte dal training e gira su AOD4: adapt e dataset di destinazione non ci
+    entrano."""
+    assert search_key(make_cfg("strategy=pit_duccio")) == \
         search_key(make_cfg("strategy=pit_duccio", override))
 
 
@@ -165,7 +199,8 @@ def test_finetune_key_e_weights_key():
                                                        "finetune.epochs=7"))
     assert finetune_key(base) != finetune_key(make_cfg(
         "strategy=pit_duccio", "strategy.search.regularizer.target.ops=30%"))
-    assert weights_key(base) == finetune_key(base) != training_key(base)
+    assert weights_key(base) == adapt_key(base)
+    assert len({weights_key(base), finetune_key(base), training_key(base)}) == 3
 
 
 def test_export_e_cella_distinguono_strategia_e_baseline():
@@ -183,3 +218,42 @@ def test_pretrain_dataset_punta_ad_aod4():
     cfg = make_cfg()
     assert cfg.pretrain_dataset.yaml.endswith("data/aod4/dataset.yaml")
     assert cfg.dataset.yaml.endswith("data/svanstrom/all/dataset.yaml")
+
+
+# --- adapt facoltativo -------------------------------------------------------------------
+
+from src.cache import adapt_enabled, final_weights  # noqa: E402
+
+
+@pytest.mark.parametrize("strategy, upstream", [("baseline", training_key),
+                                                ("pit_duccio", finetune_key)])
+def test_adapt_none_manda_all_export_i_pesi_dello_stadio_prima(strategy, upstream):
+    on = make_cfg(f"strategy={strategy}")
+    off = make_cfg(f"strategy={strategy}", "adapt=none")
+    assert adapt_enabled(on) and not adapt_enabled(off)
+    assert weights_key(off) == upstream(off) == upstream(on)
+    assert weights_key(off) != weights_key(on)
+    assert export_key(off) != export_key(on)
+    assert cell_key(off) != cell_key(on)
+
+
+def _meta(root, kind, name, **keys):
+    import json
+
+    d = root / kind / name
+    d.mkdir(parents=True)
+    (d / "meta.json").write_text(json.dumps(keys))
+    return d / "best.pt"
+
+
+@pytest.mark.parametrize("strategy", ["baseline", "pit_duccio"])
+def test_final_weights(tmp_path, strategy):
+    on = make_cfg(f"strategy={strategy}", f"artifacts_dir={tmp_path}")
+    off = make_cfg(f"strategy={strategy}", f"artifacts_dir={tmp_path}", "adapt=none")
+    assert final_weights(on) == (None, adapt_key(on))
+    kind, field = (("weights", "training_key") if strategy == "baseline"
+                   else ("finetune", "finetune_key"))
+    prima = _meta(tmp_path, kind, "a", **{field: weights_key(off)})
+    adattati = _meta(tmp_path, "adapt", "b", adapt_key=adapt_key(on))
+    assert final_weights(off) == (prima, weights_key(off))
+    assert final_weights(on) == (adattati, adapt_key(on))

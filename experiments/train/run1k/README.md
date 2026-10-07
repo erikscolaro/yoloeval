@@ -15,31 +15,28 @@ potato (search + finetune su AOD4, poi adapt)? Esperimento preliminare: un solo 
   `5b5558e3`: con `n: auto` il probe int8 piu' recente del Pi (01/10) darebbe N=4. Poi finetune del potato su AOD4
   dai pesi ereditati con `conf/finetune/musgd_500.yaml` (gli argomenti del finetune di riferimento, dal checkpoint
   `artifacts/complexity/_onnx/670b7067_640/best.pt`: 500 epoche, MuSGD lr0 0.01, `close_mosaic` 50, warmup 3, `pretrained`,
-  augmentation di default). Infine adapt su Svanström con `conf/adapt/default.yaml` e `workers` 6 (patience 10),
-  con `yolopit.PrunedTrainer` come `../../adapt/pruned_direct` (`stage=adapt` non carica pesi potati); risultati in
-  `runs/adapt_potato/`, fuori dalla cache.
+  augmentation di default). Infine `stage=adapt` del potato su Svanström con `conf/adapt/default.yaml` e `workers` 6
+  (patience 10): per le strategie pit l'adapt parte dal `best.pt` del finetune e usa `yolopit.PrunedTrainer`, come
+  `../../adapt/pruned_direct`.
 
-## Search e finetune su AOD4 con la pipeline
+## Search, finetune e adapt con la pipeline
 
-`stage=search` parte dal `best.pt` di un adapt (`adapt_key`) e prende i dati da `dataset`; `stage=finetune` usa lo
-stesso `dataset`. Con `dataset=aod4` entrambi girano su AOD4, ma serve un adapt su AOD4: lo fa
-`conf/adapt/identity.yaml`, un adapt che non cambia i pesi (un'epoca sull'1% del train, SGD con lr 0, tutti i layer
-congelati e le BatchNorm in eval, tranne l'ultima conv della testa one2one che non ha BN: Ultralytics vuole almeno
-un parametro allenabile). La sua validazione finale riporta la mAP del training; `run.py` controlla che il suo `best.pt`
-sia identico, tensore per tensore, a quello della fase 0 prima di lanciare la search. Nessuna modifica a `src/`.
+La catena delle strategie pit e' `train (AOD4) -> search -> finetune (AOD4) -> adapt (Svanström)`: `stage=search`
+parte dal `best.pt` del training e lavora su `pretrain_dataset` (AOD4), `stage=finetune` dal `pruned.pt` della search,
+sempre su AOD4, e `stage=adapt` porta il potato finetunato su `dataset` (Svanström). Tutto in cache, nessun
+trainer scritto a mano in `run.py`.
 
-Gli stessi override (`dataset=aod4 adapt=identity strategy=pit_duccio_pico strategy.search.pit.n=8
-finetune=musgd_500`) vanno a identita', search e finetune: le chiavi si concatenano. Cartelle (dalle chiavi, con
-i dati di oggi):
+Gli stessi override (`strategy=pit_duccio_pico strategy.search.pit.n=8 finetune=musgd_500 adapt.workers=6`) vanno a
+search, finetune e adapt: le chiavi si concatenano (`adapt.*` non entra in search e finetune). Cartelle (dalle
+chiavi, con i dati di oggi):
 
 | fase | cartella | smoke |
 |---|---|---|
 | train | `artifacts/weights/yolo26p_aod4_e1000_487d6cd9` | `yolo26p_aod4_e2_37eb60a2` |
-| ramo 1, adapt | `artifacts/adapt/yolo26p_svanstrom_all_13ae6c4c` | `yolo26p_svanstrom_all_ab896339` |
-| ramo 2, identita' | `artifacts/adapt/yolo26p_aod4_e0ef8a1b` | `yolo26p_aod4_21420157` |
-| ramo 2, search | `artifacts/search/yolo26p_aod4_pit_duccio_pico_b02d3252` | `..._c68f2c1f` |
-| ramo 2, finetune | `artifacts/finetune/yolo26p_aod4_pit_duccio_pico_6fa91ab2` | `..._bcf90e8a` |
-| ramo 2, adapt | `experiments/train/run1k/runs/adapt_potato/` | `runs/smoke_adapt_potato/` |
+| ramo 1, adapt | `artifacts/adapt/yolo26p_svanstrom_all_13ae6c4c` | `yolo26p_svanstrom_all_e8c07b04` |
+| ramo 2, search | `artifacts/search/yolo26p_aod4_pit_duccio_pico_c4f54039` | `..._30cb5b0e` |
+| ramo 2, finetune | `artifacts/finetune/yolo26p_aod4_pit_duccio_pico_e0262fe5` | `..._6de447ee` |
+| ramo 2, adapt | `artifacts/adapt/yolo26p-pit_duccio_pico_svanstrom_all_55ddd518` | `..._c7b70e40` |
 
 Le chiavi cambiano se cambiano i dati (hash del dataset) o yolopit; i nomi veri sono nei log.
 
@@ -53,18 +50,17 @@ Le chiavi cambiano se cambiano i dati (hash del dataset) o yolopit; i nomi veri 
 .venv/bin/python experiments/train/run1k/run.py ramo2           # solo il ramo 2 (dopo la fase 0)
 .venv/bin/python experiments/adapt/model_size/eval.py p=artifacts/adapt/yolo26p_svanstrom_all_c3b39818/best.pt \
     p1000=artifacts/adapt/yolo26p_svanstrom_all_311cab66/best.pt \
-    run1k=artifacts/adapt/yolo26p_svanstrom_all_<slug>/best.pt \
-    potato_run1k=experiments/train/run1k/runs/adapt_potato/weights/best.pt   # misura omogenea, solo val
+    run1k=artifacts/adapt/yolo26p_svanstrom_all_13ae6c4c/best.pt \
+    potato_run1k=artifacts/adapt/yolo26p-pit_duccio_pico_svanstrom_all_55ddd518/best.pt   # misura omogenea, solo val
 ```
 
-Gli stadi gia' in cache si saltano: rilanciare dopo un errore riparte dal primo stadio mancante (l'adapt del potato,
-fuori dalla cache, si rifa' sempre). Log in `runs/` (gitignored): `train.log`, `adapt.log`, `identity.log`,
-`search.log`, `finetune.log` (smoke: con prefisso `smoke_`); l'adapt del potato scrive su stdout e in
-`runs/adapt_potato/`. Gli artefatti dello smoke restano in cache (epoche 2 e 1 nelle `meta.json`) e si possono
-cancellare a mano con le loro voci in `index.json`.
+Gli stadi gia' in cache si saltano: rilanciare dopo un errore riparte dal primo stadio mancante. Log in `runs/`
+(gitignored): `train.log`, `adapt.log`, `search.log`, `finetune.log`, `adapt_potato.log` (smoke: con prefisso
+`smoke_`). Gli artefatti dello smoke restano in cache (epoche 2 e 1 nelle `meta.json`) e si possono cancellare a mano
+con le loro voci in `index.json`.
 
-Tempi stimati: fase 0 circa 10-12 ore (la tesi: 8.8 h, 31.6 s/epoca, con batch 128 e cache in RAM); identita' pochi
-minuti; search circa 1.2 h (la precedente: 60 epoche in 73 min); finetune circa 5 h; ogni adapt 15-35 min.
+Tempi stimati: fase 0 circa 10-12 ore (la tesi: 8.8 h, 31.6 s/epoca, con batch 128 e cache in RAM); search circa
+1.2 h (la precedente: 60 epoche in 73 min); finetune circa 5 h; ogni adapt 15-35 min.
 
 Confronti, tutti sul val di Svanström (mAP50 / mAP50-95): pico run1k adattato contro `c3b39818` (pico a 250 epoche,
 0.861 / 0.470) e `311cab66` (pico a 1000 epoche della tesi, 0.872 / 0.490); potato da run1k adattato contro il potato

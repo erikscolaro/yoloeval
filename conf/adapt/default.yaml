@@ -1,6 +1,6 @@
-# Adattamento al dataset di destinazione (Svanstrom) dei pesi di stage=train, per ogni modello,
-# prima del pruning. Ricetta di partenza: finetune/musgd (la migliore dell'ablation sul
-# fine-tuning dei potati), poi scelta con le ablation di experiments/adapt (lr, optimizer, imgsz):
+# Adattamento al dataset di destinazione (Svanstrom), ultimo passo prima dell'export: dei pesi di stage=train per la
+# baseline, del potato di stage=finetune per le strategie pit (adapt=none per saltarlo).
+# Ricetta di partenza: finetune/musgd (la migliore dell'ablation sul fine-tuning dei potati), poi scelta con le ablation di experiments/adapt (lr, optimizer, imgsz):
 # MuSGD lr0 1e-4, mosaic 1.0, warmup 2, 40 epoche (patience 15), rete intera, imgsz 640.
 # I nomi coincidono con gli argomenti di model.train() di Ultralytics.
 epochs: 40

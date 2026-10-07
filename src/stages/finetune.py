@@ -1,7 +1,9 @@
 """Stadio `finetune` — fine-tuning del modello potato, solo per le strategie `method: pit`.
 
-Parte da `artifacts/search/.../pruned.pt` (stesso search_key) e mette `best.pt` in
-`artifacts/finetune/`: sono i pesi che la strategia manda all'export.
+Parte da `artifacts/search/.../pruned.pt` (stesso search_key), lavora sul dataset di
+pretraining (`pretrain_dataset`, AOD4) come la ricerca e mette `best.pt` in
+`artifacts/finetune/`: il punto di partenza di `stage=adapt`, o con `adapt=none` i pesi che la
+strategia manda all'export.
 """
 
 from __future__ import annotations
@@ -12,7 +14,7 @@ from pathlib import Path
 
 from omegaconf import OmegaConf
 
-from ..cache import (adapt_key, find_by_key, finetune_dir, finetune_key, is_baseline,
+from ..cache import (find_by_key, finetune_dir, finetune_key, is_baseline,
                      read_dataset_hash, search_key, strategy_name, training_key, update_index,
                      yolopit_version)
 from ..env import collect_versions
@@ -62,7 +64,7 @@ def run_finetune(cfg) -> Path | None:
         model = YOLO(str(search / "pruned.pt"))
 
     with timer.phase("compute"):
-        results = model.train(data=str(cfg.dataset.yaml), project=str(out_dir), name="run",
+        results = model.train(data=str(cfg.pretrain_dataset.yaml), project=str(out_dir), name="run",
                               exist_ok=True, trainer=PrunedTrainer, **args)
 
     with timer.phase("teardown"):
@@ -74,11 +76,10 @@ def run_finetune(cfg) -> Path | None:
             "finetune_key": fkey,
             "search_key": skey,
             "training_key": training_key(cfg),
-            "adapt_key": adapt_key(cfg),
             "strategy": strategy_name(cfg),
             "yolopit": yolopit_version(),
             "config": OmegaConf.to_container(cfg, resolve=True),
-            "dataset_hash": read_dataset_hash(cfg.dataset.local_path),
+            "dataset_hash": read_dataset_hash(cfg.pretrain_dataset.local_path),
             "metrics": {
                 "map50": float(results.box.map50),
                 "map50_95": float(results.box.map),

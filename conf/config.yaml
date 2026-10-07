@@ -4,15 +4,15 @@ defaults:
   - stage: benchmark
   - model: yolo26n
   - train: short
-  - dataset: svanstrom                 # destinazione: adapt, search, finetune, export, misure
-  - dataset@pretrain_dataset: aod4      # solo stage=train
+  - dataset: svanstrom                 # destinazione: adapt, export, misure
+  - dataset@pretrain_dataset: aod4      # train, search, finetune
   - quantization: fp32
   - backend: onnxruntime
   - hardware: wks4_rtx6000
   - eval: default
   - logging: wandb
   - strategy: baseline
-  - adapt: default
+  - adapt: default                     # none: niente adattamento, all'export i pesi dello stadio prima
   - finetune: default
   - _self_
 

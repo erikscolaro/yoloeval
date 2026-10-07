@@ -1,14 +1,16 @@
 # Riferimento dei campi di conf/adapt/<nome>.yaml
 #
-# Adattamento al dataset di destinazione (`dataset`, Svanstrom) dei pesi di stage=train
-# (allenati su `pretrain_dataset`, AOD4). Obbligatorio per ogni modello, scratch o
-# pretrained: i suoi pesi vanno all'export per la baseline e sono il punto di partenza della
-# ricerca PIT. Trainer standard di Ultralytics.
+# Adattamento al dataset di destinazione (`dataset`, Svanstrom), ultimo passo prima
+# dell'export: parte dai pesi di stage=train per la baseline e dal potato di stage=finetune per
+# le strategie pit (tutti allenati su `pretrain_dataset`, AOD4). Trainer standard di
+# Ultralytics per la baseline, PrunedTrainer di yolopit per i potati.
+# Facoltativo: `adapt=none` (conf/adapt/none.yaml, gruppo vuoto) lo salta e all'export vanno i
+# pesi del training (baseline) o del fine-tuning (strategie).
 # I nomi coincidono con gli argomenti di model.train() di Ultralytics (vedi train.yaml): puoi
 # aggiungere qualsiasi argomento accettato da Ultralytics.
 #
-# Quello che NON va messo qui: `data` (arriva da dataset.yaml), `project` e `name` (li decide
-# la cache). `imgsz`, se manca, e' train.imgsz.
+# Quello che NON va messo qui: `data` (arriva da dataset.yaml), `project`, `name` e `trainer`
+# (li decide yoloeval). `imgsz`, se manca, e' train.imgsz.
 #
 # Ogni campo entra nella chiave dell'adattamento (adapt_key), tranne `workers` e `cache`,
 # che non cambiano il risultato.
@@ -35,5 +37,13 @@ mixup: 0.0
 hsv_h: 0.015
 hsv_s: 0.7
 hsv_v: 0.4
+scale: 0.5
+fliplr: 0.5
+degrees: 0.0
+shear: 0.0
+translate: 0.1
+bgr: 0.0
+copy_paste: 0.0
+  # In Ultralytics agisce solo con i segmenti: inerte sul detect.
 imgsz: 640
   # Facoltativo. Se manca, train.imgsz.

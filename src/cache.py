@@ -1,24 +1,26 @@
 """Chiavi, naming degli artefatti e indice.
 
-La catena dei pesi e' training (AOD4) -> adapt (Svanstrom) -> [search -> finetune] -> export:
+La catena dei pesi e' training (AOD4) -> [search -> finetune (AOD4)] -> [adapt (Svanstrom)] -> export:
 
 * `training_key` dipende solo da model, train, pretrain_dataset (piu' l'hash del
   dataset). Se dipendesse anche da backend o hardware, lo stesso modello
   verrebbe riallenato per ogni cella della matrice.
-* `adapt_key` = training_key + gruppo `adapt` + `dataset` (piu' il suo hash): il
-  fine-tuning sul dataset di destinazione, obbligatorio per ogni modello.
+* `adapt_key` = chiave a monte (training_key per la baseline, finetune_key per le
+  strategie) + gruppo `adapt` + `dataset` (piu' il suo hash): il fine-tuning sul dataset
+  di destinazione, ultimo passo prima dell'export. Facoltativo: `adapt=none` lo salta.
 * `export_key` aggiunge quantizzazione, backend e architettura — piu' la
   versione dell'SDK per Axelera, perche' un aggiornamento invalida i modelli
   gia' compilati.
 * `cell_key` identifica la singola misura e include tutti gli assi.
 
-Con una strategia di compressione (`strategy.method: pit`) la catena si allunga:
+Con una strategia di compressione (`strategy.method: pit`) la catena si allunga, sul
+dataset di pretraining:
 
-* `search_key` = adapt_key + gruppo `strategy` + versione di yolopit + risoluzione dei
+* `search_key` = training_key + gruppo `strategy` + versione di yolopit + risoluzione dei
   costi. Niente hardware: la stessa ricerca vale per ogni board.
 * `finetune_key` = search_key + gruppo `finetune`.
-* `weights_key` e' la chiave dei pesi che arrivano all'export: l'adapt_key per la
-  baseline, il finetune_key per le strategie.
+* `weights_key` e' la chiave dei pesi che arrivano all'export: l'adapt_key, oppure con
+  `adapt=none` il training_key per la baseline e il finetune_key per le strategie.
 
 Questo modulo non conosce i backend: riceve il config e produce stringhe.
 """
@@ -146,14 +148,35 @@ def training_key(cfg: DictConfig) -> str:
     return _sha(payload)[:8]
 
 
+def adapt_enabled(cfg: DictConfig) -> bool:
+    """`adapt=none` (gruppo vuoto) salta l'adattamento."""
+    return bool(cfg.get("adapt"))
+
+
+def pre_adapt(cfg: DictConfig) -> tuple[str, str, str]:
+    """(cartella di artifacts/, campo del meta.json, chiave) dei pesi a monte dell'adapt:
+    il training per la baseline, il fine-tuning del potato per le strategie."""
+    if is_baseline(cfg):
+        return "weights", "training_key", training_key(cfg)
+    return "finetune", "finetune_key", finetune_key(cfg)
+
+
 def adapt_key(cfg: DictConfig) -> str:
-    """training_key + gruppo `adapt` + dataset di destinazione e il suo hash."""
+    """Chiave a monte + gruppo `adapt` + dataset di destinazione e il suo hash. Per la
+    baseline il payload e' quello di sempre (training_key in testa): le cache restano."""
+    _, field, key = pre_adapt(cfg)
     return _sha({
-        "training_key": training_key(cfg),
+        field: key,
         "adapt": _group(cfg, "adapt"),
         "dataset": _group(cfg, "dataset"),
         "dataset_hash": read_dataset_hash(cfg.dataset.local_path),
     })[:8]
+
+
+def weights_chain(cfg: DictConfig) -> list[str]:
+    """Gli stadi che producono i pesi dell'export, nell'ordine."""
+    stages = ["train"] if is_baseline(cfg) else ["train", "search", "finetune"]
+    return stages + (["adapt"] if adapt_enabled(cfg) else [])
 
 
 def is_baseline(cfg: DictConfig) -> bool:
@@ -178,11 +201,12 @@ def yolopit_version() -> str | None:
 
 
 def search_key(cfg: DictConfig) -> str:
-    """adapt_key + strategia + yolopit + risoluzione dei costi. Niente hardware."""
+    """training_key + strategia + yolopit + risoluzione dei costi. Niente hardware, niente
+    dataset di destinazione: la ricerca gira sul dataset di pretraining."""
     if is_baseline(cfg):
         raise ValueError("search_key non esiste per strategy=baseline")
     payload = {
-        "adapt_key": adapt_key(cfg),
+        "training_key": training_key(cfg),
         "strategy": _group(cfg, "strategy"),
         "yolopit": yolopit_version(),
         "cost_imgsz": int(cfg.model.imgsz),
@@ -214,8 +238,8 @@ def finetune_key(cfg: DictConfig) -> str:
 
 
 def weights_key(cfg: DictConfig) -> str:
-    """Chiave dei pesi che vanno all'export: adapt_key per la baseline."""
-    return adapt_key(cfg) if is_baseline(cfg) else finetune_key(cfg)
+    """Chiave dei pesi che vanno all'export: l'adapt_key, o con `adapt=none` quella a monte."""
+    return adapt_key(cfg) if adapt_enabled(cfg) else pre_adapt(cfg)[2]
 
 
 def model_label(model: str, strategy: str | None) -> str:
@@ -288,18 +312,19 @@ def weights_dir(cfg: DictConfig) -> Path:
 
 
 def adapt_dir(cfg: DictConfig) -> Path:
+    label = model_label(cfg.model.name, strategy_name(cfg))
     return (Path(cfg.artifacts_dir) / "adapt"
-            / f"{cfg.model.name}_{cfg.dataset.name}_{adapt_key(cfg)}")
+            / f"{label}_{cfg.dataset.name}_{adapt_key(cfg)}")
 
 
 def search_dir(cfg: DictConfig) -> Path:
-    return (Path(cfg.artifacts_dir) / "search"
-            / f"{cfg.model.name}_{cfg.dataset.name}_{strategy_name(cfg)}_{search_key(cfg)}")
+    return (Path(cfg.artifacts_dir) / "search" / f"{cfg.model.name}_{cfg.pretrain_dataset.name}"
+            f"_{strategy_name(cfg)}_{search_key(cfg)}")
 
 
 def finetune_dir(cfg: DictConfig) -> Path:
-    return (Path(cfg.artifacts_dir) / "finetune"
-            / f"{cfg.model.name}_{cfg.dataset.name}_{strategy_name(cfg)}_{finetune_key(cfg)}")
+    return (Path(cfg.artifacts_dir) / "finetune" / f"{cfg.model.name}_{cfg.pretrain_dataset.name}"
+            f"_{strategy_name(cfg)}_{finetune_key(cfg)}")
 
 
 def find_by_key(artifacts_dir: str | Path, kind: str, field: str, key: str) -> Path | None:
@@ -315,15 +340,12 @@ def find_by_key(artifacts_dir: str | Path, kind: str, field: str, key: str) -> P
 
 
 def final_weights(cfg: DictConfig) -> tuple[Path | None, str]:
-    """(pesi che vanno all'export, chiave). Baseline: best.pt dell'adattamento; strategie:
-    best.pt del fine-tuning."""
-    if is_baseline(cfg):
-        akey = adapt_key(cfg)
-        d = find_by_key(cfg.artifacts_dir, "adapt", "adapt_key", akey)
-        return (d / "best.pt" if d else None), akey
-    fkey = finetune_key(cfg)
-    d = find_by_key(cfg.artifacts_dir, "finetune", "finetune_key", fkey)
-    return (d / "best.pt" if d else None), fkey
+    """(pesi che vanno all'export, chiave): best.pt dell'adattamento; con `adapt=none` quello
+    del training (baseline) o del fine-tuning (strategie)."""
+    kind, field, key = (("adapt", "adapt_key", adapt_key(cfg)) if adapt_enabled(cfg)
+                        else pre_adapt(cfg))
+    d = find_by_key(cfg.artifacts_dir, kind, field, key)
+    return (d / "best.pt" if d else None), key
 
 
 def export_dir(cfg: DictConfig) -> Path:
