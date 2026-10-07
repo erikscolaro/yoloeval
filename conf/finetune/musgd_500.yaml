@@ -1,0 +1,24 @@
+# Fine-tuning del potato su AOD4 dai pesi ereditati dalla search (experiments/train/run1k): gli argomenti del
+# finetune del pico potato di riferimento (`train_args` di artifacts/complexity/_onnx/670b7067_640/best.pt), il resto
+# ai default di Ultralytics come in quel run. I nomi coincidono con gli argomenti di model.train() di Ultralytics.
+epochs: 500
+batch: 64
+workers: 12
+cache: disk             # fuori dalle chiavi
+optimizer: MuSGD
+lr0: 0.01
+lrf: 0.01
+cos_lr: false
+momentum: 0.937
+weight_decay: 0.0005
+warmup_epochs: 3
+patience: 500           # niente early stopping
+close_mosaic: 50
+seed: 42
+pretrained: true
+mosaic: 1.0
+mixup: 0.0
+scale: 0.5
+hsv_h: 0.015
+hsv_s: 0.7
+hsv_v: 0.4
