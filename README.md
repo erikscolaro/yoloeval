@@ -4,7 +4,7 @@ Misura latenza, accuratezza ed energia di YOLO26 su hardware edge. Confronta i m
 Ultralytics (baseline) con quelli potati da [yolopit](https://github.com/erikscolaro/yolopit)
 (ricerca PIT di PLiNIO, canali a blocchi di N). Classi: airplane, bird, drone, helicopter.
 Dataset: uno solo per training, pruning, fine-tuning e misure, costruito nella repo
-`~/Desktop/torretta-dataset` (Svanström più aggiunte, 640×512, split per video). Piano: `NEW_MASTERPLAN.md`.
+`~/Desktop/air-detection` (Svanström più aggiunte, 640×512, split per video). Piano: `NEW_MASTERPLAN.md`.
 
 Un solo entry point, `run.py`, con configurazione [Hydra](https://hydra.cc): ogni asse è un
 gruppo in `conf/`, ogni campo è documentato in [`docs/config/`](docs/config/).

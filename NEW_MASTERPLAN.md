@@ -427,7 +427,7 @@ Ogni passo dipende da quello prima.
    - Fonti scelte quando si crea il dataset (candidate in `docs/ricerca_dataset.md`), a colori, da terra verso il
      cielo; le immagini entrano a **640×512**, come Svanström. Box proposti da un detector a vocabolario aperto,
      resi aderenti con SAM 2 e rivisti a mano.
-6. **Selezione dei frame per video**: via i quasi-duplicati con l'hash semantico (come in `tools/svanstrom.py`, ora nella repo `~/Desktop/torretta-dataset`).
+6. **Selezione dei frame per video**: via i quasi-duplicati con l'hash semantico (come in `tools/svanstrom.py`, ora nella repo `~/Desktop/air-detection`).
 7. **Split per video** (70/20/10), su tutte le fonti insieme, bilanciato sulla matrice classe × fascia (lo schema dello stesso
    script). Va fatto **prima** del bilanciamento finale, così nessun video finisce in due split. Dai
    video di val e test si tolgono le immagini con oggetti sotto i 16 px (restano solo nei video di train). Poi un

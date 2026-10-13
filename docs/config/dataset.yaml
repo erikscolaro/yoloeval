@@ -31,4 +31,4 @@ subset: all
   # > 96 px); `background` solo i frame senza, da aggiungere a mano. Entra
   # in `name` e `local_path`, quindi ogni sottoinsieme ha artefatti e copia
   # sulla board suoi. Split identici fra sottoinsiemi: il dataset li
-  # fa per video, per classe, bilanciando le fasce (repo torretta-dataset).
+  # fa per video, per classe, bilanciando le fasce (repo air-detection).
