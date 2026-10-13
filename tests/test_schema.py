@@ -29,7 +29,7 @@ def _rec(**kw):
 
 def test_assi_appiattiti():
     rec, _ = _rec()
-    assert rec["axes"]["board"] == "jetson_orin_nx"
+    assert rec["axes"]["board"] == "jetson_agx_orin"
     assert rec["axes"]["freq_target"] == "w15"
     assert rec["axes"]["compute_target"] == "cpu_2"
     assert rec["axes"]["training_key"] == "a3f2c891"
@@ -46,7 +46,7 @@ def test_record_ok_conforme():
                                  "end_to_end_with_transfers"),
         "runtime_state": {"cores_online": 4},
     })
-    rec["timing"] = PhaseTimer("jetson_orin_nx").block()
+    rec["timing"] = PhaseTimer("jetson_agx_orin").block()
     assert validate_record(rec) == []
     # il raw stdout non finisce nel JSON: sta nel file .raw.txt accanto
     assert "raw_stdout" not in rec["latency"]
@@ -65,7 +65,7 @@ def test_record_failed_porta_errore_traccia_e_timing():
         raise ValueError("engine non caricabile")
     except ValueError as exc:
         failed(rec, exc)
-    rec["timing"] = PhaseTimer("jetson_orin_nx").block()
+    rec["timing"] = PhaseTimer("jetson_agx_orin").block()
     assert "ValueError" in rec["error"]
     assert "Traceback" in rec["trace"]
     assert validate_record(rec) == []

@@ -10,7 +10,7 @@ defaults: [rpi5, _self_]
   # Facoltativo. Una variante della stessa board eredita dal file base e scrive solo le
   # differenze (rpi5_axelera.yaml = rpi5.yaml + scheda Metis, container e compute axelera).
 
-board: jetson_orin_nx
+board: jetson_agx_orin
   # OBBLIGATORIO. Stringa libera: e' il nome con cui la board compare nei
   # risultati (axes.board) e nelle tabelle del report.
   # Se ometti `controller`, il controller viene scelto dal prefisso di questo

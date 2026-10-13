@@ -171,6 +171,9 @@ class JetsonController(BoardController):
         )
         if active == fq.nvpmodel_id:
             log.debug("profilo %s (nvpmodel %s) gia' attivo", target, active)
+            if fq.get("jetson_clocks", True):
+                # dopo un riavvio il profilo resta, i clock fissati no
+                conn.run("sudo jetson_clocks", hide=True, warn=True)
             return conn
 
         # `nvpmodel` chiede conferma interattiva quando serve il riavvio:

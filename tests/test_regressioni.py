@@ -95,9 +95,11 @@ def test_profilo_gia_attivo_non_viene_riapplicato(monkeypatch):
     monkeypatch.setattr(jetson, "SETTLE_S", 0)
     cfg = make_cfg("hardware=jetson_orin", "freq_target=w15",
                    "compute_target=cpu_2")
-    conn = SequenceConn([2])            # w15 = nvpmodel 2, gia' attivo
+    conn = SequenceConn([1])            # w15 = nvpmodel 1, gia' attivo
     JetsonController(cfg).set_profile(conn, cfg, "w15")
     assert not any("nvpmodel -m" in c for c in conn.commands)
+    # i clock si rifissano comunque: dopo un riavvio il profilo resta, jetson_clocks no
+    assert any("jetson_clocks" in c for c in conn.commands)
 
 
 def test_post_reboot_non_scrive_sul_config(monkeypatch):
@@ -107,7 +109,7 @@ def test_post_reboot_non_scrive_sul_config(monkeypatch):
     import src.remote.provision as provision
 
     monkeypatch.setattr(jetson, "SETTLE_S", 0)
-    nuova = SequenceConn([2])
+    nuova = SequenceConn([1])
     monkeypatch.setattr(provision, "reboot_and_wait", lambda c, cfg, **k: nuova)
     monkeypatch.setattr(provision, "ensure_env", lambda c, cfg, **k: False)
 
@@ -143,7 +145,7 @@ def test_governor_non_ripristinato_fa_scattare_l_avviso():
 
 def test_validazione_e_map_contano_come_calcolo():
     """Una passata di mAP su CPU ARM dura piu' della misura che accompagna."""
-    timer = PhaseTimer("jetson_orin_nx")
+    timer = PhaseTimer("jetson_agx_orin")
     timer.add("compute", 10.0)
     timer.add("accuracy", 3600.0)
     timer.add("validation", 60.0)

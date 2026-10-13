@@ -70,7 +70,7 @@ def test_export_key_leggibile_e_senza_hardware_specifico():
     assert key.startswith("yolo26s_")
     assert key.endswith("_int8_tensorrt_aarch64")
     # la board non entra: lo stesso engine vale per ogni Jetson della stessa arch
-    assert "jetson_orin_nx" not in key
+    assert "jetson_agx_orin" not in key
 
 
 def test_export_key_axelera_include_la_versione_sdk():

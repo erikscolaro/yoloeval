@@ -1,9 +1,11 @@
-board: jetson_orin_nx
+# Jetson AGX Orin (NEW_MASTERPLAN §3): misure in MAXN con i clock fissati (jetson_clocks), GPU con
+# TensorRT; w15 solo per la robustezza a bassa potenza (B5-3).
+board: jetson_agx_orin
 arch: aarch64
 os: ubuntu22
 jetpack: "6.2"
 soc: orin
-n_cores_total: 8
+n_cores_total: 12
 trt_available: true
 axelera_available: false
 power_sensors: true            # tegrastats
@@ -18,12 +20,12 @@ provision:
   script: scripts/provision/jetson_jp62.sh
   requirements: scripts/requirements/aarch64-jp62.txt
 
-# ID e cores_online DA VERIFICARE sulla board con `sudo nvpmodel -q --verbose`:
-# variano per variante di modulo (8GB / 16GB) e per versione di JetPack.
+# ID e cores_online DA VERIFICARE sulla board con `sudo nvpmodel -q --verbose`: questi sono
+# dell'AGX Orin 64GB (0 MAXN, 1 15W, 2 30W, 3 50W); il 32GB ha MAXN a 8 core.
 freq:
-  maxn: {nvpmodel_id: 0, governor: performance, cores_online: 8}
-  w30: {nvpmodel_id: 1, governor: performance, cores_online: 8}
-  w15: {nvpmodel_id: 2, governor: performance, cores_online: 4}
+  maxn: {nvpmodel_id: 0, governor: performance, cores_online: 12}
+  w30: {nvpmodel_id: 2, governor: performance, cores_online: 8}
+  w15: {nvpmodel_id: 1, governor: performance, cores_online: 4}
 
 compute:
   gpu: {device: cuda}
@@ -31,6 +33,7 @@ compute:
   cpu_2: {device: cpu, n_cores: 2}
   cpu_4: {device: cpu, n_cores: 4}
   cpu_8: {device: cpu, n_cores: 8, requires_freq: [maxn, w30]}
+  cpu_12: {device: cpu, n_cores: 12, requires_freq: [maxn]}
 
 # Tetti da datasheet per il roofline (facoltativi, vedi docs/config/hardware.yaml): dipendono
 # dalla variante del modulo e dal profilo nvpmodel. Da compilare dalla scheda tecnica, per
