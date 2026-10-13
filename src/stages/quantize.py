@@ -135,7 +135,8 @@ def _unquantize_scalars(path: Path) -> int:
     il builder non ammette costanti quantizzate fuori dal pattern peso -> DQ
     di una conv. Si sostituisce il DequantizeLinear con il valore float che
     produrrebbe: e' un moltiplicatore, non un tensore su cui gira un kernel,
-    quindi tenerlo in float non toglie niente alla quantizzazione del grafo.
+    quindi tenerlo in float non toglie niente alla quantizzazione del grafo. Si fa per
+    tutti i backend, cosi' il grafo e' lo stesso per onnxruntime, OpenVINO e TensorRT.
     """
     import numpy as np
     import onnx
@@ -178,33 +179,29 @@ def _unquantize_scalars(path: Path) -> int:
     return len(folded)
 
 
-def quantize_onnx_static(src: Path, dst: Path, cfg, symmetric: bool = False,
-                         op_types: list[str] | None = None) -> Path:
-    """PTQ statica su ONNX, formato QDQ.
+def quantize_onnx_static(src: Path, dst: Path, cfg, tensorrt: bool = False) -> Path:
+    """PTQ statica su ONNX in QDQ, con un solo schema per tutti i backend.
 
-    QDQ (e non QOperator) perche' e' il formato che ONNX Runtime, TensorRT e
-    OpenVINO sanno tutti consumare: lo stesso file resta confrontabile fra
-    backend.
+    Lo stesso grafo quantizzato serve onnxruntime, OpenVINO (`openvino_qdq`) e TensorRT, cosi'
+    le differenze fra backend non dipendono dalla quantizzazione. Lo schema e' quello che
+    accettano tutti e tre (TensorRT impone il simmetrico):
+    - pesi int8 simmetrici, una scala per canale;
+    - attivazioni int8 simmetriche, zero point nullo;
+    - QDQ (e non QOperator), il formato che i tre backend sanno consumare.
 
-    `symmetric=True` produce il QDQ che accetta TensorRT: attivazioni INT8
-    con zero point nullo (con UINT8 il parser si ferma con "unsupported input
-    type of UINT8") e bias non quantizzati. Immagini e metodo di calibrazione
-    restano gli stessi, cambia solo la rappresentazione.
+    `tensorrt=True` cambia solo la rappresentazione dei bias, che restano in float: il parser
+    di TensorRT non accetta un DequantizeLinear su un bias int32, ed e' TensorRT a fonderlo
+    nella conv. Per onnxruntime e OpenVINO i bias restano int32.
 
-    `op_types` sceglie quali nodi quantizzare, per tipo: gli altri restano in float. Se manca,
-    per onnxruntime vale `quantize_op_types` di backend_args.onnxruntime; TensorRT passa il
-    suo `backend.int8.quantize_op_types`. `quantize_op_types: null` quantizza tutti i tipi.
-
-    Calibrazione da backend_args.onnxruntime: `calibration_method` (minmax, il default;
-    percentile; entropy) e `calibration_options`, le extra_options del calibratore di
-    onnxruntime (CalibMovingAverage, CalibMovingAverageConstant, CalibPercentile,
-    CalibMaxIntermediateOutputs). Con quantize_static entropy usa 128 bin e 128 bin quantizzati,
-    non modificabili: c'e' una sola soglia candidata e il risultato coincide con minmax.
-
-    Da backend_args.onnxruntime, sempre (anche con `op_types`):
+    Da `quantization.backend_args.onnxruntime`:
+    - `quantize_op_types`: tipi di nodo da quantizzare (null = tutti); gli altri in float;
     - `quantize_exclude_op_types`: tipi che restano in float (es. Softmax);
     - `quantize_exclude_regex`: regex sul nome dei nodi che restano in float (es. la coda della
-      testa: decode, ultima conv di box e score, TopK).
+      testa: decode, ultima conv di box e score, TopK);
+    - `calibration_method` (minmax, il default; percentile; entropy) e `calibration_options`,
+      le extra_options del calibratore (CalibMovingAverage, CalibMovingAverageConstant,
+      CalibPercentile). Con quantize_static entropy usa 128 bin non modificabili e coincide
+      con minmax.
     """
     import re
 
@@ -229,8 +226,7 @@ def quantize_onnx_static(src: Path, dst: Path, cfg, symmetric: bool = False,
     prepped = dst.with_suffix(".prep.onnx")
     quant_pre_process(str(src), str(prepped), skip_symbolic_shape=False)
 
-    if op_types is None and not symmetric:
-        op_types = args.get("quantize_op_types")
+    op_types = args.get("quantize_op_types")
     skip_types = set(args.get("quantize_exclude_op_types") or [])
     patterns = [re.compile(r) for r in (args.get("quantize_exclude_regex") or [])]
     # per nome del nodo e non con op_types_to_quantize: cosi' la calibrazione resta su tutti i
@@ -249,32 +245,28 @@ def quantize_onnx_static(src: Path, dst: Path, cfg, symmetric: bool = False,
     if method not in methods:
         raise ValueError(f"calibration_method {method!r}: ammessi {sorted(methods)}")
     extra = dict(args.get("calibration_options") or {})
-    if symmetric:
-        # Per TensorRT: bias in FP32, perche' il parser non accetta un DequantizeLinear su bias
-        # INT32; e' TensorRT a fonderlo nella conv.
-        extra.update({"ActivationSymmetric": True, "WeightSymmetric": True,
-                      "QuantizeBias": False})
-    if method != "minmax" or extra:
-        log.info("calibrazione %s %s", method, extra or "")
+    log.info("calibrazione %s %s", method, extra or "")
+    # asimmetrico (uint8 con zero point) solo per onnxruntime: TensorRT lo rifiuta
+    symmetric = bool(args.get("activation_symmetric", True))
+    extra.update({"ActivationSymmetric": symmetric, "WeightSymmetric": True})
+    if tensorrt:
+        extra["QuantizeBias"] = False
 
-    fmt = QuantFormat.QDQ if str(args.get("quant_format", "QDQ")).upper() == "QDQ" \
-        else QuantFormat.QOperator
     quantize_static(
         str(prepped),
         str(dst),
         reader,
-        quant_format=fmt,
-        per_channel=bool(args.get("per_channel", True)),
-        reduce_range=bool(args.get("reduce_range", False)),
+        quant_format=QuantFormat.QDQ,
+        per_channel=True,
+        reduce_range=False,
         activation_type=QuantType.QInt8 if symmetric else QuantType.QUInt8,
         weight_type=QuantType.QInt8,
         calibrate_method=methods[method],
         nodes_to_exclude=exclude,
-        extra_options=extra or None,
+        extra_options=extra,
     )
     prepped.unlink(missing_ok=True)
-    if symmetric:
-        _unquantize_scalars(dst)
+    _unquantize_scalars(dst)
     write_manifest(dst.parent, files)
     log.info("quantizzazione INT8 completata su %d immagini", len(files))
     return dst

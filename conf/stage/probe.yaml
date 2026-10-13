@@ -22,11 +22,10 @@ sweep:
   c_max: 96
   c_step: 1
   repeats: 3              # passate, ognuna in ordine casuale; per ogni C la mediana
-  n_candidates: null      # null -> 1, 2, 4, ... (almeno 2 multipli nel range)
-  tolerance: 0.02         # un multiplo di N e' "allineato" se e' entro il 2% dell'efficienza
-                          #   migliore vista nei `window` canali precedenti
-  window: 32
-  max_violations: 0.2     # frazione di multipli non allineati tollerata (misure sporche)
+  n_candidates: null      # null -> 2, 4, 8, ... (almeno 3 confronti nel range)
+  tolerance: 0.03         # N passa se i multipli di N/2 non di N hanno efficienza mediana
+                          #   sotto il 97% dei due multipli di N vicini; N = il piu' grande che passa
+  c_from: 8               # i confronti partono da qui: sotto, latenze troppo piccole e rumorose
   seed: 0
   shapes:                 # forme dei layer delle reti dummy: N per forma; l'N globale
                           #   viene solo da quelle con in_global: true (qui la conv 3x3)

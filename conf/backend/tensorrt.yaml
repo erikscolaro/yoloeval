@@ -13,21 +13,21 @@ build:
   workspace_mb: 4096
   timeout_s: 1800
 
-# INT8 esplicito: ONNX QDQ (stessa calibrazione di onnxruntime), resa simmetrica per TensorRT.
+# INT8 esplicito: lo stesso ONNX QDQ di onnxruntime e openvino_qdq (nodi e calibrazione dalla
+# conf di quantizzazione), con i bias in float.
 int8:
-  quantize_op_types: [Conv, Gemm, MatMul]   # nodi quantizzati, gli altri restano in float;
-                                            # null quantizza tutto (la testa porta gli score a 0)
   fp16: true                   # i layer non quantizzati in FP16 invece che FP32 (--fp16)
 
 benchmark:
   tool: trtexec
-  # --noDataTransfers=false e' obbligatorio: al default trtexec esclude i
-  # trasferimenti host<->device e il tempo non e' confrontabile con perf_test.
+  # Niente --noDataTransfers: al default trtexec misura i trasferimenti host<->device (H2D e
+  # D2H dentro la riga Latency). Il flag e' booleano e trtexec ignora il valore: anche
+  # --noDataTransfers=false li esclude (H2D Latency 0 ms negli output del 30/9).
   cmd: >
     trtexec --loadEngine={engine}
             --iterations={iters} --warmUp={warmup_ms}
             --avgRuns={iters} --duration=0
-            --useSpinWait --noDataTransfers=false
+            --useSpinWait
   iters: 200
   warmup_ms: 2000
   parse: trtexec

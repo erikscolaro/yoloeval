@@ -24,7 +24,7 @@ CONF = ROOT / "conf"
 VARIANTI = {"freq", "compute", "backend_args"}
 
 GRUPPI = ["stage", "model", "train", "dataset", "quantization", "backend",
-          "hardware", "eval", "logging", "strategy", "adapt", "finetune"]
+          "hardware", "eval", "logging", "strategy", "finetune"]
 
 
 def chiavi(node, prefisso: str = "") -> set[str]:

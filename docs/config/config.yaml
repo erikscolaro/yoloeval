@@ -12,7 +12,6 @@ defaults:
   - train: default
   - dataset: svanstrom
   - dataset@pretrain_dataset: aod4
-  - adapt: default
   - quantization: fp32
   - backend: onnxruntime
   - hardware: wks4_rtx6000
@@ -53,9 +52,8 @@ training_key_fields: [model, train, pretrain_dataset]
   # Quali gruppi entrano nella chiave del training. NON aggiungere backend,
   # hardware, freq_target o compute_target: lo stesso modello verrebbe
   # riallenato per ogni cella della matrice. Training, search e finetune usano
-  # `pretrain_dataset` (AOD4, gruppo `dataset` montato in un'altra chiave); adapt,
-  # export e misure usano `dataset` (Svanstrom), che entra nell'adapt_key e nella
-  # chiave della cella.
+  # `pretrain_dataset` (gruppo `dataset` montato in un'altra chiave); export
+  # e misure usano `dataset` (Svanstrom), che entra nella chiave della cella.
 
 cell_key_fields: [model, train, dataset, quantization, backend,
                   hardware, freq_target, compute_target, eval]
@@ -84,8 +82,6 @@ retry_failed: false
   #         a ogni rilancio).
 force_retrain: false
   # true -> riallena anche se i pesi con quel training_key esistono gia'.
-force_adapt: false
-  # true -> rifa' l'adattamento anche se esiste gia' quello con lo stesso adapt_key.
 force_search: false
   # true -> rifa' la ricerca PIT anche se esiste gia' quella con lo stesso search_key.
 force_finetune: false

@@ -22,7 +22,7 @@ from src.cache import compose_export_key, model_label
 
 
 #: tipi di artefatto e il campo del meta.json che ne e' la chiave
-KINDS = {"weights": "training_key", "adapt": "adapt_key", "search": "search_key",
+KINDS = {"weights": "training_key", "search": "search_key",
          "finetune": "finetune_key",
          "exports": "export_key"}
 
@@ -106,10 +106,7 @@ def referenced_keys(results_dir: Path) -> set[str]:
         if not tkey:
             continue
         keys.add(tkey)
-        if axes.get("adapt_key"):
-            keys.add(axes["adapt_key"])
-        # pesi arrivati all'export: l'adapt_key, o con adapt=none il training_key (baseline,
-        # e i risultati scritti prima dello stadio adapt) o il finetune_key (strategie)
+        # pesi arrivati all'export: il training_key (baseline) o il finetune_key (strategie)
         wkey = axes.get("weights_key") or tkey
         keys.add(wkey)
         if axes.get("backend"):
@@ -133,14 +130,12 @@ def cmd_prune(args) -> int:
         )
         return 1
 
-    # a ritroso lungo la catena: un fine-tuning e' referenziato se lo e' l'adattamento che
-    # parte da lui, una ricerca se lo e' un fine-tuning che parte da lei
-    for kind, field, parent in (("adapt", "adapt_key", "finetune_key"),
-                                ("finetune", "finetune_key", "search_key")):
-        for d in _dirs(args.artifacts, kind):
-            meta = _read(d / "meta.json") or {}
-            if meta.get(field) in keys and meta.get(parent):
-                keys.add(meta[parent])
+    # a ritroso lungo la catena: una ricerca e' referenziata se lo e' un fine-tuning che
+    # parte da lei
+    for d in _dirs(args.artifacts, "finetune"):
+        meta = _read(d / "meta.json") or {}
+        if meta.get("finetune_key") in keys and meta.get("search_key"):
+            keys.add(meta["search_key"])
 
     victims = []
     for kind, field in KINDS.items():

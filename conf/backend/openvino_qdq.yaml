@@ -26,6 +26,7 @@ benchmark:
       -report_type no_counters
   iters: 200
   warmup_iters: 50
+  infer_precision: {int8: {x86_64: f32, aarch64: f16}}   # come openvino.yaml
   parse: benchmark_app
   scope: end_to_end_with_transfers
   metrics: [mean_ms, median_ms, p90_ms, p99_ms, throughput_qps]

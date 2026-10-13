@@ -63,21 +63,15 @@ backend_args:
     # Per int8 l'ONNX di partenza e' gia' QDQ, quindi trtexec non calibra da
     # solo con dati casuali: usa le scale che ci sono nel grafo.
   onnxruntime:
-    quant_format: QDQ
-      # QDQ | QOperator. QDQ perche' lo digeriscono tutti (ORT, TensorRT,
-      # OpenVINO) e lo stesso file resta confrontabile fra backend.
-    per_channel: true
-      # true | false. Scale per canale invece che per tensore: piu' preciso,
-      # praticamente sempre quello che vuoi sulle conv.
-    reduce_range: false
-      # true | false. true usa 7 bit invece di 8, serve solo su CPU x86
-      # vecchie senza VNNI.
+    # Argomenti del QDQ comune a onnxruntime, openvino_qdq e TensorRT. Lo schema e' fisso
+    # (src/stages/quantize.py): QDQ, pesi int8 simmetrici per canale, attivazioni int8
+    # simmetriche (zero point nullo), l'unico che accettano tutti e tre.
     quantize_op_types: [Conv, Gemm, MatMul]
       # Lista di op_type ONNX | null. Si quantizzano solo i nodi di questi tipi,
       # gli altri restano in float; null quantizza tutto. Default come Ultralytics:
       # solo i nodi con pesi, perche' la coda della testa in int8 (box 0-640 e
-      # score 0-1 con una sola scala) porta tutti gli score a 0. Solo per i
-      # backend QDQ (onnxruntime, openvino_qdq): il QDQ di TensorRT e i probe lo ignorano.
+      # score 0-1 con una sola scala) porta tutti gli score a 0. Vale per i backend QDQ
+      # (onnxruntime, openvino_qdq, tensorrt); i probe lo ignorano.
     quantize_exclude_op_types: [Softmax]
       # Lista di op_type | assente. Restano in float anche se in quantize_op_types
       # (o con quantize_op_types: null). Vedi int8_full.yaml.
@@ -95,7 +89,7 @@ backend_args:
       # CalibMovingAverage(+Constant) per minmax, CalibPercentile per percentile
       # (float: percentile del calibratore Percentile, es. 99.999),
       # CalibMaxIntermediateOutputs per tutti. entropy con quantize_static usa 128/128
-      # bin (non modificabili) e coincide con minmax. Vedi int8_full_{ma,pct,entropy}.yaml.
+      # bin (non modificabili) e coincide con minmax. Vedi int8_full_{minmax,pct}.yaml.
   openvino:
     preset: performance
       # performance | mixed

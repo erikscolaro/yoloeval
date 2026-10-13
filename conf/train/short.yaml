@@ -16,3 +16,5 @@ mixup: 0.0
 hsv_h: 0.015
 hsv_s: 0.7
 hsv_v: 0.4
+# Testa one-to-one (nms=False), come negli export e sul Pi: la validation del training sceglie best.pt sulla one-to-one.
+nms: false

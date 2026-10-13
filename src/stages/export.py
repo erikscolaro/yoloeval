@@ -63,7 +63,7 @@ def _stale_max_det(cfg, dst_dir: Path) -> str | None:
 
 def run_export(cfg) -> Path:
     tkey = training_key(cfg)
-    # best.pt dell'adattamento; con adapt=none del training (baseline) o del fine-tuning (pit)
+    # best.pt del training (baseline) o del fine-tuning (pit)
     src_pt, wkey = final_weights(cfg)
     if src_pt is None:
         prima = ", ".join(f"`stage={s}`" for s in weights_chain(cfg))

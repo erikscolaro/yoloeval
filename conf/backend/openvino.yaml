@@ -22,6 +22,11 @@ benchmark:
       -report_type no_counters
   iters: 200
   warmup_iters: 50
+  # Precisione di calcolo per precisione dell'artefatto (-infer_precision). Senza, sulle CPU ARM con
+  # fp16 (Pi 5) OpenVINO calcola in fp16 anche l'IR fp32. Per l'int8 vale per i layer non quantizzati:
+  # f32 come in onnxruntime su x86; su aarch64 f16, perche' con f32 il plugin ARM manda le conv
+  # quantizzate nei kernel di riferimento (pico NNCF sul Pi: 2032 ms in f32 contro 41 in f16).
+  infer_precision: {fp32: f32, fp16: f16, int8: {x86_64: f32, aarch64: f16}}
   parse: benchmark_app
   scope: end_to_end_with_transfers
   metrics: [mean_ms, median_ms, p90_ms, p99_ms, throughput_qps]

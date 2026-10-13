@@ -1,7 +1,7 @@
 """Stadio `train` — wrapper sottile sulle API standard di Ultralytics, su `pretrain_dataset`.
 
-Allena (da zero o dai pesi pretrained) sul dataset di pre-training, AOD4: il passo dopo e'
-`stage=adapt`, che porta il modello sul dataset di destinazione.
+Allena (da zero o dai pesi pretrained) sul dataset di pre-training (`pretrain_dataset`): per la baseline
+sono i pesi dell'export, per le strategie il punto di partenza di `stage=search`.
 
 Gira una volta per modello, sulla workstation. Non conosce l'hardware di
 destinazione: se lo conoscesse, il `training_key` dipenderebbe dalla board e lo

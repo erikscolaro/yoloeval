@@ -6,8 +6,7 @@
 name: onnxruntime
   # OBBLIGATORIO. Deve coincidere col `name` della classe registrata.
   # Quelli che esistono: onnxruntime | onnxruntime_py | tensorrt |
-  #                      tensorrt_implicit | openvino | openvino_qdq | executorch |
-  #                      axelera
+  #                      openvino | openvino_qdq | axelera
   # openvino_qdq: solo int8, IR dallo stesso ONNX QDQ di backend=onnxruntime
   # (nodi e calibrazione da quantization.backend_args.onnxruntime) invece di NNCF.
 
@@ -31,8 +30,7 @@ supports_cpu: false
 
 precisions: [int8]
   # Facoltativo (default: tutte). Lista di quantization.precision ammesse: le
-  # altre celle diventano "skipped". E' il caso di tensorrt_implicit, che con
-  # fp32 e fp16 costruirebbe lo stesso engine di tensorrt.
+  # altre celle diventano "skipped". E' il caso di openvino_qdq, solo int8.
 
 requires:
   # Requisiti confrontati con i campi della board. Ognuno che non torna
@@ -87,22 +85,11 @@ build:
     # Nome dell'immagine docker, costruita dallo script di provisioning.
 
 int8:
-  # Solo tensorrt e tensorrt_implicit: come si ottiene l'engine INT8.
-  quantize_op_types: [Conv, Gemm, MatMul]
-    # Solo tensorrt (QDQ esplicito). Lista di op_type ONNX | null: si
-    # quantizzano solo questi nodi, gli altri restano in float. null quantizza
-    # tutto, e la coda della testa in INT8 porta gli score a 0.
+  # Solo tensorrt. L'engine INT8 parte dallo stesso ONNX QDQ di onnxruntime e
+  # openvino_qdq: nodi e calibrazione vengono dalla conf di quantizzazione.
   fp16: true
     # true | false. Aggiunge --fp16: i layer non INT8 girano in FP16 invece
-    # che FP32. Con tensorrt_implicit lascia scegliere a TensorRT fra INT8 e
-    # FP16 layer per layer, come Ultralytics.
-  calibration: minmax
-    # Solo tensorrt_implicit. minmax | entropy2: algoritmo del calibratore di
-    # TensorRT, eseguito sulla workstation sulle immagini di calibrazione; la
-    # cache arriva alla board con --calib.
-  head_fp32: true
-    # Solo tensorrt_implicit. true -> Sigmoid della testa in FP32, conv finali
-    # della testa e DFL in FP16 (--precisionConstraints=obey), come Ultralytics.
+    # che FP32.
 
 benchmark:
   tool: onnxruntime_perf_test
@@ -117,7 +104,6 @@ benchmark:
     #   onnxruntime {model} {ep} {threads}
     #   tensorrt    {engine} {warmup_ms}
     #   openvino    {model} {device} {threads}
-    #   executorch  {model} {warmup_iters}
     # axelera e onnxruntime_py non usano il template: compongono il comando
     # nella classe, perche' devono passare dal container o dall'interprete
     # della board.
@@ -132,15 +118,22 @@ benchmark:
     # Riscaldamento in iterazioni. Usa la forma che il tool accetta davvero:
     # onnxruntime_perf_test non espone nessuna delle due, e infatti nel suo
     # file warmup_iters e' null.
+  infer_precision: {fp32: f32, fp16: f16, int8: {x86_64: f32, aarch64: f16}}
+    # Solo openvino. Dict precisione dell'artefatto -> -infer_precision di benchmark_app.
+    # Senza, sulle CPU ARM con fp16 (Pi 5) OpenVINO calcola in fp16 anche l'IR fp32
+    # (22 contro 28 ms sul pico potato). Per int8 riguarda i layer non quantizzati (i
+    # nodi int8 li decide il modello): f32 come in onnxruntime su x86, f16 su aarch64, dove
+    # con f32 le conv quantizzate finiscono nei kernel di riferimento (2 s sul Pi). Il valore
+    # puo' essere un dict per hardware.arch. Precisioni assenti: default.
   parse: ort_perf_test
     # Etichetta descrittiva del parser usato dalla classe. Il parser vero e'
     # il metodo parse() del backend: questo campo non lo seleziona.
   scope: end_to_end_with_transfers
     # Valori: end_to_end_with_transfers | compute_only
     # E' il perimetro della misura, e finisce nel risultato. Va allineato fra
-    # backend prima di confrontarli: trtexec di default escluderebbe i
-    # trasferimenti host-device, e infatti la sua riga di comando ha
-    # --noDataTransfers=false apposta.
+    # backend prima di confrontarli: trtexec include i trasferimenti host-device
+    # di default, e nella sua riga di comando non deve comparire --noDataTransfers
+    # (booleano: anche =false li esclude).
   metrics: [mean_ms, median_ms, p90_ms, p99_ms, throughput_qps]
     # Descrittivo: quali metriche il tool sa produrre. Quelle che non riporta
     # restano null nel risultato, mai ricostruite da media e deviazione.

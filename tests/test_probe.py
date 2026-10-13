@@ -25,39 +25,35 @@ def padded(step, c_min=8, c_max=96, extra=0.0):
 
 @pytest.mark.parametrize("step", [4, 8, 16, 32])
 def test_n_e_il_blocco_dell_hardware(step):
-    # tolleranza stretta: con C grandi il padding di pochi canali costa poco davvero (su C=90
-    # arrotondare a 92 e' il 2%), e con tol=0.05 N=2 passerebbe per step=4
-    lat, macs = padded(step, c_max=max(96, 3 * step))
-    res = analysis.best_n(lat, macs, tol=0.02)
+    lat, macs = padded(step, c_max=max(96, 5 * step))      # almeno 3 confronti per N = step
+    res = analysis.best_n(lat, macs, tol=0.03)
     assert res["n_opt"] == step
     assert res["tested"][step]["optimal"]
-    assert not res["tested"][step // 2]["pass"] if step > 1 else True
+    assert not res["tested"].get(2 * step, {"pass": False})["pass"]
 
 
 def test_non_allineati_piu_lenti_non_cambiano_n():
     lat, macs = padded(16, extra=0.5)
-    assert analysis.best_n(lat, macs, tol=0.05)["n_opt"] == 16
+    assert analysis.best_n(lat, macs, tol=0.03)["n_opt"] == 16
 
 
 def test_hardware_senza_preferenze_da_n_1():
     macs = {c: c * c for c in range(8, 97)}
     lat = {c: 0.5 + c * c * 1e-3 for c in macs}          # efficienza liscia in C
-    assert analysis.best_n(lat, macs, tol=0.05)["n_opt"] == 1
+    assert analysis.best_n(lat, macs, tol=0.03)["n_opt"] == 1
+
+
+def test_efficienza_in_salita_non_nasconde_n():
+    # come l'int8 sul Pi: l'efficienza sale con C e i multipli di 8 sono solo un po' sopra
+    macs = {c: c * c for c in range(1, 97)}
+    lat = {c: macs[c] / (c * (1.06 if c % 8 == 0 else 1.0)) for c in macs}
+    assert analysis.best_n(lat, macs, tol=0.03)["n_opt"] == 8
 
 
 def test_misura_sporca_isolata_non_boccia_n():
     lat, macs = padded(16)
     lat[48] *= 1.5                                        # un multiplo di 16 misurato male
-    assert analysis.best_n(lat, macs, tol=0.05, max_violations=0.2)["n_opt"] == 16
-
-
-def test_nessun_n_se_tutto_rumore():
-    import random
-    rnd = random.Random(0)
-    macs = {c: c * c for c in range(8, 97)}
-    lat = {c: macs[c] * rnd.uniform(0.3, 1.7) for c in macs}
-    res = analysis.best_n(lat, macs, tol=0.05, max_violations=0.0)
-    assert res["n_opt"] is None or res["n_opt"] >= 16
+    assert analysis.best_n(lat, macs, tol=0.03)["n_opt"] == 16
 
 
 def test_n_globale_e_il_massimo_delle_forme_concluse():

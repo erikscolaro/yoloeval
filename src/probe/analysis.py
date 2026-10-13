@@ -1,74 +1,66 @@
 """Dalla latenza in funzione dei canali alla granularita' N.
 
-Potare a blocchi di N rende raggiungibili solo i multipli di N: conviene l'N piu' piccolo i
-cui multipli girano TUTTI con l'efficienza migliore che l'hardware offre a quella scala.
+Potare a blocchi di N rende raggiungibili solo i multipli di N: conviene l'N per cui i multipli
+di N girano meglio dei canali intermedi. Regola locale, a raddoppi:
 
 - efficienza e(C) = MAC / latenza;
-- inviluppo E(C) = la migliore efficienza vista fra C - window e C (finestra a sinistra: di
-  solito l'efficienza cresce con C, e confrontarsi con C piu' grandi penalizzerebbe tutti);
-- un C e' "allineato" se e(C) >= (1 - tol) * E(C);
-- N passa se sono allineati almeno (1 - max_violations) dei suoi multipli nel range (una
-  misura sporca isolata non basta a bocciarlo);
-- N ottimo = il PIU' PICCOLO N che passa, provando 1, 2, 4, ...
+- per ogni n = 1, 2, 4, ... si prendono i multipli "dispari" di n (multipli di n ma non di 2n,
+  da `c_from` in su) e per ciascuno il rapporto r(C) = e(C) / media(e(C - n), e(C + n)), cioe'
+  contro i due multipli di 2n che lo circondano;
+- 2n passa se la mediana dei rapporti e' sotto 1 - tol: i multipli dispari di n girano
+  sistematicamente peggio dei multipli di 2n;
+- N ottimo = il PIU' GRANDE 2n che passa; 1 se nessuno passa.
 
-Con un hardware senza preferenze (efficienza liscia in C) passa gia' N = 1. Con blocchi SIMD
-da 16 i multipli di 8 non di 16 restano sotto l'inviluppo, e passa 16.
+Il confronto con i vicini toglie l'andamento di fondo (l'efficienza che sale con C) e la mediana
+rende innocua una misura sporca isolata. Con un hardware senza preferenze (efficienza liscia in
+C) nessun 2n passa e N = 1; con blocchi SIMD da 16 i multipli di 8 non di 16 restano sotto i
+vicini e passa 16.
 """
 
 from __future__ import annotations
+
+from statistics import median
 
 
 def efficiency(lat: dict, macs: dict) -> dict:
     return {c: macs[c] / lat[c] for c in lat if lat[c] > 0}
 
 
-def envelope(eff: dict, window: int) -> dict:
-    cs = sorted(eff)
-    return {c: max(eff[x] for x in cs if c - window <= x <= c) for c in cs}
+def odd_multiples(eff: dict, n: int, c_from: int) -> list[int]:
+    """Multipli di n non di 2n, da c_from in su, con entrambi i vicini C - n e C + n misurati."""
+    return [c for c in sorted(eff) if c >= c_from and c % n == 0 and c % (2 * n)
+            and c - n in eff and c + n in eff]
 
 
-def candidates(c_min: int, c_max: int, given=None, min_multiples: int = 2) -> list[int]:
-    """Gli N da provare: quelli dati, o 1, 2, 4, ... con almeno `min_multiples` multipli."""
+def candidates(eff: dict, c_from: int, given=None, min_points: int = 3) -> list[int]:
+    """Gli N da provare: quelli dati (> 1), o 2, 4, 8, ... con almeno `min_points` rapporti
+    (con due la mediana e' una media e una misura sporca basta a far passare N)."""
     if given:
-        return sorted({int(n) for n in given})
+        return sorted({int(n) for n in given if int(n) > 1})
     out, n = [], 1
-    while len(multiples(c_min, c_max, n)) >= min_multiples:
-        out.append(n)
+    while len(odd_multiples(eff, n, c_from)) >= min_points:
+        out.append(2 * n)
         n *= 2
     return out
 
 
-def multiples(c_min: int, c_max: int, n: int) -> list[int]:
-    return [c for c in range(c_min, c_max + 1) if c % n == 0]
+def check_n(eff: dict, n: int, tol: float, c_from: int) -> dict:
+    """N passa se i multipli dispari di N/2 stanno sistematicamente sotto i multipli di N vicini."""
+    h = n // 2
+    ratio = {c: eff[c] / ((eff[c - h] + eff[c + h]) / 2) for c in odd_multiples(eff, h, c_from)}
+    med = median(ratio.values()) if ratio else None
+    return {"pass": med is not None and med < 1 - tol, "median_ratio": med,
+            "points": len(ratio), "below": sorted(c for c, r in ratio.items() if r < 1 - tol)}
 
 
-def test_n(eff: dict, env: dict, n: int, tol: float, max_violations: float) -> dict:
-    cs = sorted(eff)
-    ms = [c for c in multiples(cs[0], cs[-1], n) if c in eff]
-    ratio = {c: eff[c] / env[c] for c in ms}
-    bad = sorted(c for c, r in ratio.items() if r < 1 - tol)
-    frac = len(bad) / len(ms) if ms else 1.0
-    return {"pass": bool(ms) and frac <= max_violations, "violations": bad,
-            "violation_fraction": frac, "worst_ratio": min(ratio.values()) if ratio else None}
-
-
-def best_n(lat: dict, macs: dict, tol: float, max_violations: float = 0.2,
-           window: int = 32, given=None) -> dict:
-    """{n_opt, conclusive, tested: {N: {...}}}. n_opt None se nessun N passa (misure troppo
-    rumorose o range troppo stretto)."""
+def best_n(lat: dict, macs: dict, tol: float, c_from: int = 8, given=None) -> dict:
+    """{n_opt, conclusive, tested: {N: {...}}}. n_opt e' sempre almeno 1."""
     eff = efficiency(lat, macs)
-    env = envelope(eff, window)
-    cs = sorted(eff)
-    tested, n_opt = {}, None
-    for n in candidates(cs[0], cs[-1], given):
-        res = test_n(eff, env, n, tol, max_violations)
-        tested[n] = res
-        if res["pass"]:
-            n_opt = n
-            break
+    tested = {n: check_n(eff, n, tol, c_from) for n in candidates(eff, c_from, given)}
+    n_opt = max([n for n, r in tested.items() if r["pass"]], default=1)
     for n, r in tested.items():
         r["optimal"] = n == n_opt
-    return {"n_opt": n_opt, "conclusive": n_opt is not None, "tested": tested}
+    return {"n_opt": n_opt, "conclusive": True, "tested": tested}
 
 
 def global_n(per_shape: dict) -> int | None:

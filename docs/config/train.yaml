@@ -51,6 +51,9 @@ close_mosaic: 25
   # attiva fino alla fine.
 seed: 42
   # Intero. Riproducibilita' del training.
+nms: false
+  # false | null. false: la validation durante il training usa la testa one-to-one (senza NMS), quindi
+  # best.pt e' scelto sulla testa che va in deploy. null (default di Ultralytics 8.4): testa one-to-many con NMS.
 
 # --- augmentation ----------------------------------------------------------
 # Valori da 0 a 1 se non indicato altrimenti; 0 disattiva.
@@ -66,7 +69,7 @@ hsv_v: 0.4
 scale: 0.5
   # Intervallo di scala casuale dell'immagine: fattore tra 1-scale e 1+scale (0 = nessun ridimensionamento).
   # Con scale 0.5 un oggetto puo' diventare meta' o una volta e mezza piu' grande; per gli oggetti piccoli di
-  # Svanstrom nell'adapt si usa 0.
+  # Svanstrom si usa 0.
 translate: 0.1
   # Traslazione casuale, frazione della dimensione dell'immagine.
 degrees: 0.0

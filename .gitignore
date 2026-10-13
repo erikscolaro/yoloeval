@@ -33,3 +33,7 @@ data/**
 wandb/
 experiments/**/runs/
 .claude/settings.local.json
+
+SCALETTA.md
+# run e risultati del progetto precedente
+.old/

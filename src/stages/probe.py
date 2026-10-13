@@ -10,7 +10,9 @@ Output in results/probe/:
   <probe_id>.summary.json  N ottimo per forma e globale, test di ogni N, rumore
   <probe_id>.png           latenza e throughput in funzione di C (con stage.plot: true)
 
-Oggi supporta i backend che misurano un ONNX portabile (onnxruntime, onnxruntime_py).
+Oggi supporta i backend che misurano un ONNX portabile (onnxruntime, onnxruntime_py) e OpenVINO,
+il cui benchmark_app legge l'ONNX direttamente: in fp16 riceve l'ONNX fp32 e calcola in fp16 con
+-infer_precision (come gli export OpenVINO fp16 della pipeline), senza i Cast della conversione fp16.
 """
 
 from __future__ import annotations
@@ -39,7 +41,7 @@ from .benchmark import _effective_cores, _ensure_profile, _wrap_command
 
 log = logging.getLogger(__name__)
 
-SUPPORTED_BACKENDS = ("onnxruntime", "onnxruntime_py")
+SUPPORTED_BACKENDS = ("onnxruntime", "onnxruntime_py", "openvino")
 SCHEMA = "probe/1"
 
 
@@ -106,6 +108,8 @@ def _run_one(cfg, pid: str, summary_path: Path) -> Path:
             cfg.backend.benchmark.warmup_iters = int(cfg.stage.warmup_iters)
     backend = get_backend(cfg.backend.name, cfg)
     precision = cfg.quantization.precision
+    if cfg.backend.name == "openvino" and precision == "fp16":
+        precision = "fp32"                       # fp16 dal -infer_precision di benchmark_app
     int8_args = dict(cfg.quantization.get("backend_args", {}).get("onnxruntime", {}) or {})
     for k in ("quantize_op_types", "quantize_exclude_op_types", "quantize_exclude_regex",
               "calibration_method", "calibration_options"):
@@ -225,15 +229,14 @@ def summarize(records: list[dict], cfg, pid: str) -> dict:
     for name in dict.fromkeys(r["shape"] for r in records):
         pts = {c: v for (sh, c), v in lat.items() if sh == name}
         macs = {r["c"]: r["macs"] for r in records if r["shape"] == name}
-        res = analysis.best_n(pts, macs, tol, float(sw.get("max_violations", 0.2)),
-                              int(sw.get("window", 32)), list(given) if given else None)
+        res = analysis.best_n(pts, macs, tol, int(sw.get("c_from", 8)),
+                              list(given) if given else None)
         res["tested"] = {str(k): v for k, v in res["tested"].items()}
         res["in_global"] = in_global.get(name, True)
         per_shape[name] = res
     n_opt = analysis.global_n(per_shape)
     if n_opt is None:
-        log.warning("probe %s non concluso: nessun N passa (misure troppo rumorose? prova "
-                    "piu' repeats o un range di canali piu' ampio)", pid)
+        log.warning("probe %s non concluso: nessuna forma globale misurata", pid)
     return {
         "schema": SCHEMA, "probe_id": pid, "board": cfg.hardware.board,
         "freq_target": cfg.freq_target, "compute_target": cfg.compute_target,

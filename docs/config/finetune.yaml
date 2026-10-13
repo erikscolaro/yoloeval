@@ -1,7 +1,7 @@
 # Riferimento dei campi di conf/finetune/<nome>.yaml
 #
 # Fine-tuning del modello potato dalla ricerca (PrunedTrainer di yolopit), su
-# `pretrain_dataset` (AOD4) come la ricerca; dopo viene stage=adapt. Usato solo dalle
+# `pretrain_dataset` come la ricerca; i suoi pesi vanno all'export. Usato solo dalle
 # strategie con method: pit; la baseline lo ignora e il gruppo non entra nelle sue chiavi.
 # I nomi coincidono con gli argomenti di model.train() di Ultralytics (vedi train.yaml): puoi
 # aggiungere qualsiasi argomento accettato da Ultralytics.
@@ -29,6 +29,9 @@ close_mosaic: 25
 cos_lr: false
   # true | false. Scheduler coseno del learning rate al posto di quello lineare.
 seed: 42
+nms: false
+  # false | null. false: la validation durante il training usa la testa one-to-one (senza NMS), quindi
+  # best.pt e' scelto sulla testa che va in deploy. null (default di Ultralytics 8.4): testa one-to-many con NMS.
 mosaic: 1.0
 mixup: 0.0
 hsv_h: 0.015

@@ -8,6 +8,8 @@ invece di restituire zeri.
 
 from __future__ import annotations
 
+import re
+
 import pytest
 
 from src.backends import get_backend
@@ -39,6 +41,13 @@ def test_trtexec():
 def test_trtexec_troncato_solleva():
     with pytest.raises(ParseError):
         get_backend("tensorrt").parse(read("trtexec_truncated.txt"))
+
+
+def test_trtexec_senza_trasferimenti_solleva():
+    # --noDataTransfers (anche =false): H2D a 0, latenza di solo calcolo
+    out = re.sub(r"(H2D Latency:.*?mean = )[\d.]+", r"\g<1>0", read("trtexec_int8.txt"))
+    with pytest.raises(ParseError):
+        get_backend("tensorrt").parse(out)
 
 
 def test_trtexec_vuoto_solleva():

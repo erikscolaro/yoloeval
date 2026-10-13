@@ -31,7 +31,7 @@ SCOPE_COMPUTE = "compute_only"
 
 
 def axes(cfg: DictConfig, training_key: str | None = None,
-         weights_key: str | None = None, adapt_key: str | None = None) -> dict:
+         weights_key: str | None = None) -> dict:
     """Gli assi della matrice, appiattiti: sono le colonne dell'analisi.
 
     `strategy` e `weights_key` (i pesi arrivati all'export: il training_key per la baseline)
@@ -41,7 +41,6 @@ def axes(cfg: DictConfig, training_key: str | None = None,
         "model": cfg.model.name,
         "strategy": "baseline" if strategy is None else strategy.name,
         "training_key": training_key,
-        "adapt_key": adapt_key,
         "weights_key": weights_key or training_key,
         "quantization": cfg.quantization.name,
         "backend": cfg.backend.name,
@@ -58,7 +57,6 @@ def base_record(
     training_key: str | None = None,
     env: dict | None = None,
     weights_key: str | None = None,
-    adapt_key: str | None = None,
 ) -> dict:
     """Parte comune a ok / skipped / failed.
 
@@ -72,7 +70,7 @@ def base_record(
         "status": None,
         "timestamp": now_iso(),
         "order_index": order_index(),
-        "axes": axes(cfg, training_key, weights_key, adapt_key),
+        "axes": axes(cfg, training_key, weights_key),
         "env": env or {},
         "config": OmegaConf.to_container(cfg, resolve=True),
     }

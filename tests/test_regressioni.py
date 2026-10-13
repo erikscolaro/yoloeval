@@ -168,6 +168,26 @@ def test_comando_perf_test():
     assert "intra_op_num_threads" not in cmd
 
 
+@pytest.mark.parametrize("hardware,freq,expected", [
+    ("rpi5", "max", "f16"),            # f32 su ARM: conv int8 nei kernel di riferimento
+    ("wks4_rtx6000", None, "f32"),
+])
+def test_infer_precision_int8_per_architettura(hardware, freq, expected):
+    from src.backends import get_backend
+
+    overrides = [f"hardware={hardware}", "backend=openvino", "quantization=int8",
+                 "compute_target=cpu_4"] + ([f"freq_target={freq}"] if freq else [])
+    cfg = make_cfg(*overrides)
+    cmd = get_backend("openvino", cfg).build_cmd(cfg, "/b/m.xml")
+    assert cmd.endswith(f"-infer_precision {expected}")
+
+
+def test_trtexec_misura_i_trasferimenti():
+    # booleano: trtexec ignora "=false" e salterebbe comunque i trasferimenti
+    cfg = make_cfg("hardware=wks4_rtx6000", "backend=tensorrt", "compute_target=gpu")
+    assert "noDataTransfers" not in cfg.backend.benchmark.cmd
+
+
 # --- flag di sweep che prima erano decorativi -------------------------------
 
 def test_skip_invalid_false_ferma_lo_sweep(tmp_path, monkeypatch):

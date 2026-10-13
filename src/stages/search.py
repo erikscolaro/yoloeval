@@ -1,9 +1,8 @@
 """Stadio `search` — ricerca PIT con yolopit, solo per le strategie `method: pit`.
 
 Parte dai pesi di `stage=train` (stesso training_key), lavora sul dataset di pretraining
-(`pretrain_dataset`, AOD4) e produce il modello potato in `artifacts/search/`; l'adattamento
-al dataset di destinazione viene dopo il fine-tuning (`stage=adapt`). Come il training, gira
-sulla workstation e non conosce l'hardware di destinazione: la stessa ricerca vale per ogni
+(`pretrain_dataset`) e produce il modello potato in `artifacts/search/`, che poi passa
+dal fine-tuning (`stage=finetune`). Come il training, gira sulla workstation e non conosce l'hardware di destinazione: la stessa ricerca vale per ogni
 board.
 
 La logica della ricerca sta tutta in yolopit; qui ci sono solo cache, argomenti e meta.json.

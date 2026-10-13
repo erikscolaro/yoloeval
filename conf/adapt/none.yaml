@@ -1,3 +1,0 @@
-# Nessun adattamento al dataset di destinazione: stage=adapt non fa niente e all'export vanno i pesi dello stadio
-# prima, il training (baseline) o il fine-tuning del potato (strategie pit). Gruppo vuoto: src.cache.adapt_enabled.
-#   python run.py stage=export strategy=pit_duccio adapt=none

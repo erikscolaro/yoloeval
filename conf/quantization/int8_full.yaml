@@ -22,9 +22,6 @@ validation:
 backend_args:
   tensorrt: ["--int8"]
   onnxruntime:
-    quant_format: QDQ
-    per_channel: true
-    reduce_range: false
     calibration_method: minmax
     calibration_options: {CalibMovingAverage: true, CalibMovingAverageConstant: 0.01}   # media mobile: experiments/quantization/calibration
     quantize_op_types: null                 # tutti i tipi

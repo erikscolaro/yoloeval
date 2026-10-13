@@ -3,7 +3,6 @@
 
     python run.py stage=train model=yolo26n             # su AOD4 (pretrain_dataset)
     python run.py stage=search strategy=pit_duccio      # su AOD4, poi stage=finetune
-    python run.py stage=adapt model=yolo26n             # su Svanstrom (dataset); adapt=none lo salta
     python run.py -m stage=benchmark hardware=jetson_orin freq_target=maxn,w15
 
 Il dispatch avviene per `cfg.stage.name`: ogni stadio ha il suo entry point e
@@ -28,7 +27,7 @@ log = logging.getLogger("yolo-bench")
 
 #: flag dichiarati in conf/config.yaml con un default
 RUN_FLAGS = (
-    "dry_run", "force", "retry_failed", "force_retrain", "force_adapt", "force_search",
+    "dry_run", "force", "retry_failed", "force_retrain", "force_search",
     "force_finetune", "force_reexport",
     "allow_reboot", "skip_invalid", "continue_on_error",
 )
@@ -63,12 +62,6 @@ def main(cfg: DictConfig) -> None:
         from src.stages.train import run_training
 
         run_training(cfg)
-        return
-
-    if stage == "adapt":
-        from src.stages.adapt import run_adapt
-
-        run_adapt(cfg)
         return
 
     if stage == "search":
@@ -109,7 +102,7 @@ def main(cfg: DictConfig) -> None:
 
     raise ValueError(
         f"stadio sconosciuto: {stage!r} "
-        f"(stage=train|adapt|search|finetune|probe|roofline|export|benchmark|provision)"
+        f"(stage=train|search|finetune|probe|roofline|export|benchmark|provision)"
     )
 
 

@@ -4,20 +4,17 @@
 # alcuni stadi, come indicato.
 
 name: benchmark
-  # OBBLIGATORIO. Valori: train | adapt | search | finetune | probe | roofline | export |
+  # OBBLIGATORIO. Valori: train | search | finetune | probe | roofline | export |
   #                       benchmark | provision
-  #   train     -> allena su pretrain_dataset (AOD4) e mette i pesi in artifacts/weights/
-  #   adapt     -> fine-tuning su dataset (Svanstrom) dei pesi di train (baseline) o del
-  #                potato di finetune (strategie pit): artifacts/adapt/, i pesi dell'export.
-  #                Facoltativo: adapt=none lo salta
+  #   train     -> allena su pretrain_dataset e mette i pesi in artifacts/weights/
   #   roofline  -> misura i tetti del roofline model (picco di calcolo, banda):
   #                results/roofline/, usati da tools.roofline
   #   (i file probe_edge.yaml e roofline_edge.yaml sono preset per le board lente, con
   #   name: probe / name: roofline)
   #   probe     -> misura con reti dummy quale N (canali a blocchi) premia la board:
   #                results/probe/, usato dalle strategie con pit.n: auto
-  #   search    -> solo strategie pit: ricerca PIT dai pesi di train, su pretrain_dataset
-  #                (AOD4), modello potato in artifacts/search/
+  #   search    -> solo strategie pit: ricerca PIT dai pesi di train, su pretrain_dataset,
+  #                modello potato in artifacts/search/
   #   finetune  -> solo strategie pit: fine-tuning del potato su pretrain_dataset in
   #                artifacts/finetune/
   #   export    -> esporta (e quantizza) in artifacts/exports/
@@ -100,10 +97,11 @@ plot_xtick: 4
 sweep:
   # Reti dummy: L blocchi (conv o lineari) + SiLU + residual, tutti a C canali (o neuroni).
   # Per ogni forma si misura la latenza per C da c_min a c_max. Efficienza = MAC / latenza.
-  # Un C e' "allineato" se la sua efficienza e' entro `tolerance` dalla migliore vista nei
-  # `window` canali precedenti. N = il piu' piccolo fra 1, 2, 4, ... i cui multipli sono
-  # allineati (tranne al piu' una frazione max_violations). N globale = il piu' grande fra
-  # le forme con in_global: true (i suoi multipli sono multipli anche degli altri).
+  # Regola locale a raddoppi: per N = 2, 4, 8, ... ogni multiplo di N/2 che non e' multiplo
+  # di N si confronta con la media dei due multipli di N vicini (C - N/2 e C + N/2). N passa
+  # se la mediana di questi rapporti e' sotto 1 - tolerance; N = il piu' grande che passa, 1
+  # se nessuno. N globale = il piu' grande fra le forme con in_global: true (i suoi multipli
+  # sono multipli anche degli altri).
   c_min: 32
     # Intero. Il range deve contenere almeno due multipli dell'N piu' grande da provare.
   c_max: 128
@@ -113,14 +111,12 @@ sweep:
     # Intero. Passate complete, ognuna in ordine casuale; per ogni C si usa la mediana. La
     # dispersione fra le passate stima il rumore.
   n_candidates: null
-    # null -> 1, 2, 4, ... finche' ci sono almeno due multipli nel range; oppure [8, 16].
-  tolerance: 0.1
-    # Float. Si usa il massimo fra questo e il rumore stimato.
-  window: 32
-    # Intero. Quanti canali indietro guardare per l'efficienza migliore.
-  max_violations: 0.2
-    # Float 0-1. Frazione di multipli non allineati tollerata (una misura sporca isolata non
-    # boccia un N).
+    # null -> 2, 4, 8, ... finche' ci sono almeno tre confronti nel range; oppure [8, 16].
+  tolerance: 0.03
+    # Float. Perdita mediana minima dei multipli intermedi perche' N passi. Si usa il massimo
+    # fra questo e il rumore stimato. La mediana rende innocua una misura sporca isolata.
+  c_from: 8
+    # Intero. Canale da cui partono i confronti: sotto, latenze troppo piccole e rumorose.
   seed: 0
     # Intero. Ordine casuale delle misure: la deriva termica non sembra un effetto di C.
   shapes:

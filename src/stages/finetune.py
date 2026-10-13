@@ -1,9 +1,8 @@
 """Stadio `finetune` — fine-tuning del modello potato, solo per le strategie `method: pit`.
 
 Parte da `artifacts/search/.../pruned.pt` (stesso search_key), lavora sul dataset di
-pretraining (`pretrain_dataset`, AOD4) come la ricerca e mette `best.pt` in
-`artifacts/finetune/`: il punto di partenza di `stage=adapt`, o con `adapt=none` i pesi che la
-strategia manda all'export.
+pretraining (`pretrain_dataset`) come la ricerca e mette `best.pt` in
+`artifacts/finetune/`: i pesi che la strategia manda all'export.
 """
 
 from __future__ import annotations

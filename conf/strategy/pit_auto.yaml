@@ -26,6 +26,7 @@ search:
     remainder: true
     warmup_epochs: 0
     ema: false
+    discrete_cost: true     # DUCCIO sul costo delle maschere binarizzate (come l'export): con il costo soft e n piccolo la rete resta sopra il target
   nas:
     optimizer: AdamW
     lr0: 0.01

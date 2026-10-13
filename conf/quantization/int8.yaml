@@ -17,9 +17,6 @@ validation:
 backend_args:
   tensorrt: ["--int8"]
   onnxruntime:
-    quant_format: QDQ
-    per_channel: true
-    reduce_range: false
     calibration_method: minmax
     calibration_options: {CalibMovingAverage: true, CalibMovingAverageConstant: 0.01}   # media mobile: experiments/quantization/calibration
     # solo i nodi con pesi, come Ultralytics: la coda della testa in int8 (box 0-640 e

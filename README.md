@@ -3,8 +3,8 @@
 Misura latenza, accuratezza ed energia di YOLO26 su hardware edge. Confronta i modelli
 Ultralytics (baseline) con quelli potati da [yolopit](https://github.com/erikscolaro/yolopit)
 (ricerca PIT di PLiNIO, canali a blocchi di N). Classi: airplane, bird, drone, helicopter.
-Dataset ([docs/datasets.md](docs/datasets.md)): AOD4 solo per il training, Svanström (video
-visibili, split per video) per adattamento, pruning, fine-tuning e tutte le misure.
+Dataset: uno solo per training, pruning, fine-tuning e misure, costruito nella repo
+`~/Desktop/torretta-dataset` (Svanström più aggiunte, 640×512, split per video). Piano: `NEW_MASTERPLAN.md`.
 
 Un solo entry point, `run.py`, con configurazione [Hydra](https://hydra.cc): ogni asse è un
 gruppo in `conf/`, ogni campo è documentato in [`docs/config/`](docs/config/).
@@ -46,11 +46,11 @@ Il dataset viene copiato sulle board da solo al primo uso.
 | `model` | `yolo26n`, `yolo26s`, `yolo26m`, `custom_pruned` |
 | `strategy` | `baseline`, `pit_standard`, `pit_duccio`, `pit_auto` |
 | `quantization` | `fp32`, `fp16`, `int8` (PTQ) |
-| `backend` | `onnxruntime`, `onnxruntime_py`, `tensorrt`, `openvino`, `executorch`, `axelera` |
+| `backend` | `onnxruntime`, `onnxruntime_py`, `tensorrt`, `openvino`, `axelera` |
 | `hardware` | `wks4_rtx6000`, `jetson_orin`, `rpi5`, `rpi5_axelera` |
 | `freq_target` | profili della board (`maxn`, `w30`, `w15` sulla Jetson; `max`, `mid`, `low` sul Pi) |
 | `compute_target` | `gpu`, `cpu_1`, `cpu_2`, …, `axelera` (quelli dichiarati dalla board; vuoto = tutti) |
-| `train`, `finetune`, `adapt` | argomenti di training di Ultralytics (`adapt=none`: niente adattamento) |
+| `train`, `finetune` | argomenti di training di Ultralytics |
 
 `freq_target` e `compute_target` dipendono dalla board: un valore che la board non dichiara è
 un errore immediato. `freq_target` va sempre indicato sulle board.
@@ -64,7 +64,6 @@ Si lanciano in quest'ordine; ognuno salta quello che trova già in cache.
 | `train` | workstation | pesi allenati su AOD4 (`pretrain_dataset`) in `artifacts/weights/` |
 | `search` | workstation | solo strategie pit: ricerca dai pesi di `train`, su AOD4, modello potato in `artifacts/search/` |
 | `finetune` | workstation | solo strategie pit: fine-tuning del potato su AOD4 in `artifacts/finetune/` |
-| `adapt` | workstation | fine-tuning su Svanström (`dataset`) dei pesi di `train` (baseline) o di `finetune` (pit) in `artifacts/adapt/`: i pesi dell'export. Facoltativo: `adapt=none` lo salta |
 | `probe` / `probe_edge` | board | N che premia l'hardware, in `results/probe/` |
 | `roofline` / `roofline_edge` | board | picco di calcolo e banda, in `results/roofline/` |
 | `export` | workstation (ONNX) o board (TensorRT, Axelera) | `artifacts/exports/`, con MAC e byte del modello |
@@ -79,7 +78,6 @@ Jetson.
 
 ```bash
 python run.py -m stage=train model=yolo26n,yolo26s
-python run.py -m stage=adapt model=yolo26n,yolo26s
 python run.py -m stage=export model=yolo26n,yolo26s quantization=fp32,int8 backend=onnxruntime
 python run.py -m stage=benchmark model=yolo26n,yolo26s quantization=fp32,int8 \
   backend=onnxruntime hardware=rpi5 freq_target=max compute_target=cpu_1,cpu_4
@@ -91,7 +89,6 @@ python run.py -m stage=benchmark model=yolo26n,yolo26s quantization=fp32,int8 \
 python run.py stage=train model=yolo26n
 python run.py -m stage=search   strategy=pit_standard,pit_duccio
 python run.py -m stage=finetune strategy=pit_standard,pit_duccio
-python run.py -m stage=adapt    strategy=baseline,pit_standard,pit_duccio
 python run.py -m stage=export    strategy=baseline,pit_standard,pit_duccio quantization=fp32,int8
 python run.py -m stage=benchmark strategy=baseline,pit_standard,pit_duccio quantization=fp32,int8 \
   hardware=rpi5 freq_target=max compute_target=cpu_1,cpu_4
@@ -103,7 +100,6 @@ python run.py -m stage=benchmark strategy=baseline,pit_standard,pit_duccio quant
 python run.py stage=probe_edge hardware=rpi5 freq_target=max quantization=int8 compute_target=cpu_1
 python run.py stage=search   strategy=pit_auto hardware=rpi5 quantization=int8
 python run.py stage=finetune strategy=pit_auto hardware=rpi5 quantization=int8
-python run.py stage=adapt    strategy=pit_auto hardware=rpi5 quantization=int8
 ```
 
 `pit_auto` prende N dal probe onnxruntime con stessa board e precisione, per qualunque backend
@@ -118,16 +114,7 @@ lo scrive nel log e poi riparte: il primo comando qui sopra serve solo a sceglie
 python run.py -m stage=search strategy=pit_duccio strategy.search.regularizer.target.ops=30%,40%,50%
 ```
 
-Stessi override per `finetune`, `adapt`, `export` e `benchmark`.
-
-**Senza adattamento**
-
-```bash
-python run.py -m stage=export strategy=baseline,pit_duccio adapt=none
-```
-
-Con `adapt=none` all'export vanno i pesi di `train` (baseline) o di `finetune` (pit), allenati
-solo su AOD4; la chiave dei pesi (e quindi export e celle) è diversa da quella con l'adattamento.
+Stessi override per `finetune`, `export` e `benchmark`.
 
 **Roofline**
 
@@ -162,9 +149,9 @@ search:
 - Target DUCCIO sul modello intero, assoluti (`1.2G`, `800M`) o in % del modello di partenza;
   sotto il minimo raggiungibile la ricerca si ferma con un errore.
 - Le MAC sono calcolate alla risoluzione di deploy (`model.imgsz`).
-- Ricerca e fine-tuning girano su AOD4 (`pretrain_dataset`); l'adattamento a Svanström viene
-  dopo (`stage=adapt`, facoltativo).
-- Il fine-tuning ha il suo gruppo `conf/finetune/`, l'adattamento `conf/adapt/`.
+- Ricerca e fine-tuning girano su AOD4 (`pretrain_dataset`); all'export vanno i pesi di
+  `train` (baseline) o di `finetune` (pit).
+- Il fine-tuning ha il suo gruppo `conf/finetune/`.
 
 ## Opzioni
 
@@ -174,7 +161,7 @@ search:
 | `--cfg job --resolve` | stampa la config risolta |
 | `+force=true` | rifà benchmark, probe e roofline già fatti |
 | `+retry_failed=true` | riprova le celle fallite |
-| `+force_retrain=true` / `+force_search=true` / `+force_finetune=true` / `+force_adapt=true` / `+force_reexport=true` | rifà quello stadio |
+| `+force_retrain=true` / `+force_search=true` / `+force_finetune=true` / `+force_reexport=true` | rifà quello stadio |
 | `+allow_reboot=true` | permette il riavvio della board per i cambi di profilo |
 | `skip_invalid=false` | ferma lo sweep su una cella non valida invece di saltarla |
 | `continue_on_error=false` | ferma lo sweep alla prima cella fallita |
@@ -217,10 +204,10 @@ N e complessità del modello.
 ## Struttura
 
 ```
-conf/        un gruppo per asse (stage, model, train, strategy, finetune, adapt, dataset,
+conf/        un gruppo per asse (stage, model, train, strategy, finetune, dataset,
              quantization, backend, hardware, eval, logging)
 docs/config/ riferimento di ogni campo, per gruppo
-src/stages/  train, search, finetune, adapt, probe, roofline, export, benchmark
+src/stages/  train, search, finetune, probe, roofline, export, benchmark
 src/probe/   reti dummy e scelta di N
 src/backends/, src/remote/, src/measure/, src/validation/
 tools/       aggregate, roofline, report, artifacts

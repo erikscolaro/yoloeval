@@ -1,0 +1,9 @@
+# YOLO26f (femto): variante sotto il pico (larghezza 0.0625, circa 0.2 M parametri, 0.64 GFLOPs a 640).
+# Nessun checkpoint preaddestrato: si addestra da zero con train=scratch.
+name: yolo26f
+source: local
+weights: null
+cfg: ${project_root}/models/yolo26f.yaml     # formato Ultralytics nativo
+scale: f
+imgsz: 640
+nc: 4

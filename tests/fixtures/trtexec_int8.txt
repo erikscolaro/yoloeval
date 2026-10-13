@@ -1,4 +1,4 @@
-&&&& RUNNING TensorRT.trtexec [TensorRT v100300] # trtexec --loadEngine=yolo26n_int8.engine --iterations=200 --warmUp=2000 --avgRuns=200 --duration=0 --useSpinWait --noDataTransfers=false --percentile=90,95,99
+&&&& RUNNING TensorRT.trtexec [TensorRT v100300] # trtexec --loadEngine=yolo26n_int8.engine --iterations=200 --warmUp=2000 --avgRuns=200 --duration=0 --useSpinWait --percentile=90,95,99
 [I] === Model Options ===
 [I] Format: *
 [I] Model:

@@ -19,6 +19,7 @@ from __future__ import annotations
 import logging
 import re
 import shutil
+from collections.abc import Mapping
 from pathlib import Path
 
 from ..measure.compute import resolve_compute
@@ -99,24 +100,32 @@ class OpenVINOBackend(Backend):
         if Path(artifact).is_dir():
             xml = sorted(Path(artifact).glob("*.xml"))
             model = xml[0] if xml else artifact
-        elif Path(artifact).suffix != ".xml":
+        elif Path(artifact).suffix not in (".xml", ".onnx"):   # .onnx: le reti del probe
             # Directory sulla board, non visibile da qui: l'IR ne contiene
             # uno solo, e il glob lo risolve la shell remota.
             model = f"{artifact}/*.xml"
         # benchmark_app e' un entry point del pacchetto openvino: sta nel
         # bin/ del venv.
         template = self.with_venv_tool(cfg, " ".join(str(bench.cmd).split()))
-        return template.format(
+        cmd = template.format(
             model=model,
             device=DEVICE_BY_COMPUTE.get(ct.get("device"), "CPU"),
             iters=int(bench.iters),
             threads=int(ct.get("n_cores") or 1),
         )
+        # sulle CPU ARM con fp16 OpenVINO calcolerebbe l'IR fp32 in fp16: la precisione va chiesta
+        precision = (bench.get("infer_precision") or {}).get(cfg.quantization.precision)
+        if isinstance(precision, Mapping):           # per architettura della board
+            precision = precision.get(cfg.hardware.arch)
+        return f"{cmd} -infer_precision {precision}" if precision else cmd
 
     def parse(self, stdout: str) -> LatencyResult:
         def ms(label):
-            value = search(rf"{label}:\s*([\d.]+)\s*ms", stdout)
-            return float(value) if value else None
+            # sotto il millisecondo benchmark_app scrive in us (reti piccole del probe)
+            m = re.search(rf"{label}:\s*([\d.]+)\s*(ms|us)", stdout)
+            if not m:
+                return None
+            return float(m.group(1)) / (1000.0 if m.group(2) == "us" else 1.0)
 
         median = require(ms("Median"), "Latency Median", stdout)
         mean = require(ms("Average"), "Latency Average", stdout)

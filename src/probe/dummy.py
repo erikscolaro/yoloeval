@@ -147,7 +147,7 @@ def artifact(shape: Shape, c: int, precision: str, out_dir: Path, int8_args: dic
     import onnx
 
     spec = {"shape": asdict(shape), "c": c, "precision": precision, "int8": int8_args or {},
-            "opset": OPSET}
+            "opset": OPSET, "int8_scheme": "qdq_s8s8_sym_per_channel"}
     tag = hashlib.sha256(json.dumps(spec, sort_keys=True).encode()).hexdigest()[:10]
     path = Path(out_dir) / f"{shape.name}_c{c}_{precision}_{tag}.onnx"
     if path.exists():
@@ -164,17 +164,15 @@ def artifact(shape: Shape, c: int, precision: str, out_dir: Path, int8_args: dic
         from onnxruntime.quantization import (CalibrationMethod, QuantFormat, QuantType,
                                               quantize_static)
 
-        args = dict(int8_args or {})
         fp32 = path.with_suffix(".fp32.onnx")
         onnx.save(model, str(fp32))
+        # lo stesso schema del QDQ dei modelli (src/stages/quantize.py)
         quantize_static(
             str(fp32), str(path), _RandomReader(shape.input_dims(c)),
-            quant_format=QuantFormat.QDQ if str(args.get("quant_format", "QDQ")).upper()
-            == "QDQ" else QuantFormat.QOperator,
-            per_channel=bool(args.get("per_channel", True)),
-            reduce_range=bool(args.get("reduce_range", False)),
-            activation_type=QuantType.QUInt8, weight_type=QuantType.QInt8,
-            calibrate_method=CalibrationMethod.MinMax)
+            quant_format=QuantFormat.QDQ, per_channel=True, reduce_range=False,
+            activation_type=QuantType.QInt8, weight_type=QuantType.QInt8,
+            calibrate_method=CalibrationMethod.MinMax,
+            extra_options={"ActivationSymmetric": True, "WeightSymmetric": True})
         fp32.unlink(missing_ok=True)
     else:
         raise ValueError(f"precisione non supportata dal probe: {precision}")

@@ -34,7 +34,7 @@ COLORS = {
     "fp32": _P[0], "fp16": _P[2], "int8": _P[1],
     # backend
     "onnxruntime": _P[0], "onnxruntime_py": _P[4], "openvino": _P[1],
-    "openvino_qdq": _P[7], "tensorrt": _P[2], "tensorrt_implicit": _P[5],
+    "openvino_qdq": _P[7], "tensorrt": _P[2],
     "executorch": _P[3], "axelera": _P[6],
     # board
     "wks4_rtx6000": _P[0], "jetson_orin": _P[2], "rpi5": _P[1], "rpi5_axelera": _P[6],

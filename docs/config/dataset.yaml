@@ -30,5 +30,5 @@ subset: all
   # oggetti per fascia COCO del box piu' grande (sqrt(area) < 32, 32-96,
   # > 96 px); `background` solo i frame senza, da aggiungere a mano. Entra
   # in `name` e `local_path`, quindi ogni sottoinsieme ha artefatti e copia
-  # sulla board suoi. Split identici fra sottoinsiemi: tools/svanstrom.py li
-  # fa per video, per classe, bilanciando le fasce.
+  # sulla board suoi. Split identici fra sottoinsiemi: il dataset li
+  # fa per video, per classe, bilanciando le fasce (repo torretta-dataset).

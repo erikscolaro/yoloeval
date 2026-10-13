@@ -1,6 +1,6 @@
 subset: all       # all (tutto, background incluso) | small | medium | large | background
 name: svanstrom_${.subset}
-local_path: ${project_root}/data/svanstrom/${.subset}   # generato da tools/svanstrom.py
+local_path: ${project_root}/data/svanstrom/${.subset}   # costruito nella repo torretta-dataset
 yaml: ${.local_path}/dataset.yaml    # data yaml in formato Ultralytics
 nc: 4
 names: [airplane, bird, drone, helicopter]
