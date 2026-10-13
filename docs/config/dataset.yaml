@@ -1,10 +1,10 @@
 # Riferimento dei campi di conf/dataset/<nome>.yaml
 
-name: aod4
+name: air_detection_${.subset}
   # OBBLIGATORIO. Compare nei nomi delle cartelle degli artefatti e decide
   # dove il dataset viene copiato sulla board: <workdir>/data/<name>/
 
-local_path: ${project_root}/data/aod4
+local_path: ${project_root}/data/air-detection/${.subset}
   # OBBLIGATORIO. Path assoluto sulla WORKSTATION, alla radice del dataset.
   # Da qui vengono: l'hash dei dati (lista ordinata dei file con le loro
   # dimensioni, salvata in .dataset_hash e RICALCOLATA a ogni chiamata) e
@@ -25,10 +25,10 @@ names: [airplane, bird, drone, helicopter]
   # Averli anche qui serve a leggere il file senza aprirne un altro.
 
 subset: all
-  # Solo svanstrom: all | small | medium | large | background. `all` e'
-  # tutto, background compreso; small/medium/large sono le immagini con
-  # oggetti per fascia COCO del box piu' grande (sqrt(area) < 32, 32-96,
-  # > 96 px); `background` solo i frame senza, da aggiungere a mano. Entra
-  # in `name` e `local_path`, quindi ogni sottoinsieme ha artefatti e copia
-  # sulla board suoi. Split identici fra sottoinsiemi: il dataset li
-  # fa per video, per classe, bilanciando le fasce (repo air-detection).
+  # Sottoinsieme consegnato da air-detection (docs/regole.md): `all` (train, val, test,
+  # calib); le fasce di grandezza s16 | s32 | s64 | s96 (16-32, 32-64, 64-96, >96 px; nomi
+  # con una lettera: Hydra legge 16_32 come l'intero 1632), solo val e test, per la mAP
+  # per fascia con il val standard; val_480p | val_720p | val_1080p, mosaici alle
+  # risoluzioni di deploy (con deploy= della stessa risoluzione); test_* come i val, chiusi
+  # fino alla fase 5. Entra in `name` e `local_path`, quindi ogni sottoinsieme ha artefatti
+  # e copia sulla board suoi.

@@ -11,8 +11,8 @@ defaults:
   - model: yolo26n
   - deploy: "640"
   - train: short
-  - dataset: svanstrom
-  - dataset@pretrain_dataset: svanstrom
+  - dataset: air_detection
+  - dataset@pretrain_dataset: air_detection
   - quantization: fp32
   - backend: onnxruntime
   - hardware: wks4_rtx6000

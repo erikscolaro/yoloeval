@@ -1,0 +1,7 @@
+# Il dataset unico della tesi, costruito nella repo ~/Desktop/air-detection (docs/regole.md, consegna).
+subset: all       # all | s16 | s32 | s64 | s96 (fasce 16-32, 32-64, 64-96, >96 px) | val_480p | val_720p | val_1080p (test_* chiusi fino alla fase 5)
+name: air_detection_${.subset}
+local_path: ${project_root}/data/air-detection/${.subset}
+yaml: ${.local_path}/dataset.yaml    # data yaml in formato Ultralytics
+nc: 4
+names: [airplane, bird, drone, helicopter]

@@ -160,9 +160,9 @@ def test_export_e_cella_distinguono_strategia_e_baseline():
 def test_pretrain_dataset_si_risolve_nel_suo_gruppo():
     """I campi del dataset si risolvono nel loro gruppo: con `${dataset.local_path}` il training
     di `pretrain_dataset` finirebbe sul dataset di destinazione."""
-    cfg = make_cfg("dataset.subset=small")
-    assert cfg.pretrain_dataset.yaml.endswith("data/svanstrom/all/dataset.yaml")
-    assert cfg.dataset.yaml.endswith("data/svanstrom/small/dataset.yaml")
+    cfg = make_cfg("dataset.subset=s16")
+    assert cfg.pretrain_dataset.yaml.endswith("data/air-detection/all/dataset.yaml")
+    assert cfg.dataset.yaml.endswith("data/air-detection/s16/dataset.yaml")
 
 
 # --- pesi finali -------------------------------------------------------------------------

@@ -65,7 +65,7 @@ fi
 env "${ORT_ENV[@]}" bash "$WORKDIR/scripts/remote/build_ort_perf_test.sh"
 
 # Dataset sulla workstation; le board lo ricevono da sync.py al primo uso. Il dataset
-# unico si costruisce nella repo ~/Desktop/air-detection e va messo in data/svanstrom/.
+# unico si costruisce nella repo ~/Desktop/air-detection e va messo in data/air-detection/.
 
 for tool in onnxruntime_perf_test trtexec benchmark_app pandoc; do
   if [[ "$tool" == trtexec && -x "$TRTEXEC" ]]; then
