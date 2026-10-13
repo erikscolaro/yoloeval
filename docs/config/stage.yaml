@@ -3,6 +3,10 @@
 # Lo stadio decide cosa fa run.py. I campi sotto `name` valgono solo per
 # alcuni stadi, come indicato.
 
+defaults: [probe_edge, _self_]
+  # Facoltativo. Un preset che eredita da un altro e scrive solo le differenze
+  # (probe_p1.yaml: P1-1; layers_b1.yaml: B1-1, catene di strati).
+
 name: benchmark
   # OBBLIGATORIO. Valori: train | search | finetune | probe | roofline | export |
   #                       benchmark | provision
@@ -107,6 +111,8 @@ sweep:
   c_max: 128
   c_step: 1
     # Intero. 1: con passi piu' grandi si perdono i C non allineati che fanno da confronto.
+  c_extra: [72, 128, 8]
+    # Facoltativo. [da, a, passo]: un secondo tratto di canali dopo c_max, piu' rado (P1-1).
   repeats: 3
     # Intero. Passate complete, ognuna in ordine casuale; per ogni C si usa la mediana. La
     # dispersione fra le passate stima il rumore.
@@ -123,7 +129,8 @@ sweep:
     # Lista di forme. Ognuna:
     #   kind      conv | linear (default conv)
     #   kernel    intero, solo conv
-    #   hw        conv: lato della feature map; linear: righe dell'input (token o batch)
+    #   hw        conv: altezza della feature map; linear: righe dell'input (token o batch)
+    #   w         facoltativo, solo conv: larghezza della feature map (default hw, quadrata)
     #   depthwise true | false, solo conv
     #   layers    numero di blocchi
     #   in_global true | false (default true): se false la forma e' solo informativa,

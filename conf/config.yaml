@@ -20,13 +20,16 @@ freq_target: default            # chiave dentro hardware.freq
 compute_target: null            # chiave dentro hardware.compute; null = tutte
 
 seed: 42
+# Passata della misura: la latenza e' la mediana di 3 passate con i modelli alternati
+# (NEW_MASTERPLAN §2, misure): rep=0,1,2 per primo nello sweep, i modelli variano piu' in fretta.
+rep: 0
 project_root: ${hydra:runtime.cwd}
 artifacts_dir: ${project_root}/artifacts
 results_dir: ${project_root}/results
 
 training_key_fields: [model, train, pretrain_dataset]
 cell_key_fields: [model, deploy, train, dataset, quantization, backend,
-                  hardware, freq_target, compute_target, eval]
+                  hardware, freq_target, compute_target, eval, rep]
 
 skip_invalid: true
 continue_on_error: true

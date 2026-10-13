@@ -1,0 +1,17 @@
+# B1-1 (NEW_MASTERPLAN §7): costo minimo di uno strato. Catene di conv 3x3 da 16 canali su una mappa
+# 54x30, da 1 a 32 strati: la pendenza della latenza in funzione degli strati e' il costo per strato.
+#   python run.py stage=layers_b1 hardware=rpi5 freq_target=max compute_target=cpu_4 quantization=fp16 backend=openvino
+defaults: [probe_edge, _self_]
+
+plot: false
+sweep:
+  c_min: 16
+  c_max: 16
+  c_step: 1
+  shapes:
+    - {kind: conv, kernel: 3, hw: 30, w: 54, layers: 1, in_global: false}
+    - {kind: conv, kernel: 3, hw: 30, w: 54, layers: 2, in_global: false}
+    - {kind: conv, kernel: 3, hw: 30, w: 54, layers: 4, in_global: false}
+    - {kind: conv, kernel: 3, hw: 30, w: 54, layers: 8, in_global: false}
+    - {kind: conv, kernel: 3, hw: 30, w: 54, layers: 16, in_global: false}
+    - {kind: conv, kernel: 3, hw: 30, w: 54, layers: 32, in_global: false}

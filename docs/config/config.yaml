@@ -56,6 +56,12 @@ training_key_fields: [model, train, pretrain_dataset]
   # `pretrain_dataset` (gruppo `dataset` montato in un'altra chiave); export
   # e misure usano `dataset` (Svanstrom), che entra nella chiave della cella.
 
+rep: 0
+  # Passata della misura di latenza: due passate dello stesso modello sono due celle.
+  # `python run.py -m stage=benchmark rep=0,1,2 model=...`: Hydra fa variare piu' in fretta
+  # l'ultimo asse, quindi i modelli si alternano fra una passata e l'altra. In analisi la
+  # mediana sulle passate; B1-0 (ripetibilita') usa rep=0,1,2,3,4.
+
 cell_key_fields: [model, deploy, train, dataset, quantization, backend,
                   hardware, freq_target, compute_target, eval]
   # Quali gruppi identificano una cella. Toglierne uno significa che due celle

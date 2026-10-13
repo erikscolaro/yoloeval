@@ -62,8 +62,17 @@ def probe_id(cfg) -> str:
             f"{cfg.backend.name}_{h}")
 
 
+def channels(sw) -> list[int]:
+    """c_min..c_max a passo c_step, piu' il tratto facoltativo `c_extra: [da, a, passo]`."""
+    cs = list(range(int(sw.c_min), int(sw.c_max) + 1, int(sw.c_step)))
+    if sw.get("c_extra"):
+        a, b, step = (int(x) for x in sw.c_extra)
+        cs += [c for c in range(a, b + 1, step) if c > cs[-1]]
+    return cs
+
+
 def shapes(cfg) -> list[dummy.Shape]:
-    return [dummy.Shape(kernel=int(s.get("kernel", 1)), hw=int(s.hw),
+    return [dummy.Shape(kernel=int(s.get("kernel", 1)), hw=int(s.hw), w=int(s.w) if s.get("w") else None,
                         depthwise=bool(s.get("depthwise", False)), layers=int(s.layers),
                         kind=str(s.get("kind", "conv")), in_global=bool(s.get("in_global", True)))
             for s in cfg.stage.sweep.shapes]
@@ -90,8 +99,7 @@ def run_probe(cfg) -> list[Path]:
             continue
         if cfg.dry_run:
             sw = cfg.stage.sweep
-            n_meas = len(shapes(cfg)) * len(range(int(sw.c_min), int(sw.c_max) + 1,
-                                                   int(sw.c_step))) * int(sw.get("repeats", 3))
+            n_meas = len(shapes(cfg)) * len(channels(sw)) * int(sw.get("repeats", 3))
             log.info("[dry-run] probe %s: %d misure", pid, n_meas)
             continue
         written.append(_run_one(cfg, pid, summary_path))
@@ -115,7 +123,7 @@ def _run_one(cfg, pid: str, summary_path: Path) -> Path:
               "calibration_method", "calibration_options"):
         int8_args.pop(k, None)                   # reti dummy: si quantizza tutto
     onnx_dir = Path(cfg.artifacts_dir) / "probe" / "onnx"
-    cs = list(range(int(sw.c_min), int(sw.c_max) + 1, int(sw.c_step)))
+    cs = channels(sw)
     plan = [(s, c) for s in shapes(cfg) for c in cs]
 
     with timer.phase("setup"):

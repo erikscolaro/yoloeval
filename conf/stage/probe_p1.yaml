@@ -1,0 +1,16 @@
+# P1-1 (NEW_MASTERPLAN §7): probe ridotto per PI, AGX e DX. 8 conv 3x3 uguali, canali da 1 a 64 a
+# passo 1 e da 72 a 128 a passo 8, mappe dei passi 8 e 16 del 480p e del 1080p, 3 passate.
+#   python run.py stage=probe_p1 hardware=rpi5 freq_target=max compute_target=cpu_4 quantization=fp16 backend=openvino
+defaults: [probe_edge, _self_]
+
+sweep:
+  c_min: 1
+  c_max: 64
+  c_step: 1
+  c_extra: [72, 128, 8]
+  repeats: 3
+  shapes:
+    - {kind: conv, kernel: 3, hw: 60, w: 108, layers: 8, in_global: true}
+    - {kind: conv, kernel: 3, hw: 30, w: 54, layers: 8, in_global: true}
+    - {kind: conv, kernel: 3, hw: 136, w: 240, layers: 8, in_global: true}
+    - {kind: conv, kernel: 3, hw: 68, w: 120, layers: 8, in_global: true}

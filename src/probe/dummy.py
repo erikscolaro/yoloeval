@@ -24,22 +24,28 @@ class Shape:
     """Forma dei layer della rete dummy."""
 
     kernel: int = 3
-    hw: int = 40                 # conv: lato della feature map (40 = P4 di YOLO a 640);
+    hw: int = 40                 # conv: altezza della feature map (40 = P4 di YOLO a 640);
                                  # linear: righe dell'input (token o batch)
     depthwise: bool = False
     layers: int = 8
     kind: str = "conv"           # conv | linear
     in_global: bool = True       # conta per l'N globale (false: solo informativa)
+    w: int | None = None         # conv: larghezza della feature map, None = quadrata
+
+    @property
+    def width(self) -> int:
+        return self.w or self.hw
 
     @property
     def name(self) -> str:
         if self.kind == "linear":
             return f"linear@{self.hw}x{self.layers}"
         kind = "dw" if self.depthwise else "conv"
-        return f"{kind}{self.kernel}x{self.kernel}@{self.hw}x{self.layers}"
+        size = f"{self.hw}x{self.w}" if self.w else f"{self.hw}"
+        return f"{kind}{self.kernel}x{self.kernel}@{size}x{self.layers}"
 
     def input_dims(self, c: int) -> list[int]:
-        return [1, self.hw, c] if self.kind == "linear" else [1, c, self.hw, self.hw]
+        return [1, self.hw, c] if self.kind == "linear" else [1, c, self.hw, self.width]
 
 
 def costs(shape: Shape, c: int) -> dict:
@@ -50,7 +56,7 @@ def costs(shape: Shape, c: int) -> dict:
                 "params": int(shape.layers * c * per_out)}
     k2 = shape.kernel * shape.kernel
     per_out = (k2 if shape.depthwise else c * k2) + 1
-    macs = shape.layers * c * per_out * shape.hw * shape.hw
+    macs = shape.layers * c * per_out * shape.hw * shape.width
     params = shape.layers * c * per_out
     return {"macs": int(macs), "params": int(params)}
 
@@ -84,7 +90,7 @@ def build(shape: Shape, c: int, seed: int = 0):
         ]
         x = f"y{i}"
     nodes.append(helper.make_node("Identity", [x], ["output"], name="output"))
-    dims = [1, c, shape.hw, shape.hw]
+    dims = shape.input_dims(c)
     graph = helper.make_graph(
         nodes, f"probe_{shape.name}_c{c}", [
             helper.make_tensor_value_info("input", TensorProto.FLOAT, dims)],

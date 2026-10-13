@@ -49,6 +49,7 @@ def axes(cfg: DictConfig, training_key: str | None = None,
         "arch": cfg.hardware.arch,
         "freq_target": cfg.freq_target,
         "compute_target": cfg.compute_target,
+        "rep": cfg.get("rep", 0),
     }
 
 
