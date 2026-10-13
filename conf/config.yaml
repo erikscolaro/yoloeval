@@ -3,6 +3,7 @@
 defaults:
   - stage: benchmark
   - model: yolo26n
+  - deploy: "640"
   - train: short
   - dataset: svanstrom                 # destinazione: export, misure
   - dataset@pretrain_dataset: svanstrom # train, search, finetune: lo stesso dataset unico
@@ -24,7 +25,7 @@ artifacts_dir: ${project_root}/artifacts
 results_dir: ${project_root}/results
 
 training_key_fields: [model, train, pretrain_dataset]
-cell_key_fields: [model, train, dataset, quantization, backend,
+cell_key_fields: [model, deploy, train, dataset, quantization, backend,
                   hardware, freq_target, compute_target, eval]
 
 skip_invalid: true

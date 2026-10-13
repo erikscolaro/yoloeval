@@ -188,7 +188,7 @@ def search_key(cfg: DictConfig) -> str:
         "training_key": training_key(cfg),
         "strategy": _group(cfg, "strategy"),
         "yolopit": yolopit_version(),
-        "cost_imgsz": int(cfg.model.imgsz),
+        "cost_imgsz": list(cfg.deploy.imgsz),
     }
     if auto_n(cfg):
         # entra il VALORE di N misurato, non la board: due board con lo stesso N
@@ -227,7 +227,7 @@ def model_label(model: str, strategy: str | None) -> str:
     return model if strategy in (None, "baseline") else f"{model}-{strategy}"
 
 
-def compose_export_key(model: str, tkey: str, quantization: str, backend: str,
+def compose_export_key(model: str, tkey: str, deploy: str, quantization: str, backend: str,
                        arch: str, sdk_version: str | None = None) -> str:
     """Composizione dell'export_key da parti gia' note.
 
@@ -236,7 +236,7 @@ def compose_export_key(model: str, tkey: str, quantization: str, backend: str,
     sono ancora referenziati: se le due formule divergessero, prune
     cancellerebbe engine e .axm che costano ore di compilazione sulla board.
     """
-    key = f"{model}_{tkey}_{quantization}_{backend}_{arch}"
+    key = f"{model}_{tkey}_{deploy}_{quantization}_{backend}_{arch}"
     if backend == "axelera" and sdk_version:
         # Un aggiornamento dell'SDK invalida i .axm compilati in precedenza,
         # che vengono rifiutati al caricamento.
@@ -249,7 +249,7 @@ def export_key(cfg: DictConfig) -> str:
     if cfg.backend.name == "axelera":
         sdk = cfg.backend.build.sdk_version
     return compose_export_key(
-        model_label(cfg.model.name, strategy_name(cfg)), weights_key(cfg),
+        model_label(cfg.model.name, strategy_name(cfg)), weights_key(cfg), cfg.deploy.name,
         cfg.quantization.name, cfg.backend.name, cfg.hardware.arch, sdk,
     )
 

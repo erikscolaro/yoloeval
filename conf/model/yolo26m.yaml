@@ -1,7 +1,5 @@
-name: yolo26m
-source: pretrained
-weights: yolo26m.pt
-cfg: null
-scale: m
-imgsz: 640
-nc: 4
+defaults: [yolo26, _self_]
+
+# M (medium), larghezza 1.0
+name: yolo26m_${.depth}
+width: 1.0

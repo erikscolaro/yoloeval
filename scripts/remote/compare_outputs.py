@@ -32,10 +32,11 @@ def letterbox(path, imgsz):
     if img is None:
         raise FileNotFoundError(path)
     h, w = img.shape[:2]
-    scale = min(imgsz / h, imgsz / w)
+    th, tw = imgsz
+    scale = min(th / h, tw / w)
     nh, nw = int(round(h * scale)), int(round(w * scale))
-    canvas = np.full((imgsz, imgsz, 3), 114, dtype=np.uint8)
-    top, left = (imgsz - nh) // 2, (imgsz - nw) // 2
+    canvas = np.full((th, tw, 3), 114, dtype=np.uint8)
+    top, left = (th - nh) // 2, (tw - nw) // 2
     canvas[top:top + nh, left:left + nw] = cv2.resize(img, (nw, nh))
     x = canvas[:, :, ::-1].transpose(2, 0, 1).astype("float32") / 255.0
     return np.ascontiguousarray(x)
@@ -142,7 +143,8 @@ def main() -> int:
     ap.add_argument("--ref", required=True, help="modello FP32 di riferimento")
     ap.add_argument("--target", required=True, help="artefatto da validare")
     ap.add_argument("--images", required=True, help="directory delle immagini")
-    ap.add_argument("--imgsz", type=int, default=640)
+    ap.add_argument("--imgsz", type=lambda s: [int(x) for x in s.split(",")], default=[640, 640],
+                    help="h,w dell'ingresso")
     ap.add_argument("--n", type=int, default=8)
     ap.add_argument("--device", default="cpu")
     ap.add_argument("--ref-device", default=None)

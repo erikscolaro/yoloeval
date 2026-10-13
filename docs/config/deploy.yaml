@@ -1,0 +1,9 @@
+# Riferimento dei campi di conf/deploy/<nome>.yaml
+# Il training e' sempre a 640 (train.imgsz); qui l'ingresso di export, mAP degli export,
+# confronto numerico, calibrazione int8 e costi della ricerca PIT.
+
+name: 480p
+  # OBBLIGATORIO. Compare nell'export_key.
+
+imgsz: [480, 864]
+  # OBBLIGATORIO. [altezza, larghezza] dell'ingresso, multipli di 32.

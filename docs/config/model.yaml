@@ -1,30 +1,23 @@
 # Riferimento dei campi di conf/model/<nome>.yaml
+# L'architettura e' YOLO26 con testa one-to-one, costruita da src/models.py (NEW_MASTERPLAN §4).
 
-name: yolo26n
+defaults: [yolo26, _self_]
+  # Nelle taglie con nome (yolo26f, p, n, s, m): eredita da yolo26.yaml e cambia
+  # solo nome e larghezza.
+
+name: yolo26n_${.depth}
   # OBBLIGATORIO. Compare nei risultati, nell'export_key e nel nome delle
   # cartelle degli artefatti.
 
-source: pretrained
-  # OBBLIGATORIO. Valori: pretrained | local
-  #   pretrained -> si parte da `weights`, che Ultralytics scarica se non c'e'
-  #   local      -> si parte da `cfg`, un'architettura descritta in YAML
+width: 0.25
+  # OBBLIGATORIO. Una delle 9 larghezze della scala discreta:
+  # 0.0625 0.09375 0.125 0.1875 0.25 0.375 0.5 0.75 1.0. Le altre non costruiscono
+  # o duplicano un'architettura. Sopra 0.5 il tetto di canali e' 512.
 
-weights: yolo26n.pt
-  # Con source: pretrained e' obbligatorio. Nome di un checkpoint Ultralytics
-  # (yolo26n.pt, yolo26s.pt, yolo26m.pt...) oppure path a un .pt tuo.
-  # Con source: local puo' essere null, o un .pt da cui partire.
-
-cfg: ${project_root}/models/custom_pruned.yaml
-  # Con source: local e' obbligatorio. Path a un YAML di architettura in
-  # formato Ultralytics nativo. null con source: pretrained.
-
-scale: n
-  # Facoltativo, descrittivo. n | s | m | l | x
-
-imgsz: 640
-  # Intero. Risoluzione usata per export, mAP e confronto numerico.
-  # Nota: il training usa `train.imgsz`, che e' un campo diverso. Se li tieni
-  # diversi, esporti a una risoluzione a cui non hai allenato.
+depth: D126
+  # OBBLIGATORIO. Numero di conv della rete: D101 (c3k=False in tutti i C3k2),
+  # D126 (YAML ufficiale), D170 (moltiplicatore di profondita' 1.0). Controllato a
+  # ogni costruzione.
 
 nc: 4
   # Numero di classi. Deve coincidere con `dataset.nc`. Serve anche a

@@ -125,7 +125,7 @@ def test_search_key_non_cambia_con_hardware_export_e_finetune(override):
     "strategy.search.pit.n=8",
     "train.epochs=42",
     "model=yolo26s",
-    "model.imgsz=320",
+    "deploy=480p",
     "pretrain_dataset.name=altro",
 ])
 def test_search_key_cambia_con_strategia_training_e_risoluzione(override):
@@ -151,7 +151,7 @@ def test_finetune_key_e_weights_key():
 def test_export_e_cella_distinguono_strategia_e_baseline():
     base = make_cfg()
     pit = make_cfg("strategy=pit_duccio")
-    assert export_key(pit).startswith("yolo26n-pit_duccio_")
+    assert export_key(pit).startswith("yolo26n_D126-pit_duccio_")
     assert export_key(pit) != export_key(base)
     assert cell_key(pit) != cell_key(base)
     assert model_label("yolo26n", "baseline") == "yolo26n"

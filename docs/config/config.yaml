@@ -9,9 +9,10 @@ defaults:
   # questo file vince sui gruppi.
   - stage: benchmark
   - model: yolo26n
-  - train: default
+  - deploy: "640"
+  - train: short
   - dataset: svanstrom
-  - dataset@pretrain_dataset: aod4
+  - dataset@pretrain_dataset: svanstrom
   - quantization: fp32
   - backend: onnxruntime
   - hardware: wks4_rtx6000
@@ -55,7 +56,7 @@ training_key_fields: [model, train, pretrain_dataset]
   # `pretrain_dataset` (gruppo `dataset` montato in un'altra chiave); export
   # e misure usano `dataset` (Svanstrom), che entra nella chiave della cella.
 
-cell_key_fields: [model, train, dataset, quantization, backend,
+cell_key_fields: [model, deploy, train, dataset, quantization, backend,
                   hardware, freq_target, compute_target, eval]
   # Quali gruppi identificano una cella. Toglierne uno significa che due celle
   # diverse si sovrascrivono il risultato; il training_key viene aggiunto in

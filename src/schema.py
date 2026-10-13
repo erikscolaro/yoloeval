@@ -39,6 +39,7 @@ def axes(cfg: DictConfig, training_key: str | None = None,
     strategy = cfg.get("strategy")
     return {
         "model": cfg.model.name,
+        "deploy": cfg.deploy.name,
         "strategy": "baseline" if strategy is None else strategy.name,
         "training_key": training_key,
         "weights_key": weights_key or training_key,

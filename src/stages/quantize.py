@@ -18,6 +18,7 @@ from pathlib import Path
 import yaml
 
 from ..jsonio import atomic_write_json
+from ..models import deploy_hw
 
 log = logging.getLogger(__name__)
 
@@ -79,7 +80,7 @@ def write_manifest(dst_dir: Path, files: list[Path]) -> Path:
     return atomic_write_json(Path(dst_dir) / "calibration.json", payload)
 
 
-def preprocess(path: Path, imgsz: int):
+def preprocess(path: Path, imgsz: list[int]):
     """Letterbox + normalizzazione, come fa Ultralytics in inferenza.
 
     Usare un preprocessing diverso da quello di inferenza produce statistiche
@@ -92,11 +93,12 @@ def preprocess(path: Path, imgsz: int):
     if img is None:
         raise FileNotFoundError(f"immagine non leggibile: {path}")
     h, w = img.shape[:2]
-    scale = min(imgsz / h, imgsz / w)
+    th, tw = imgsz
+    scale = min(th / h, tw / w)
     nh, nw = int(round(h * scale)), int(round(w * scale))
     resized = cv2.resize(img, (nw, nh), interpolation=cv2.INTER_LINEAR)
-    canvas = np.full((imgsz, imgsz, 3), 114, dtype=np.uint8)
-    top, left = (imgsz - nh) // 2, (imgsz - nw) // 2
+    canvas = np.full((th, tw, 3), 114, dtype=np.uint8)
+    top, left = (th - nh) // 2, (tw - nw) // 2
     canvas[top:top + nh, left:left + nw] = resized
     x = canvas[:, :, ::-1].transpose(2, 0, 1).astype("float32") / 255.0
     return np.ascontiguousarray(x)[None]
@@ -110,7 +112,7 @@ class CalibrationReader:
     board, dove non si quantizza).
     """
 
-    def __init__(self, files: list[Path], input_name: str, imgsz: int):
+    def __init__(self, files: list[Path], input_name: str, imgsz: list[int]):
         self.files = list(files)
         self.input_name = input_name
         self.imgsz = imgsz
@@ -221,7 +223,7 @@ def quantize_onnx_static(src: Path, dst: Path, cfg, tensorrt: bool = False) -> P
 
     model = onnx.load(str(src))
     input_name = model.graph.input[0].name
-    reader = CalibrationReader(files, input_name, int(cfg.model.imgsz))
+    reader = CalibrationReader(files, input_name, deploy_hw(cfg))
 
     prepped = dst.with_suffix(".prep.onnx")
     quant_pre_process(str(src), str(prepped), skip_symbolic_shape=False)

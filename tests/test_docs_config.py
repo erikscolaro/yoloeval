@@ -23,7 +23,7 @@ CONF = ROOT / "conf"
 #: un compute target, un backend): si confrontano i campi dentro, non i nomi
 VARIANTI = {"freq", "compute", "backend_args"}
 
-GRUPPI = ["stage", "model", "train", "dataset", "quantization", "backend",
+GRUPPI = ["stage", "model", "deploy", "train", "dataset", "quantization", "backend",
           "hardware", "eval", "logging", "strategy", "finetune"]
 
 

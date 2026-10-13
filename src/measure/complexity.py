@@ -19,6 +19,8 @@ from pathlib import Path
 
 import numpy as np
 
+from ..models import deploy_hw
+
 log = logging.getLogger(__name__)
 
 BYTES = {"fp32": 4, "fp16": 2, "int8": 1}
@@ -90,21 +92,22 @@ def with_precision(cx: dict, precision: str) -> dict:
 
 
 def ensure_complexity(cfg, src_pt: Path, key: str) -> dict:
-    """Complessita' dei pesi `src_pt` a model.imgsz, con cache in artifacts/complexity/.
+    """Complessita' dei pesi `src_pt` a deploy.imgsz, con cache in artifacts/complexity/.
 
     Esporta un ONNX fp32 con Ultralytics (le stesse impostazioni dell'export ONNX del
     backend) solo la prima volta per quella chiave dei pesi e risoluzione."""
     from ..jsonio import atomic_write_json, read_json
 
-    imgsz = int(cfg.model.imgsz)
+    imgsz = deploy_hw(cfg)
+    res = "x".join(map(str, imgsz))
     root = Path(cfg.artifacts_dir) / "complexity"
-    path = root / f"{key}_{imgsz}.json"
+    path = root / f"{key}_{res}.json"
     cached = read_json(path)
     if cached:
         return cached
     from ultralytics import YOLO
 
-    work = root / "_onnx" / f"{key}_{imgsz}"
+    work = root / "_onnx" / f"{key}_{res}"
     work.mkdir(parents=True, exist_ok=True)
     local_pt = work / Path(src_pt).name
     if not local_pt.exists():
@@ -117,6 +120,6 @@ def ensure_complexity(cfg, src_pt: Path, key: str) -> dict:
     cx.update(imgsz=imgsz, weights_key=key, source="onnx fp32, Ultralytics export")
     root.mkdir(parents=True, exist_ok=True)
     atomic_write_json(path, cx)
-    log.info("complessita' %s @%d: %.3f GMAC, %d layer di calcolo", key, imgsz,
+    log.info("complessita' %s @%s: %.3f GMAC, %d layer di calcolo", key, res,
              cx["macs"] / 1e9, cx["compute_layers"])
     return cx

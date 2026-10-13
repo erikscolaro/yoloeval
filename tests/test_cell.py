@@ -45,7 +45,7 @@ def test_export_mancante_lascia_una_cella_failed(cfg_local, tmp_path):
     assert rec["timing"]["wall_s"] >= 0
     assert rec["timing"]["device"] == "wks4_rtx6000"
     assert rec["axes"]["backend"] == "onnxruntime"
-    assert rec["config"]["model"]["name"] == "yolo26n"
+    assert rec["config"]["model"]["name"] == "yolo26n_D126"
 
 
 def test_cella_non_valida_lascia_una_cella_skipped(tmp_path, monkeypatch):

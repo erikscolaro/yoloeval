@@ -1,0 +1,7 @@
+# YOLO26 da zero, testa one-to-one (NEW_MASTERPLAN §4). Architettura costruita da src/models.py.
+# Le taglie con nome (yolo26f, p, n, s, m) fissano la larghezza; le larghezze intermedie si
+# ottengono da qui: model=yolo26 model.width=0.1875.
+name: yolo26w${.width}_${.depth}
+width: 0.25       # 0.0625 0.09375 0.125 0.1875 0.25 0.375 0.5 0.75 1.0
+depth: D126       # D101 (N-, S-) | D126 | D170 (N+): numero di conv della rete
+nc: 4

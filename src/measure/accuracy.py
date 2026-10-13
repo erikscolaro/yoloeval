@@ -20,6 +20,7 @@ from pathlib import Path
 
 import yaml
 
+from ..models import deploy_hw
 from ..remote.connection import is_local_conn
 from ..remote.sync import ensure_dataset
 
@@ -88,7 +89,7 @@ def compute_map(conn, cfg, model_path, device: str | None = None) -> dict:
         f"{python} {shlex.quote(str(helper))} "
         f"--model {shlex.quote(str(model_path))} "
         f"--data {shlex.quote(str(data))} "
-        f"--imgsz {cfg.model.imgsz} "
+        f"--imgsz {deploy_hw(cfg)[0]} "
         f"--conf {cfg.eval.map_conf} --iou {cfg.eval.map_iou} "
         f"--max-det {cfg.eval.max_det}"
     )

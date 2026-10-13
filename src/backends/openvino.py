@@ -23,6 +23,7 @@ from collections.abc import Mapping
 from pathlib import Path
 
 from ..measure.compute import resolve_compute
+from ..models import deploy_hw
 from . import register
 from .base import Backend, LatencyResult, require, search
 
@@ -53,7 +54,7 @@ class OpenVINOBackend(Backend):
         model = YOLO(str(src), task="detect")
         produced = Path(model.export(
             format="openvino",
-            imgsz=int(cfg.model.imgsz),
+            imgsz=deploy_hw(cfg),
             quantize=cfg.quantization.precision,   # "fp32" | "fp16" | "int8"
             batch=1,
             nms=False,            # testa one-to-one, vedi onnxruntime.py
@@ -217,7 +218,7 @@ class OpenVINOQDQBackend(OpenVINOBackend):
         # IR fp32 di Ultralytics: da' cartella e metadata.yaml (nomi, stride, end2end) che
         # servono a YOLO() per la mAP sulla board; i pesi vengono poi sostituiti dal QDQ
         produced = Path(YOLO(str(src), task="detect").export(
-            format="openvino", imgsz=int(cfg.model.imgsz), quantize="fp32", batch=1, nms=False,
+            format="openvino", imgsz=deploy_hw(cfg), quantize="fp32", batch=1, nms=False,
             max_det=int(cfg.export_max_det)))
         xml = sorted(produced.glob("*.xml"))[0]
         base = OnnxRuntimeBackend(cfg)._export_fp32(cfg, Path(src), dst)

@@ -117,7 +117,7 @@ def referenced_keys(results_dir: Path) -> set[str]:
             )
             keys.add(compose_export_key(
                 model_label(axes.get("model"), axes.get("strategy")), wkey,
-                axes.get("quantization"), axes.get("backend"), axes.get("arch"), sdk))
+                axes.get("deploy"), axes.get("quantization"), axes.get("backend"), axes.get("arch"), sdk))
     return keys
 
 

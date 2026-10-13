@@ -21,6 +21,7 @@ from ..cache import (find_weights, is_baseline, read_dataset_hash, resolve_n, se
 from ..env import collect_versions
 from ..errors import MissingWeights
 from ..jsonio import atomic_write_json
+from ..models import deploy_hw
 from ..timing import PhaseTimer
 from .probe import probe_backend
 
@@ -32,7 +33,7 @@ def search_args(cfg) -> dict:
 
     - `data` arriva sempre da pretrain_dataset.yaml (se la strategia lo mette, errore);
     - `imgsz` del training della ricerca: quello della strategia, altrimenti train.imgsz;
-    - `pit.trace_imgsz` (risoluzione dei costi e dei target): model.imgsz, la risoluzione di
+    - `pit.trace_imgsz` (risoluzione dei costi e dei target): deploy.imgsz, la risoluzione di
       deploy, se la strategia non dice altro.
     """
     conf = OmegaConf.to_container(cfg.strategy.search, resolve=True) or {}
@@ -44,7 +45,12 @@ def search_args(cfg) -> dict:
     conf["data"] = str(cfg.pretrain_dataset.yaml)
     conf.setdefault("imgsz", int(cfg.train.imgsz))
     pit = dict(conf.get("pit") or {})
-    pit.setdefault("trace_imgsz", int(cfg.model.imgsz))
+    h, w = deploy_hw(cfg)
+    if "trace_imgsz" not in pit and h != w:
+        # ponytail: yolopit calcola i costi solo su ingressi quadrati; per il blocco 2 a 480p/720p/1080p
+        # va esteso build_pit_model a (h, w)
+        raise ValueError(f"yolopit non calcola i costi a {h}x{w}: indicare pit.trace_imgsz")
+    pit.setdefault("trace_imgsz", h)
     if str(pit.get("n")) == "auto":
         pit["n"] = resolve_n(cfg)
         log.info("pit.n: auto -> N=%d dal probe (board %s, compute %s, %s, %s)", pit["n"],

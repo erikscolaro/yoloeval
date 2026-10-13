@@ -16,6 +16,7 @@ from pathlib import Path
 
 from ..errors import ExportFailed
 from ..measure.compute import resolve_compute
+from ..models import deploy_hw
 from . import register
 from .base import Backend, LatencyResult, require, search
 
@@ -73,7 +74,7 @@ class OnnxRuntimeBackend(Backend):
         model = YOLO(str(src), task="detect")
         produced = Path(model.export(
             format="onnx",
-            imgsz=int(cfg.model.imgsz),
+            imgsz=deploy_hw(cfg),
             opset=int(cfg.backend.build.opset),
             batch=1,
             simplify=True,

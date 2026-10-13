@@ -64,7 +64,7 @@ def test_export_key_composto_in_un_solo_posto():
                    "hardware=rpi5")
     from src.cache import export_key, weights_key
 
-    atteso = compose_export_key("yolo26s", weights_key(cfg), "int8",
+    atteso = compose_export_key("yolo26s_D126", weights_key(cfg), "640", "int8",
                                 "axelera", "aarch64", "1.8.0")
     assert export_key(cfg) == atteso
 

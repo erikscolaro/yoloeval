@@ -1,0 +1,3 @@
+# Nessun training: pesi casuali per le misure di latenza (fasi 1 e 2a), che non dipendono dai pesi.
+epochs: 0
+imgsz: 640

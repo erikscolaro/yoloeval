@@ -1,0 +1,4 @@
+# Ingresso del modello negli export e nelle misure, [h, w] (NEW_MASTERPLAN §2, risoluzione).
+# 640: la scala del training e del val standard; 480p, 720p, 1080p: camera 16:9, multipli di 32.
+name: "640"
+imgsz: [640, 640]

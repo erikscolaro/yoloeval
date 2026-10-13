@@ -40,6 +40,7 @@ from ..measure.compute import (
 )
 from ..measure.power import energy_sampler
 from ..mirror import mirror_result
+from ..models import deploy_hw
 from ..remote.connection import LocalConnection, connection, shell_env
 from ..remote.sync import ensure_support_files, sync_artifact
 from ..schema import (
@@ -448,6 +449,13 @@ def _accuracy(conn, cfg, backend, artifact, export_dir: Path, ct, timer) -> dict
     cached = read_json(acc_path)
     if cached:
         return cached
+    if int(cfg.train.epochs) == 0:
+        return {"status": "skipped", "reason": "pesi casuali (train=random)"}
+    h, w = deploy_hw(cfg)
+    if h != w:
+        # ponytail: il val di Ultralytics sugli export a forma fissa e' solo quadrato; la mAP ai set di
+        # deploy sugli export (fase 3) chiede un val proprio
+        return {"status": "skipped", "reason": f"val di Ultralytics solo quadrato, ingresso {h}x{w}"}
 
     if backend.builds_on_target:
         target_conn = conn

@@ -20,6 +20,7 @@ import logging
 import shlex
 
 from ..measure.accuracy import _push_helper, parse_marker
+from ..models import deploy_hw
 from ..remote.connection import is_local_conn
 from ..remote.sync import ensure_dataset
 
@@ -69,7 +70,7 @@ def compare_with_reference(conn, cfg, artifact, ref, device: str | None = None) 
         f"--ref {shlex.quote(str(ref))} "
         f"--target {shlex.quote(str(artifact))} "
         f"--images {shlex.quote(_images_dir(conn, cfg))} "
-        f"--imgsz {cfg.model.imgsz} --n {N_IMAGES}"
+        f"--imgsz {','.join(map(str, deploy_hw(cfg)))} --n {N_IMAGES}"
     )
     if device:
         cmd += f" --device {shlex.quote(device)}"
