@@ -1172,7 +1172,7 @@ inventati: quando arrivano i dati veri si sostituiscono le funzioni `lat` (fase 
 | 8 | **quali ottimi confermare con 3 seed**: tutti quelli distinti per dispositivo e risoluzione di deploy, o uno per dispositivo | **aperta**, si decide in 2c quando si sa quanti sono |
 | 9 | **ottimizzatore, learning rate e augmentation** della ricetta unica | **decisi** MuSGD, `lr0` 0.01, `lrf` 0.01, batch secondo la GPU, mosaic acceso, `scale` 0.25 (regole fisse, training e seed) |
 | 10 | **soglia di confidenza di deploy** | **decisa**: quella che massimizza l'F1 sul val, una per tutte le classi, per modello e risoluzione di deploy; applicata al test in fase 5 senza ricalcolarla (regole fisse, metriche) |
-| 11 | **minimo di istanze e di video per cella** della matrice classe × fascia (fase 0, passo 1) | **aperta**, in fase 0 |
+| 11 | **minimo di istanze e di video per cella** della matrice classe × fascia (fase 0, passo 1) | **decisa**: train ≥ 1500 immagini e ≥ 10.000 istanze per classe (Ultralytics), > 100 immagini e ≥ 10 video per cella; val e test ≥ 385 istanze per cella, verificate con bootstrap per sessione (`air-detection/docs/regole.md`) |
 
 ### Sulla scelta 1: la ricetta
 
