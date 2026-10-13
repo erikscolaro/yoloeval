@@ -43,14 +43,16 @@ Il dataset viene copiato sulle board da solo al primo uso.
 
 | gruppo / chiave | valori |
 |---|---|
-| `model` | `yolo26n`, `yolo26s`, `yolo26m`, `custom_pruned` |
+| `model` | `yolo26f`, `yolo26p`, `yolo26n`, `yolo26s`, `yolo26m`; `model.depth=D101\|D126\|D170`; larghezze intermedie con `model=yolo26 model.width=0.1875` |
+| `deploy` | `640`, `480p`, `720p`, `1080p` (ingressi 640×640, 864×480, 1280×736, 1920×1088) |
+| `rep` | passata della misura: `rep=0,1,2` per la mediana di 3 passate |
 | `strategy` | `baseline`, `pit_standard`, `pit_duccio`, `pit_auto` |
 | `quantization` | `fp32`, `fp16`, `int8` (PTQ) |
 | `backend` | `onnxruntime`, `onnxruntime_py`, `tensorrt`, `openvino`, `axelera` |
 | `hardware` | `wks4_rtx6000`, `jetson_orin`, `rpi5`, `rpi5_axelera` |
 | `freq_target` | profili della board (`maxn`, `w30`, `w15` sulla Jetson; `max`, `mid`, `low` sul Pi) |
 | `compute_target` | `gpu`, `cpu_1`, `cpu_2`, …, `axelera` (quelli dichiarati dalla board; vuoto = tutti) |
-| `train`, `finetune` | argomenti di training di Ultralytics |
+| `train`, `finetune` | argomenti di training di Ultralytics: `default` è la ricetta unica, `random` salva i pesi casuali senza allenare |
 
 `freq_target` e `compute_target` dipendono dalla board: un valore che la board non dichiara è
 un errore immediato. `freq_target` va sempre indicato sulle board.
@@ -61,10 +63,10 @@ Si lanciano in quest'ordine; ognuno salta quello che trova già in cache.
 
 | stadio | dove | cosa produce |
 |---|---|---|
-| `train` | workstation | pesi allenati su AOD4 (`pretrain_dataset`) in `artifacts/weights/` |
-| `search` | workstation | solo strategie pit: ricerca dai pesi di `train`, su AOD4, modello potato in `artifacts/search/` |
-| `finetune` | workstation | solo strategie pit: fine-tuning del potato su AOD4 in `artifacts/finetune/` |
-| `probe` / `probe_edge` | board | N che premia l'hardware, in `results/probe/` |
+| `train` | workstation | pesi allenati da zero (`pretrain_dataset`) in `artifacts/weights/` |
+| `search` | workstation | solo strategie pit: ricerca dai pesi di `train`, modello potato in `artifacts/search/` |
+| `finetune` | workstation | solo strategie pit: fine-tuning del potato in `artifacts/finetune/` |
+| `probe` / `probe_edge` / `probe_p1` / `layers_b1` | board | N che premia l'hardware, in `results/probe/`; P1-1 e catene di strati B1-1 |
 | `roofline` / `roofline_edge` | board | picco di calcolo e banda, in `results/roofline/` |
 | `export` | workstation (ONNX) o board (TensorRT, Axelera) | `artifacts/exports/`, con MAC e byte del modello |
 | `benchmark` | board | un JSON per cella in `results/` |
@@ -74,13 +76,22 @@ Jetson.
 
 ## Flussi
 
-**Solo baseline**
+**Latenza con pesi casuali (fasi 1 e 2a)**
 
 ```bash
-python run.py -m stage=train model=yolo26n,yolo26s
-python run.py -m stage=export model=yolo26n,yolo26s quantization=fp32,int8 backend=onnxruntime
-python run.py -m stage=benchmark model=yolo26n,yolo26s quantization=fp32,int8 \
-  backend=onnxruntime hardware=rpi5 freq_target=max compute_target=cpu_1,cpu_4
+python run.py -m stage=train train=random model=yolo26f,yolo26p,yolo26n,yolo26s,yolo26m
+python run.py -m stage=export train=random model=yolo26n deploy=480p,720p,1080p \
+  quantization=fp16 backend=openvino
+python run.py -m stage=benchmark rep=0,1,2 train=random model=yolo26n deploy=480p,720p,1080p \
+  quantization=fp16 backend=openvino hardware=rpi5 freq_target=max compute_target=cpu_4
+```
+
+**Training di mappatura (2b)**
+
+```bash
+python run.py -m stage=train train=default model=yolo26f,yolo26p,yolo26n,yolo26s,yolo26m
+python run.py -m stage=train train=default model=yolo26n,yolo26s model.depth=D101
+python run.py stage=train train=default model=yolo26n model.depth=D170
 ```
 
 **Baseline contro potati**
@@ -148,9 +159,10 @@ search:
 
 - Target DUCCIO sul modello intero, assoluti (`1.2G`, `800M`) o in % del modello di partenza;
   sotto il minimo raggiungibile la ricerca si ferma con un errore.
-- Le MAC sono calcolate alla risoluzione di deploy (`model.imgsz`).
-- Ricerca e fine-tuning girano su AOD4 (`pretrain_dataset`); all'export vanno i pesi di
+- Ricerca e fine-tuning girano su `pretrain_dataset`; all'export vanno i pesi di
   `train` (baseline) o di `finetune` (pit).
+- Le MAC della ricerca sono a `deploy.imgsz`: yolopit calcola i costi solo su ingressi
+  quadrati, per 480p/720p/1080p va indicato `pit.trace_imgsz`.
 - Il fine-tuning ha il suo gruppo `conf/finetune/`.
 
 ## Opzioni
@@ -204,9 +216,10 @@ N e complessità del modello.
 ## Struttura
 
 ```
-conf/        un gruppo per asse (stage, model, train, strategy, finetune, dataset,
+conf/        un gruppo per asse (stage, model, deploy, train, strategy, finetune, dataset,
              quantization, backend, hardware, eval, logging)
 docs/config/ riferimento di ogni campo, per gruppo
+src/models.py architetture YOLO26 per larghezza e profondità
 src/stages/  train, search, finetune, probe, roofline, export, benchmark
 src/probe/   reti dummy e scelta di N
 src/backends/, src/remote/, src/measure/, src/validation/
@@ -230,5 +243,8 @@ documentata.
   OpenVINO e Axelera da aggiungere.
 - Nessun isolamento dei core (`isolcpus`): richiederebbe modifiche permanenti al boot.
 - Solo PTQ, niente QAT.
+- mAP degli export solo a ingresso quadrato: il `val` di Ultralytics non valuta un export
+  a forma fissa 864×480; la mAP ai set di deploy si ha per ora solo dai `.pt`.
+- Nessun backend per la DX-M1 (DX-COM, DX-RT): si aggiunge con X1.
 - Mai girato su una board vera: parser testati su output reali salvati, flusso completo
   provato solo in locale sulla workstation.
