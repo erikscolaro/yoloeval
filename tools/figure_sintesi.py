@@ -2,11 +2,13 @@
 righe = precisione (fp16, int8), colonne = profondità (101, 126, 170 conv), in ogni pannello la griglia
 discreta larghezza × risoluzione di deploy (480p, 720p, 1080p).
 
-    A. chi sta nel budget         (dopo la griglia di latenza, fase 2a)
+    A. chi sta nel budget         (dopo la griglia di latenza, fase 2a); variante dettagliata con la latenza in ms
+                                  dentro ogni casella
     B. dove sta l'ottimo          (dopo il modello di precisione, fase 2c)
     C. candidati alla potatura    (alla decisione 2d, prima del blocco 2)
 
-    python tools/figure_sintesi.py OUT_DIR
+    python tools/figure_sintesi.py OUT_DIR                                   # tutte, dati di esempio
+    python tools/figure_sintesi.py OUT_DIR --risultati results --board rpi5  # A e A dettagliata, latenze misurate
 
 I DATI DI ESEMPIO QUI SOTTO SONO INVENTATI (tranne femto e pico a 640 sul Pi, 18,2 e 27,9 ms): vanno sostituiti da
 `lat(w, r, d, q)` misurata (fase 2a) e `mAP(w, r, d, q)` del modello di precisione sul set di val della risoluzione di
@@ -26,6 +28,7 @@ from tools.plots import STYLE, WIDTH, save  # noqa: E402
 # --- valori ammessi (sezione 4 del masterplan) --------------------------------------------------------------------
 WL = np.array([0.0625, 0.09375, 0.125, 0.1875, 0.25, 0.375, 0.5, 0.75, 1.0])
 WLAB = ["F", "", "P", "", "N", "", "S", "", "M"]
+WFRAC = ["1/16", "3/32", "1/8", "3/16", "1/4", "3/8", "1/2", "3/4", "1"]
 RL = ["480p", "720p", "1080p"]
 RPIX = {"480p": (864, 480), "720p": (1280, 736), "1080p": (1920, 1088)}  # ingresso del modello, multipli di 32
 DEPTHS = ["D101", "D126", "D170"]  # profondità = numero di conv (masterplan, sezione 4)
@@ -61,8 +64,27 @@ def mAP(w, r, d, q):
             + _DEPTH[d][2] + _PREC[q][1])
 
 
+def lat_misurate(results, board):
+    """Latenze misurate della griglia (fase 2a): {(larghezza, risoluzione, profondità, precisione): ms}, mediana fra
+    le passate `rep` dei record `ok` della board (masterplan, sezione 2: mediana di 3 passate)."""
+    import json
+    from collections import defaultdict
+
+    acc = defaultdict(list)
+    for p in Path(results).rglob("*.json"):
+        rec = json.loads(p.read_text())
+        ax = rec.get("axes") or {}
+        if rec.get("status") != "ok" or ax.get("board") != board:
+            continue
+        m = rec["config"]["model"]
+        acc[(float(m["width"]), ax["deploy"], m["depth"], ax["quantization"])].append(rec["latency"]["median_ms"])
+    return {k: float(np.median(v)) for k, v in acc.items()}
+
+
+BOARDS = {"rpi5": "Raspberry Pi5", "jetson_orin": "Jetson AGX Orin", "rpi5_axelera": "Raspberry Pi 5 + Axelera"}
+
+
 # --- figure ---------------------------------------------------------------------------------------------------------
-WTICK = {0.0625: "1/16", 0.125: "1/8", 0.25: "1/4", 0.5: "1/2", 1.0: "1"}
 INK, MUTED, GRID = "#222222", "#6b6b6b", "#d6d6d6"
 OPT, PRUNE = "#d9531e", "#8a5d00"
 
@@ -77,17 +99,21 @@ def _frame():
             ax.grid(False)
             ax.set_xlim(-0.6, len(WL) - 0.4); ax.set_ylim(-0.6, len(RL) - 0.4)
             ax.set_aspect("equal")
-            ax.set_xticks(range(len(WL)), [WTICK.get(w, "") for w in WL], fontsize=7)
+            # etichette solo sui modelli con nome (frazione e sigla, masterplan, sezione 4), un puntino sulle
+            # larghezze intermedie: si vede la progressione senza affollare l'asse
+            ax.set_xticks(range(len(WL)), [f"{f}\n{s}" if s else "·" for f, s in zip(WFRAC, WLAB)], fontsize=6)
             ax.set_yticks(range(len(RL)), RL, fontsize=7)
             ax.tick_params(length=0, colors=MUTED)
             for sp in ax.spines.values():
                 sp.set_visible(False)
             if i == 0:
-                ax.set_title(f"Profondità: {d[1:]} conv", fontsize=8)
+                ax.set_title(d[1:], fontsize=8)
+                if j == 0:   # nome dell'asse una volta, a sinistra, sulla riga dei numeri di conv
+                    ax.set_title("Profondità (conv)", loc="left", x=-0.3, fontsize=6, color=INK)
             if j == 0:
                 ax.set_ylabel(q.upper(), fontsize=8)
-            if i == len(PRECS) - 1:
-                ax.set_xlabel("Moltiplicatore di larghezza", fontsize=7.5)
+            if i == len(PRECS) - 1 and j == len(DEPTHS) // 2:   # una sola volta, sotto il pannello centrale
+                ax.set_xlabel("Larghezza (modello)", fontsize=6)
     return fig, axs
 
 
@@ -120,17 +146,38 @@ def _header(fig, handles, labels, title, ncol):
                handletextpad=0.4, columnspacing=1.5, frameon=False)
 
 
-def figura_a(out, device):
+def _ms(t):
+    """Latenza nella casella: intera da 10 ms in su, un decimale sotto."""
+    return _comma(t, "{:.0f}" if t >= 9.95 else "{:.1f}")
+
+
+def _box(ax, b, a, fill, edge="none"):
+    """Casella della griglia, angoli arrotondati."""
+    ax.add_patch(matplotlib.patches.FancyBboxPatch((b - 0.42, a - 0.42), 0.84, 0.84, facecolor=fill, edgecolor=edge,
+                                                   linewidth=0.6, boxstyle="round,pad=0,rounding_size=0.15"))
+
+
+def figura_a(out, device, dettaglio=False, misure=None):
+    """`misure` da `lat_misurate`: le configurazioni non ancora misurate sono caselle vuote. Senza, dati di esempio."""
     fills = ["#cfeee0", "#fbe7b8", "#eeeeee"]
     fig, axs = _frame()
     for i, j, q, d, a, r, b, w in _cells():
-        t = lat(w, r, d, q)
+        t = lat(w, r, d, q) if misure is None else misure.get((w, r, d, q))
+        if t is None:
+            _box(axs[i, j], b, a, "white", GRID)
+            continue
         k = 0 if t <= (1 - A_PELO) * BUDGET else 1 if t <= (1 + A_PELO) * BUDGET else 2
-        axs[i, j].add_patch(plt.Rectangle((b - 0.42, a - 0.42), 0.84, 0.84, facecolor=fills[k], edgecolor="none"))
+        _box(axs[i, j], b, a, fills[k])
+        if dettaglio:
+            axs[i, j].text(b, a, _ms(t), fontsize=4, color=INK, ha="center", va="center")
     h = [plt.Rectangle((0, 0), 1, 1, facecolor=c, edgecolor="none") for c in fills]
-    _header(fig, h, ["Entro il budget", f"Entro ±{A_PELO:.0%} dal budget", "Oltre il budget"],
-            f"{device}: configurazioni entro il budget di latenza ({BUDGET:.0f} ms)".replace(".", ","), 3)
-    return save(fig, Path(out) / "A_budget", pdf=False)
+    lo, hi = _comma((1 - A_PELO) * BUDGET, "{:.1f}"), _comma((1 + A_PELO) * BUDGET, "{:.1f}")
+    labels = [f"≤ {lo} ms", f"{_ms(BUDGET)} ms ±{A_PELO:.0%}", f"> {hi} ms"]
+    if misure is not None:
+        h.append(plt.Rectangle((0, 0), 1, 1, facecolor="white", edgecolor=GRID))
+        labels.append("Non misurato")
+    _header(fig, h, labels, f"{device}: latenza per modello", len(h))
+    return save(fig, Path(out) / ("A_budget_dettaglio" if dettaglio else "A_budget"), pdf=False)
 
 
 def _points(axs, norm, cmap, rings):
@@ -208,7 +255,22 @@ def figura_c(out, device):
 
 
 if __name__ == "__main__":
+    import argparse
+
+    ap = argparse.ArgumentParser()
+    ap.add_argument("out", nargs="?", default=".")
+    ap.add_argument("--risultati", help="cartella dei JSON del benchmark: figura A con le latenze misurate")
+    ap.add_argument("--board", default="rpi5")
+    args = ap.parse_args()
     plt.style.use(STYLE)
-    out = sys.argv[1] if len(sys.argv) > 1 else "."
+    out = args.out
+    if args.risultati:
+        misure = lat_misurate(args.risultati, args.board)
+        device = BOARDS.get(args.board, args.board)
+        for dettaglio in (False, True):
+            print(figura_a(out, device, dettaglio, misure))
+        sys.exit()
+    device = "Raspberry Pi 5, dati di esempio"
+    print(figura_a(out, device, dettaglio=True))
     for f in (figura_a, figura_b, figura_c):
-        print(f(out, "Raspberry Pi 5, dati di esempio"))
+        print(f(out, device))
