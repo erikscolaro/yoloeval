@@ -20,15 +20,12 @@ yaml: ${.local_path}/dataset.yaml
 nc: 4
   # Numero di classi. Deve coincidere con `model.nc`.
 
-names: [airplane, bird, drone, helicopter]
+names: [drone, airplane, helicopter, bird]
   # Descrittivo qui: i nomi che contano sono quelli dentro il data yaml.
   # Averli anche qui serve a leggere il file senza aprirne un altro.
 
 subset: all
-  # Sottoinsieme consegnato da air-detection (docs/regole.md): `all` (train, val, test,
-  # calib); le fasce di grandezza s16 | s32 | s64 | s96 (16-32, 32-64, 64-96, >96 px; nomi
-  # con una lettera: Hydra legge 16_32 come l'intero 1632), solo val e test, per la mAP
-  # per fascia con il val standard; val_480p | val_720p | val_1080p, mosaici alle
-  # risoluzioni di deploy (con deploy= della stessa risoluzione); test_* come i val, chiusi
-  # fino alla fase 5. Entra in `name` e `local_path`, quindi ogni sottoinsieme ha artefatti
-  # e copia sulla board suoi.
+  # Sottoinsieme consegnato da air-detection: `all` (train, val, test, calib), il dataset
+  # congelato il 23/10/2026. La mAP per fascia, i mosaici alle risoluzioni di deploy e il
+  # bootstrap per gruppo si fanno qui in yoloeval (decisione del 23/10/2026). Entra in `name`
+  # e `local_path`, quindi ogni sottoinsieme ha artefatti e copia sulla board suoi.
