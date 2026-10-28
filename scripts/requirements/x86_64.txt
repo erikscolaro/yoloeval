@@ -11,6 +11,7 @@ onnx>=1.16
 onnxslim>=0.1.82          # simplifier usato da Ultralytics 8.4 (onnxsim non basta)
 onnxruntime-gpu             # CPU-only: onnxruntime
 opencv-python-headless      # preprocessing per la calibrazione
+albumentations==2.0.8       # augmentation di degrado camera nelle ricette di training
 openvino                    # backend openvino, include benchmark_app
 nncf                        # quantizzazione INT8 di OpenVINO
 # TensorRT Python, serve a Ultralytics per caricare l'engine in validazione.

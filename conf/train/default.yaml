@@ -1,4 +1,6 @@
-# Ricetta unica di tutti i training della tesi (NEW_MASTERPLAN §2, training e seed): mai cambiata.
+# Ricetta unica di tutti i training della tesi (NEW_MASTERPLAN §2, training e seed).
+# Dal 28/10/2026 le augmentation di yolo26n piu' cutmix e degrado camera (pico 60fcfce9, mAP50 0.842 contro 0.819 con
+# degrees 5 e scale 0.25): i run prima non sono confrontabili.
 # I nomi delle chiavi coincidono 1:1 con gli argomenti di model.train() di Ultralytics.
 epochs: 1000
 patience: 200           # early stopping: rete di sicurezza per i modelli in overfitting
@@ -13,11 +15,28 @@ momentum: 0.937
 weight_decay: 0.0005
 warmup_epochs: 3
 seed: 0                 # 0, 1, 2 per i modelli dei confronti finali
-mosaic: 1.0
-mixup: 0.0
-scale: 0.25             # zoom 0.75-1.25: con 0.5 un oggetto di 16 px scenderebbe a 8
-hsv_h: 0.015
-hsv_s: 0.7
-hsv_v: 0.4
+mosaic: 0.90863
+mixup: 0.01216
+scale: 0.56232
+# Augmentation geometriche e di colore: i valori di yolo26n.pt (train_args, COCO), tranne copy_paste che vuole i segmenti.
+hsv_h: 0.01373
+hsv_s: 0.64481
+hsv_v: 0.56565
+degrees: 1.11032
+shear: 1.46386
+translate: 0.07105
+perspective: 0.00011
+flipud: 0.05854
+fliplr: 0.60571
+bgr: 0.10567
+cutmix: 0.1             # incolla una zona di un'altra immagine con i suoi box: il copy_paste vuole i segmenti
+# Degrado della camera, con Albumentations (formato A.to_dict, Ultralytics lo ricostruisce con A.from_dict).
+# Sostituisce la lista di default di Ultralytics (Blur, MedianBlur, ToGray, CLAHE a p=0.01). Kernel fino a 5 px:
+# di piu' cancellerebbe gli uccelli da 8-16 px.
+augmentations:
+  - transform: {__class_fullname__: MotionBlur, blur_limit: [3, 5], p: 0.1}
+  - transform: {__class_fullname__: GaussianBlur, blur_limit: [3, 5], p: 0.1}
+  - transform: {__class_fullname__: GaussNoise, std_range: [0.02, 0.06], p: 0.1}
+  - transform: {__class_fullname__: ImageCompression, quality_range: [50, 95], p: 0.2}
 # Testa one-to-one (nms=False), come negli export e sul Pi: la validation del training sceglie best.pt sulla one-to-one.
 nms: false

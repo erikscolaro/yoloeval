@@ -1,4 +1,4 @@
-# Il dataset unico della tesi, costruito nella repo ~/Desktop/air-detection (README, tools/dataset.py), export del 28/10/2026.
+# Il dataset unico della tesi, costruito nella repo ~/Desktop/air-detection (README, tools/dataset.py), export del 28/10/2026 alle 16:04 (commit 624aaec).
 # data/air-detection/all e' una copia con hardlink (cp -al) di ~/Desktop/air-detection/data/output, con path dei yaml corretto.
 subset: all       # all (train, val, test, calib); fasce, mosaici di deploy e bootstrap si fanno qui in yoloeval
 name: air_detection_${.subset}
