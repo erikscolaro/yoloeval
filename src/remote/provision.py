@@ -93,6 +93,24 @@ conf.setdefault("proxies", {{}})["default"] = {{
 with open(path, "w") as f:
     json.dump(conf, f, indent=2)
 PY
+# orologio: dietro il proxy NTP e' bloccato e il Pi non ha batteria per l'RTC, quindi a ogni
+# avvio ripartirebbe dall'ultima data salvata. Lo rimette sull'header Date di una risposta
+# HTTPS (risoluzione 1 s), all'avvio e ogni ora; sotto i 2 s di scarto non lo tocca.
+sudo tee /usr/local/bin/http-clock >/dev/null <<'SH'
+#!/bin/sh
+set -e
+d=$(python3 -c 'import urllib.request; print(urllib.request.urlopen("https://pypi.org/simple/pip/", timeout=15).headers["Date"])')
+t=$(date -u -d "$d" +%s)
+s=$((t - $(date +%s)))
+if [ "${{s#-}}" -gt 2 ]; then date -u -s "@$t"; fi
+SH
+sudo chmod +x /usr/local/bin/http-clock
+printf '[Unit]\nDescription=Orologio da HTTPS via proxy (NTP bloccato)\nWants=network-online.target\nAfter=network-online.target\n[Service]\nType=oneshot\nEnvironment="https_proxy=%s"\nExecStart=/usr/local/bin/http-clock\nRestart=on-failure\nRestartSec=30\n' \
+  "$P" | sudo tee /etc/systemd/system/http-clock.service >/dev/null
+printf '[Timer]\nOnBootSec=20s\nOnUnitActiveSec=1h\n[Install]\nWantedBy=timers.target\n' \
+  | sudo tee /etc/systemd/system/http-clock.timer >/dev/null
+sudo systemctl daemon-reload
+sudo systemctl enable --now http-clock.timer
 """
 
 
@@ -117,7 +135,8 @@ def proxy_env(cfg) -> dict:
 
 
 def configure_proxy(conn, cfg) -> None:
-    """Scrive il proxy sulla board per pip, apt, docker e docker build. Idempotente."""
+    """Scrive il proxy sulla board per pip, apt, docker e docker build, e il timer che tiene
+    l'orologio sull'ora HTTPS via proxy. Idempotente."""
     proxy = proxy_url(cfg)
     if not proxy:
         return
