@@ -7,6 +7,7 @@
 # 28/10) le celle non si saltano e la griglia si rifà.
 # Export con hardware=rpi5: la chiave dell'export contiene l'architettura (aarch64), senza il benchmark non lo trova.
 # Ingressi in D (default i tre 16:9), es. D=crop128,crop256,crop512 scripts/b2_1_prova.sh
+# Larghezze in W (default le 9 della scala), es. W=0.0625,0.09375,0.125 scripts/b2_1_prova.sh
 # Solo le figure dai risultati gia' misurati, senza toccare il PI: scripts/b2_1_prova.sh figure
 # Per fermarla: pkill -f "b2_1_prova.sh"; pkill -f "run.py -m stage="
 set -u
@@ -14,7 +15,8 @@ cd ~/Desktop/yoloeval
 R=.venv/bin/python
 F="$R tools/figure_sintesi.py reports/b2_1_prova --risultati results --board rpi5 --precisioni fp16"
 if [ "${1:-}" = figure ]; then $F; exit; fi
-A="model=yolo26 model.width=0.0625,0.09375,0.125,0.1875,0.25,0.375,0.5,0.75,1.0 model.depth=D101,D126,D170"
+W=${W:-0.0625,0.09375,0.125,0.1875,0.25,0.375,0.5,0.75,1.0}
+A="model=yolo26 model.width=$W model.depth=D101,D126,D170"
 I=${I:-$PWD/data/air-detection/all/images/calib}
 O="logging=local dataset.local_path=$I hydra.sweep.dir=multirun/\${now:%Y-%m-%d_%H-%M-%S}"
 D=${D:-480p,720p,1080p}
