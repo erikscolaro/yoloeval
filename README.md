@@ -3,8 +3,9 @@
 Misura latenza, accuratezza ed energia di YOLO26 su hardware edge. Confronta i modelli
 Ultralytics (baseline) con quelli potati da [yolopit](https://github.com/erikscolaro/yolopit)
 (ricerca PIT di PLiNIO, canali a blocchi di N). Classi: airplane, bird, drone, helicopter.
-Dataset: uno solo per training, pruning, fine-tuning e misure, costruito nella repo
-`~/Desktop/air-detection` (Svanström più aggiunte, 640×512, split per video). Piano: `NEW_MASTERPLAN.md`.
+Dataset: uno solo per training, pruning, fine-tuning e misure, costruito e congelato nella repo
+`~/Desktop/air-detection` (sei fonti pubbliche, 640×512, split per gruppi di sessioni; regole e procedura nel suo
+README). Piano: `NEW_MASTERPLAN.md`.
 
 Un solo entry point, `run.py`, con configurazione [Hydra](https://hydra.cc): ogni asse è un
 gruppo in `conf/`, ogni campo è documentato in [`docs/config/`](docs/config/).
@@ -44,7 +45,7 @@ Il dataset viene copiato sulle board da solo al primo uso.
 | gruppo / chiave | valori |
 |---|---|
 | `model` | `yolo26f`, `yolo26p`, `yolo26n`, `yolo26s`, `yolo26m`; `model.depth=D101\|D126\|D170`; larghezze intermedie con `model=yolo26 model.width=0.1875` |
-| `deploy` | `640`, `480p`, `720p`, `1080p` (ingressi 640×640, 864×480, 1280×736, 1920×1088) |
+| `deploy` | `640`, `480p`, `720p`, `1080p` (ingressi 640×640, 864×480, 1280×736, 1920×1088); `crop128`, `crop256`, `crop512` (ritagli quadrati del tracking, 128×128, 256×256, 512×512) |
 | `rep` | passata della misura: `rep=0,1,2` per la mediana di 3 passate |
 | `strategy` | `baseline`, `pit_standard`, `pit_duccio`, `pit_auto` |
 | `quantization` | `fp32`, `fp16`, `int8` (PTQ) |
@@ -246,5 +247,3 @@ documentata.
 - mAP degli export solo a ingresso quadrato: il `val` di Ultralytics non valuta un export
   a forma fissa 864×480; la mAP ai set di deploy si ha per ora solo dai `.pt`.
 - Nessun backend per la DX-M1 (DX-COM, DX-RT): si aggiunge con X1.
-- Mai girato su una board vera: parser testati su output reali salvati, flusso completo
-  provato solo in locale sulla workstation.

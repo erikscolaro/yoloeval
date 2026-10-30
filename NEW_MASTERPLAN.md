@@ -48,7 +48,7 @@ blocco 2 si fa sono pronti, se non si fa restano punti confermati del fronte.
 
 | fase | cosa testiamo | conoscenza che produciamo | come la usiamo dopo |
 |---|---|---|---|
-| 0 | se i dati sono adatti | dataset custom a 640×512 (Svanström più aggiunte) con **box corretti** e bilanciato su classe × fascia di grandezza, split pulito; set di val alle risoluzioni di deploy | il dataset e la ricetta valgono per tutta la tesi; i set di val di deploy danno la mAP usata nella scelta dell'ottimo (2c) |
+| 0 | se i dati sono adatti | dataset custom a 640×512 (repo air-detection) con **box corretti** e bilanciato su classe e grandezza, split per gruppi di sessioni; set di val alle risoluzioni di deploy | il dataset e la ricetta valgono per tutta la tesi; i set di val di deploy danno la mAP usata nella scelta dell'ottimo (2c) |
 | X1 (prima della fase 1) | se le nostre varianti girano sulla DX-M1 | operatori supportati; tempo di compilazione | decide se DX resta nel piano e quanto costano le misure sulla DX |
 | 1 (base) | quanto sono ripetibili le misure; quanto dei 33 ms resta al modello; come si comporta ogni dispositivo | la **soglia di rumore** della latenza; il **budget del modello**; i tratti di base di ogni dispositivo (gradini, costo per strato, granularità N) | la soglia dice quando una differenza di latenza è vera; il budget è il vincolo dell'ottimo (2c) e della decisione (2d); i tratti spiegano i trend della fase 2 e sono il punto di partenza dello stimatore (4a) |
 | X2 (prima della fase 2, **risolta**) | se l'int8 funziona sulla testa one-to-one, e come va sul PI | causa della mAP 0 (coda della testa quantizzata); ricetta int8; prova preliminare: sul PI l'int8 non è più veloce dell'fp16 | sul PI: quali nodi quantizzare nella 2a e nella fase 3, quale software usare per l'int8 sul PI; l'attesa da verificare in 2a e fase 3 |
@@ -68,25 +68,13 @@ Queste regole valgono per tutta la tesi. Servono a rendere i confronti onesti e 
 
 ### Dataset
 
-- **Un solo dataset custom**, con le quattro classi, usato per tutta la tesi. Si crea **quando il piano è finito**,
-  seguendo la fase 0. **Tutte le immagini sono 640×512, come Svanström**: non ci sono fonti ad alta risoluzione.
-  **Non è solo Svanström**: è Svanström più alcune aggiunte che ne coprono i buchi (dettagli in fase 0, ricerca delle
-  fonti in `docs/ricerca_dataset.md`).
-  - **Base: Svanström** (285 video visibili, 640×512, ripresi da terra verso il cielo). È l'unico dataset trovato con
-    **tutte e quattro le classi etichettate negli stessi video e con la stessa camera**: ogni classe vi compare,
-    quindi nessuna classe viene da una fonte sola e il modello non può riconoscere la fonte invece dell'oggetto.
-  - **Aggiunte**: fonti scelte quando si crea il dataset, portate a 640×512 ed etichettate con la stessa regola.
-    AOD4 non si usa.
-- Diviso in train / val / test **per video o per scena**, non per singola immagine: fotogrammi vicini dello stesso
-  video sono quasi identici, e se finiscono uno nel train e uno nel val le mAP risultano gonfiate (è il problema
-  già incontrato con AOD4).
-- Le immagini quasi duplicate si eliminano con l'hash semantico: dentro ogni video (fase 0, passo 6) e fra split
-  diversi dopo lo split (passo 7).
-- **Bilanciato fra le classi e fra le fasce di grandezza** (16–32, 32–64, 64–96, sopra 96 px): un minimo di istanze
-  e di video distinti per ogni cella classe × fascia (fase 0).
-- **Box aderenti all'oggetto**, con la stessa regola per tutte le fonti. I box originali di Svanström sono larghi e
-  incoerenti (un box di 16 px contiene un oggetto di 4–6 px) e **si correggono** in fase 0, prima di qualunque
-  conteggio o training.
+- **Un solo dataset**, con le quattro classi, usato per tutta la tesi: quello congelato della repo
+  `~/Desktop/air-detection` (`data/output`, qui in `data/air-detection/`). Regole, fonti, procedura, split e limiti
+  sono nel README di quella repo (sezioni Regole, Fonti e licenze, Procedura, Limiti dichiarati) e non si ripetono
+  qui.
+- In breve: immagini 640×512 da sei fonti pubbliche di oggetti più due di background, box aderenti rivisti a mano,
+  split per gruppi di sessioni di ripresa (nessuna ripresa in due split), stessa distribuzione obiettivo delle
+  grandezze per tutte le classi.
 - **Il test si apre una volta sola**, alla fine (fase 5). Tutte le scelte si fanno guardando il val.
 
 ### Budget di latenza
@@ -107,7 +95,7 @@ Queste regole valgono per tutta la tesi. Servono a rendere i confronti onesti e 
 
 **Training a risoluzione fissa, deploy a risoluzione variabile.**
 
-- **Training**: tutti i modelli si allenano a **640×640**, la scala di Svanström (nativo 640×512). Non si allena a
+- **Training**: tutti i modelli si allenano a **640×640**, la scala del dataset (nativo 640×512). Non si allena a
   nessun'altra risoluzione, e non si ingrandisce mai un'immagine (non aggiunge dettagli).
 - **Deploy**: camera **16:9** a tre risoluzioni. Il modello riceve il fotogramma intero; l'ingresso va arrotondato a
   un multiplo di 32 (lo stride massimo della rete):
@@ -126,11 +114,17 @@ Queste regole valgono per tutta la tesi. Servono a rendere i confronti onesti e 
 - **Cosa può cambiare**: \<esempio>il **recall** (quanti oggetti trova) dovrebbe restare uguale\</esempio>; la **precisione** può scendere, perché un
   fotogramma più grande ha più cielo e quindi più occasioni di falso allarme (da 640×640 a 1920×1088 il cielo è circa
   5 volte più grande). Per questo la mAP alla risoluzione di deploy **non si assume uguale: si misura**, su set di
-  val costruiti apposta (fase 0, passo 10). \<esempio>Ci aspettiamo che cambi poco: lo studio già fatto sulle immagini di
+  val costruiti apposta (fase 0, Set di deploy). \<esempio>Ci aspettiamo che cambi poco: lo studio già fatto sulle immagini di
   background mostra che i modelli piccoli non sbagliano sul cielo vuoto; il loro problema sono le detection multiple
   sullo stesso oggetto, che non dipendono dalla grandezza del fotogramma.\</esempio>
 - **La risoluzione non è una leva da allenare, è una condizione di deploy**: cambia la latenza (in modo circa
   quadratico) e la mAP misurata sui set di deploy, mai il training.
+- **Ritagli quadrati del tracking: 128×128, 256×256, 512×512.** Il detector gira sul fotogramma intero per agganciare
+  il bersaglio; poi, a ogni fotogramma, si taglia un quadrato **a risoluzione nativa** attorno al soggetto e lo si dà
+  al modello: l'oggetto resta grande in pixel come nel training, il calcolo scende (il 128 ha circa 1/25 dei pixel
+  del 640×640). Per ora entrano **solo nella griglia di latenza** (2a); la mAP sui ritagli e il ritorno al fotogramma
+  intero quando il bersaglio si perde sono da definire. \<esempio>Il ritaglio regge oggetti fino a circa metà del suo
+  lato (64 px nel 128); il 512 non sta in un fotogramma 480p (alto 480), quindi serve dal 720p in su.\</esempio>
 
 ### Training e seed
 
@@ -142,21 +136,23 @@ Queste regole valgono per tutta la tesi. Servono a rendere i confronti onesti e 
   - momentum, weight decay e warmup di default (0.937, 5e-4, 3 epoche);
   - **batch** scelto in base alla GPU, lo stesso per tutti i modelli: Ultralytics accumula i gradienti fino a un
     batch nominale di 64 (`nbs`), quindi con batch ≤ 64 l'aggiornamento dei pesi resta equivalente;
-  - **augmentation**: default di Ultralytics con mosaic acceso (il mosaic non cambia la grandezza degli oggetti);
-    **`scale` 0.25** invece di 0.5 (zoom casuale fra 0,75 e 1,25): con 0.5 un oggetto di 16 px scenderebbe a 8 px,
-    fuori dal campo della tesi e sotto il passo 8 della testa; con 0.25 al massimo a 12 px, e resta un po' di
-    ingrandimento per le celle con pochi oggetti grandi;
+  - **augmentation** (dal 28/10/2026, `conf/train/default.yaml`): i valori di `yolo26n.pt` (train_args, COCO), fra
+    cui mosaic 0.91, `scale` 0.56, `degrees` 1.1, `shear` 1.5, `hsv_v` 0.57, flip verticale 0.06; in più `cutmix`
+    0.1 e il **degrado della camera** con Albumentations (motion blur e blur gaussiano 0.1, rumore 0.1, JPEG 50–95
+    0.2, kernel fino a 5 px per non cancellare gli uccelli da 8–16 px). Sul pico (`60fcfce9`) mAP50 0,842 contro
+    0,819 della ricetta precedente;
   - seed fisso e `nms=False` (testa). Niente ricette ridotte per
   esplorare: a poche epoche i modelli piccoli sono più indietro dei grandi e i trend risulterebbero falsati. Così le
   differenze fra modelli dipendono solo dal modello, e ogni training della mappatura vale anche come seed 0 dei
   confronti finali.
-- **Lunghezza: 1000 epoche, con early stopping a patience 200** come rete di sicurezza. Ferma solo i modelli
-  chiaramente in overfitting (su un dataset piccolo come Svanström il massimo arriva verso l'epoca 15–30), senza
-  tagliare i modelli piccoli che migliorano lentamente (il pico su AOD4 guadagnava ancora 0,02 fra l'epoca 300 e la
-  900). Il mosaic si spegne nelle ultime 10 epoche (`close_mosaic` di Ultralytics): i run fermati prima dall'early
-  stopping non fanno questa parte, ed è un limite da dichiarare. `best.pt` si sceglie comunque sul val. Per ogni run si registra a che
-  epoca si è fermata: un modello della griglia che si ferma presto è il segnale che il dataset lo limita, e va
-  riportato.
+- **Lunghezza: 300 epoche, con early stopping a patience 200** come rete di sicurezza. 300 epoche sono un
+  compromesso con il tempo di GPU (il pico circa 4,5 ore, lo small circa 6,5 sulla RTX 6000), e sul dataset del
+  28/10/2026 bastano: il massimo sul val arriva all'epoca 225 per il pico, 233 per il nano e 187 per lo small, che
+  dopo cala un poco. Limite da dichiarare: su AOD4 il pico guadagnava ancora 0,02 fra l'epoca 300 e la 900. Il mosaic
+  si spegne nelle ultime 10 epoche (`close_mosaic` di Ultralytics): i run fermati prima dall'early stopping non fanno
+  questa parte, ed è un limite da dichiarare. `best.pt` si sceglie comunque sul val. Per ogni run si registra a che
+  epoca ha toccato il massimo: un modello della griglia che ci arriva presto è il segnale che il dataset lo limita, e
+  va riportato.
 - I training esplorativi usano **un solo seed**. I modelli che entrano nei confronti finali si allenano con
   **3 seed** e si riportano come media ± deviazione standard: con un seed solo, una differenza di 0,5–1 punto di
   mAP può essere solo fortuna.
@@ -204,29 +200,27 @@ Queste regole valgono per tutta la tesi. Servono a rendere i confronti onesti e 
 
 ### Metriche di precisione
 
-- **Campo della tesi: oggetti di almeno 16 px.** La grandezza di un oggetto è la radice dell'area del suo box in
-  pixel, √(w·h), come in COCO. Gli oggetti sotto i 16 px si escludono **costruendo il dataset**: le immagini che
-  contengono un oggetto sotto i 16 px **non entrano in val e test** (fase 0, passo 7), così le metriche standard di
-  Ultralytics valgono già solo per oggetti ≥ 16 px, senza valutazioni personalizzate. Nel train restano, con la loro
-  label (togliere solo la label insegnerebbe al modello che lì non c'è niente). Limite da dichiarare: val e test non
-  contengono droni più lontani di così, che in deploy invece ci saranno.
-  **Perché 16 px:**
+- **Campo della tesi: oggetti di almeno 8 px.** La grandezza di un oggetto è la radice dell'area del suo box in
+  pixel, √(w·h), come in COCO. Le immagini che contengono un oggetto sotto gli 8 px si tolgono da **tutti gli split**
+  costruendo il dataset (togliere solo la label insegnerebbe al modello che lì non c'è niente), così le metriche
+  standard di Ultralytics valgono già solo per oggetti ≥ 8 px, senza valutazioni personalizzate. Limite da
+  dichiarare: val e test non contengono droni più lontani di così, che in deploy invece ci saranno.
+  **Perché 8 px:**
   - **limite dell'architettura**: la testa più fine di YOLO26 lavora a passo 8, cioè una cella ogni 8×8 pixel
-    d'ingresso, e ogni cella può proporre un oggetto. Sotto i 16 px un oggetto copre al massimo una o due celle per
-    lato: la rete ha pochissima informazione per riconoscerlo e per distinguerlo dalle altre classi. Ultralytics
-    allarga a 8 px in training i box più piccoli per dargli almeno una cella (`ultralytics/utils/tal.py`), ma non
-    può aggiungere dettaglio;
+    d'ingresso, e ogni cella può proporre un oggetto. Sotto gli 8 px un oggetto non copre nemmeno una cella;
+    Ultralytics allarga a 8 px in training i box più piccoli per dargli almeno una cella (`ultralytics/utils/tal.py`),
+    ma non può aggiungere dettaglio;
   - **letteratura**: sui benchmark di oggetti minuscoli (AI-TOD, Wang et al. 2021) i detector come YOLO trovano
     quasi niente sotto gli 8 px e poco, con precisione bassa, fra 8 e 16 px; diventano usabili sopra i 16 e normali
     sopra i 32;
   - **affidabilità delle label**: un box di pochi pixel è difficile da disegnare in modo preciso e coerente, e
-    l'errore di qualche pixel pesa molto sull'IoU; le metriche sotto i 16 px misurerebbero soprattutto il rumore delle
-    annotazioni;
-  - **leggibilità dei confronti**: con pochi oggetti minuscoli, molto difficili, la mAP complessiva oscillerebbe per
-    effetti di quella fascia invece che per differenze reali fra i modelli.
-- mAP50 e mAP50-95, come al solito, sugli oggetti ≥ 16 px, sul val a 640 e sui tre set di val alle risoluzioni di
+    l'errore di qualche pixel pesa molto sull'IoU;
+  - **perché anche 8–16 px in val e test** (decisione del 19/10/2026, prima il campo partiva da 16 px): sono i droni
+    lontani, il caso che conta per la torretta. Il loro peso nella mAP è fissato dalla distribuzione obiettivo del
+    dataset (densità ∝ s^−0,3 fra 8 e 320 px, uguale per tutte le classi; `air-detection/README.md`, Regole).
+- mAP50 e mAP50-95, come al solito, sugli oggetti ≥ 8 px, sul val a 640 e sui tre set di val alle risoluzioni di
   deploy. È la **metrica principale** di tutte le scelte;
-- **recall sugli oggetti piccoli** (16–32 px), sul test in fase 5: sono i droni lontani, il caso più difficile;
+- **recall sugli oggetti piccoli** (8–32 px), sul test in fase 5: sono i droni lontani, il caso più difficile;
 - **falsi positivi per fotogramma** sulle immagini di solo cielo e sui set di deploy: un detector che vede droni
   nelle nuvole è inutile, e più grande è il fotogramma più occasioni ha di sbagliare;
 - **detection multiple sullo stesso oggetto** (box in più sopra un oggetto già trovato): con la testa one-to-one non
@@ -240,8 +234,8 @@ Queste regole valgono per tutta la tesi. Servono a rendere i confronti onesti e 
   una soglia per classe. Con la testa one-to-one la soglia è l'unico post-processing, e massimizzare l'F1 riduce anche le detection
   doppie (contano come falsi positivi). La soglia serve alle metriche operative (precision, recall, falsi positivi
   per fotogramma); si sceglie **solo sul val** e in fase 5 si applica al test senza ricalcolarla.
-- **mAP per classe e per fascia di grandezza del box**, con fasce **16–32, 32–64, 64–96, sopra 96 px**: 16–32 e
-  32–64 come "small" e "medium" di AI-TOD, 64–96 e sopra 96 come "medium" e "large" di COCO. Dice fino a che grandezza
+- **mAP per classe e per fascia di grandezza del box**, con fasce **8–16, 16–32, 32–64, 64–96, sopra 96 px** (le
+  stesse del dataset): 8–16, 16–32 e 32–64 come "tiny", "small" e "medium" di AI-TOD, 64–96 e sopra 96 come "medium" e "large" di COCO. Dice fino a che grandezza
   il modello riconosce ancora un oggetto. Si riporta sul test in fase 5.
 
 ---
@@ -349,7 +343,8 @@ di 16, e femto e 0.09375 hanno 9 conv sotto gli 8 canali. \<esempio>Su GPU e NPU
 larghezze rischiano di costare più delle potenze di 2 a parità di calcoli\</esempio>: la griglia di latenza della 2a lo misura,
 ed è un risultato da riportare.
 
-Le risoluzioni sono le tre di deploy: **480p, 720p, 1080p** (ingressi 864×480, 1280×736, 1920×1088; regole fisse).
+Le risoluzioni sono le tre di deploy: **480p, 720p, 1080p** (ingressi 864×480, 1280×736, 1920×1088; regole fisse),
+più i tre ritagli quadrati del tracking (**`crop128`, `crop256`, `crop512`**), per ora solo nella griglia di latenza.
 
 Ogni configurazione valutata (larghezza, profondità, risoluzione di deploy, precisione) è quindi **un modello che
 esiste**, e l'ottimo della fase 2c si sceglie solo fra queste.
@@ -375,92 +370,46 @@ Ogni run ha un codice `<tipo><fase>-<numero>`, per esempio `T2-03` = training 3 
 
 ## 5. Fase 0 — Preparare il terreno (circa 2,5 settimane)
 
-> **Cosa testiamo**: se il dataset copre ogni classe a ogni fascia di grandezza, con box corretti, ed è diviso senza
-> leakage.
+> **Cosa testiamo**: se il dataset copre ogni classe a ogni grandezza, con box corretti, ed è diviso senza leakage.
 >
-> **Come**: regole fissate prima di toccare i dati; correzione dei box di Svanström; conteggio sulla matrice classe ×
-> fascia; aggiunte per riempire le celle scoperte, annotate con la stessa regola; split per video e bilanciamento;
-> set di val alle risoluzioni di deploy.
+> **Come**: il dataset si costruisce nella repo air-detection (README, Procedura); qui si preparano i set di val alle
+> risoluzioni di deploy e il resto del protocollo.
 >
-> **Conoscenza che produciamo**: la matrice del dataset (istanze e video per classe e fascia); quanto erano larghi i
-> box originali di Svanström; i set di val di deploy.
+> **Conoscenza che produciamo**: la distribuzione del dataset per classe, grandezza e split; i set di val di deploy.
 >
-> **Come la usiamo**: il dataset e la ricetta valgono per tutta la tesi; le celle sotto il minimo si dichiarano come
-> limite; i set di val di deploy danno la mAP con cui si sceglie l'ottimo (2c).
+> **Come la usiamo**: il dataset e la ricetta valgono per tutta la tesi; i buchi si dichiarano come limite; i set di
+> val di deploy danno la mAP con cui si sceglie l'ottimo (2c).
 
 **Domanda**: i dati sono adatti, e il protocollo è definito?
 
 Le misure sui dispositivi della fase 1 e la griglia di latenza della 2a usano pesi casuali, quindi **non aspettano il
 dataset**: girano in parallelo a questa fase.
 
-### Costruzione del dataset: l'ordine delle operazioni
+### Il dataset
 
-Ogni passo dipende da quello prima.
+Costruito e congelato nella repo `~/Desktop/air-detection`: l'ordine delle operazioni è nel suo README
+(Procedura), la procedura generale in `docs/procedura_ideale.md`. Qui resta solo quello che riguarda yoloeval.
 
-1. **Fissare le regole, prima di toccare i dati.**
-   - Classi: aereo, uccello, drone, elicottero.
-   - Fasce sulla √area del **box aderente**, alla scala di training (640): 16–32, 32–64, 64–96, sopra 96 px. Le
-     immagini con almeno un oggetto sotto i 16 px vanno solo nel train (regole fisse, metriche).
-   - **Regola di annotazione: box aderente all'oggetto**, uguale per tutte le fonti.
-   - **Obiettivo di bilanciamento**: una matrice classe × fascia (4 × 4 = 16 celle) con un **minimo di istanze e un
-     minimo di video distinti per cella** (i valori si fissano qui). Contano anche i video: mille frame dello stesso
-     video valgono poco più di pochi frame. Un bilanciamento perfetto non esiste (uccelli grandi ripresi da terra
-     sono rari in natura): l'obiettivo è un minimo per cella, non celle uguali.
-   - Requisiti delle fonti: a colori, da terra verso il cielo, ID dei video, licenza adatta a una tesi.
-2. **Correggere i box di Svanström (indispensabile).** Le label originali sono larghe e incoerenti: un box di 16 px
-   contiene un oggetto di 4–6 px (verificato a occhio su uccello, drone ed elicottero). Con box così le fasce di
-   grandezza non dicono niente, la mAP50-95 penalizza alle IoU alte anche un box preciso, e mescolare fonti con box
-   aderenti insegnerebbe al modello due modi di disegnare il box.
-   - Ogni box si dà come prompt a **SAM 2**, che restituisce la sagoma dell'oggetto; dalla sagoma si ricava il box
-     aderente. Per gli oggetti su cielo uniforme si confronta con una soglia di contrasto locale dentro il box.
-   - Revisione a mano di un campione, e di tutti i casi critici: sfondi complessi (edifici, alberi, pali), box che
-     cambiano molto, sagome vuote o spezzate.
-   - Si misura e si riporta **quanto erano larghi i box originali** (rapporto fra √area originale e aderente, per
-     classe e fascia): è un risultato sul dataset.
-   - Nello stesso passaggio si cercano gli **oggetti visibili non etichettati** (per esempio gli stormi) e si
-     etichettano. Lo stesso vale per le aggiunte (passo 5). Si riporta quanti oggetti mancavano per fonte.
-3. **Contare.** Si riempie la matrice con Svanström corretto: istanze e video per cella. Va fatto **dopo** il passo
-   2, perché le fasce dipendono dalla grandezza dei box. \<esempio>Con i box originali (fasce COCO, 640×512):
-   elicotteri grandi abbondanti, uccelli grandi zero, droni grandi 37.\</esempio>
-4. **Elenco dei buchi**: le celle sotto il minimo diventano la lista di cosa cercare.
-5. **Riempire i buchi**, con le regole del passo 1.
-   - Fonti scelte quando si crea il dataset (candidate in `docs/ricerca_dataset.md`), a colori, da terra verso il
-     cielo; le immagini entrano a **640×512**, come Svanström. Box proposti da un detector a vocabolario aperto,
-     resi aderenti con SAM 2 e rivisti a mano.
-6. **Selezione dei frame per video**: via i quasi-duplicati con l'hash semantico (come in `tools/svanstrom.py`, ora nella repo `~/Desktop/air-detection`).
-7. **Split per video** (70/20/10), su tutte le fonti insieme, bilanciato sulla matrice classe × fascia (lo schema dello stesso
-   script). Va fatto **prima** del bilanciamento finale, così nessun video finisce in due split. Dai
-   video di val e test si tolgono le immagini con oggetti sotto i 16 px (restano solo nei video di train). Poi un
-   controllo fra split con lo stesso hash: i quasi-duplicati di immagini del train (video diversi della stessa
-   scena) si tolgono da val e test.
-8. **Bilanciamento dentro ogni split**: tetti per cella e per video (per esempio i droni, oggi molto più numerosi delle
-   altre classi). Anche val e test si bilanciano con un minimo per cella: la mAP di una cella con 5 oggetti non vuol
-   dire niente.
-9. **Background**: circa il 10% di frame senza oggetti, dagli stessi video.
-10. **Set di deploy, statistiche, congelamento.**
-    - Set di val alle risoluzioni di deploy (`val_480p`, `val_720p`, `val_1080p`), costruiti una volta su disco e
-      uguali per tutti i modelli. Ogni fotogramma di deploy è un **mosaico**: un frame di val con il suo oggetto, in
-      posizione casuale a seed fisso, e intorno frame di **solo sfondo dello stesso video** (oggetto cancellato con
-      l'inpainting che lo script del dataset usa già per il background), così il cielo è lo stesso e non ci sono
-      giunture fra cieli diversi. Per il 1080p: 3×2 frame da 640×512 (1920×1024) più una striscia di sfondo fino a
-      1088; per 720p e 480p si ritaglia di conseguenza (a 480p il frame con l'oggetto, alto 512, si taglia in modo che
-      l'oggetto resti intero). Nessun ridimensionamento: gli oggetti hanno la stessa grandezza in pixel a ogni
-      risoluzione. Il frame con l'oggetto è **uno solo**: come un fotogramma vero
-      della torretta (un drone, o nessuno, e tanto cielo vuoto); con più frame pieni i falsi allarmi peserebbero
-      meno del vero e la mAP sarebbe ottimista. Si valutano con il normale `val` a `imgsz` di deploy, sui modelli
-      PyTorch e sugli export; gli export si valutano con il runtime vero sul dispositivo. Lo stesso si prepara per il test (`test_480p`, …), chiuso fino alla fase 5. La
-      validazione di Ultralytics non fa mosaic (è solo augmentation di training, casuale e quadrata), per questo i set
-      si costruiscono a parte.
-    - Statistiche finali: la matrice classe × fascia per split, quota di ogni fonte per classe, immagini senza
-      oggetti; quanti oggetti sotto i 16 px (solo per sapere quanti sono).
-    - **Manifest** (fonti, parametri, frame scelti, hash) e **congelamento**: da qui il dataset non cambia più, e il
-      test si chiude.
+### Set di deploy
+
+Set di val alle risoluzioni di deploy (`val_480p`, `val_720p`, `val_1080p`), costruiti una volta su disco e uguali per
+tutti i modelli. Ogni fotogramma di deploy è un **mosaico**: un frame di val con il suo oggetto, in posizione casuale
+a seed fisso, e intorno frame di **solo sfondo dello stesso video** (oggetto cancellato con l'inpainting), così il
+cielo è lo stesso e non ci sono giunture fra cieli diversi. Per il 1080p: 3×2 frame da 640×512 (1920×1024) più una
+striscia di sfondo fino a 1088; per 720p e 480p si ritaglia di conseguenza (a 480p il frame con l'oggetto, alto 512,
+si taglia in modo che l'oggetto resti intero). Nessun ridimensionamento: gli oggetti hanno la stessa grandezza in
+pixel a ogni risoluzione. Il frame con l'oggetto è **uno solo**: come un fotogramma vero della torretta (un drone, o
+nessuno, e tanto cielo vuoto); con più frame pieni i falsi allarmi peserebbero meno del vero e la mAP sarebbe
+ottimista. Si valutano con il normale `val` a `imgsz` di deploy, sui modelli PyTorch e sugli export; gli export si
+valutano con il runtime vero sul dispositivo. Lo stesso si prepara per il test (`test_480p`, …), chiuso fino alla
+fase 5. La validazione di Ultralytics non fa mosaic (è solo augmentation di training, casuale e quadrata), per
+questo i set si costruiscono a parte.
 
 ### Il resto del protocollo
 
 - **Valutazione**: il `val` standard di Ultralytics (mAP e AP per classe, quindi anche l'AP dei droni). La mAP per
-  fascia si ottiene con i sottoinsiemi del dataset per fascia, come i sottoinsiemi `small`/`medium`/`large` che
-  lo script del dataset costruisce già. Falsi positivi per fotogramma e detection multiple si contano dalle
+  fascia si calcola qui, in yoloeval, dalle predizioni del `val` (il dataset non ha sottoinsiemi per fascia: perdevano
+  i box delle formazioni). Falsi positivi per fotogramma e detection multiple si contano dalle
   predizioni salvate del `val`, con un'analisi breve.
 - **YAML dei modelli**: F, P, N, S, M e le larghezze intermedie con un nome di scala proprio (mai `m`, `l`, `x`,
   che forzano `c3k=True`, sezione 4); D101 (`c3k=False` in tutti i C3k2) e D170 (moltiplicatore 1.0). Controllo
@@ -471,7 +420,7 @@ Ogni passo dipende da quello prima.
   riferimento, 2 s per inferenza) e f32 su x86. Prima di B1-2: una run su AGX per controllare che H2D e D2H non
   siano 0 (con la memoria unificata potrebbero esserlo davvero, e allora il controllo del parser va rivisto).
 - **Ricetta di training** fissata una volta per tutte (regole fisse): MuSGD, `lr0` 0.01, `lrf` 0.01, batch secondo la
-  GPU, augmentation di default con mosaic e `scale` 0.25, 1000 epoche con patience 200. Il controllo sulla lunghezza è gratis: è la curva del nano
+  GPU, augmentation di `yolo26n.pt` con cutmix e degrado della camera (regole fisse), 300 epoche con patience 200. Il controllo sulla lunghezza è gratis: è la curva del nano
   della mappatura (T2-03).
 - **Misura end-to-end** sui tre dispositivi, secondo la definizione delle regole fisse, con il controllo automatico
   delle condizioni (frequenze, temperatura, clock).
@@ -483,7 +432,7 @@ Nessuna misura: la fase 0 è lavoro sui dati e sul protocollo. Le misure di ripe
 
 ### Cosa ne esce
 
-Il dataset congelato con box aderenti e la sua matrice classe × fascia, il rapporto sulla larghezza dei box originali,
+Il dataset congelato con box aderenti e la sua distribuzione per classe e grandezza,
 i set di val (e di test) alle risoluzioni di deploy, la ricetta di training.
 
 ---
@@ -675,7 +624,8 @@ modelli normali. È il riferimento che la potatura dovrà battere.
 La latenza non dipende dai pesi, quindi tutti i modelli della griglia si misurano **subito**, mentre i training sono
 ancora in corso, in **tutte le precisioni** che ogni dispositivo supporta. E siccome misurare non richiede training,
 la latenza non si limita ai modelli che alleniamo: si misura la **griglia discreta** completa dei valori ammessi
-(sezione 4): 9 larghezze × 3 profondità × 3 risoluzioni di deploy = **81 configurazioni** per dispositivo, in fp16
+(sezione 4): 9 larghezze × 3 profondità × 6 ingressi (3 risoluzioni di deploy e 3 ritagli quadrati del tracking) =
+**162 configurazioni** per dispositivo, in fp16
 e in int8. L'fp32 si misura solo sui modelli della mappatura, quanto basta per mostrare che non conviene. La griglia
 comprende tutti i modelli della mappatura e tutte le candidate all'ottimo: è una **mappa della latenza misurata**,
 senza bisogno di interpolare. \<esempio>Costo indicativo: sul Pi qualche ora per precisione; sull'AGX la build di ogni engine
@@ -771,7 +721,7 @@ gradini (AGX, DX) le misure mostrano da sole quali larghezze sprecano un gradino
 intermedie, con canali multipli di 3)\</esempio>.
 
 **Criterio di scelta, valido in tutta la tesi** (ottimo, candidate, modello da potare): conta la **mAP50-95
-complessiva** (media sulle 4 classi, oggetti ≥ 16 px, sul set di val della risoluzione di deploy). A pari merito,
+complessiva** (media sulle 4 classi, oggetti ≥ 8 px, sul set di val della risoluzione di deploy). A pari merito,
 cioè con una differenza **sotto 1 punto di mAP50-95** (soglia fissa, la stessa in tutta la tesi), vince il modello
 migliore **sui droni** (AP della classe drone). Metriche
 di una sola classe come criterio principale cambierebbero la domanda della tesi da "il detector migliore" a "il
@@ -1117,7 +1067,7 @@ distanza ≈ S · W / (2 · p_min · tan(FOV / 2))
 
 ### Cosa ci aspettiamo
 
-\<esempio>Il test qualche punto sotto il val (lo split per video è più severo), ma con lo stesso ordinamento fra i metodi.\</esempio>
+\<esempio>Il test qualche punto sotto il val (lo split per gruppi di sessioni è più severo), ma con lo stesso ordinamento fra i metodi.\</esempio>
 
 ---
 
@@ -1150,8 +1100,8 @@ inventati: quando arrivano i dati veri si sostituiscono le funzioni `lat` (fase 
 | il tempo non basta per il blocco 2 | fine del blocco 1 | la tesi è il blocco 1; il test si fa alla data limite senza i potati |
 | operatori di YOLO26 non supportati dalla DX-M1 | X1 | sostituirli; altrimenti DX diventa descrittivo |
 | AGX non disponibile | fase 1 | si lavora su PI e DX |
-| aggiunte al dataset (uccelli e aerei grandi) non trovate o troppo lente da etichettare | fase 0, passo 5 | si usa quello che c'è; le celle scoperte (per esempio uccelli grandi) si dichiarano come limite |
-| SAM 2 non rende aderenti i box degli oggetti minuscoli (sagome vuote o sbagliate) | fase 0, passo 2 | soglia di contrasto locale su cielo uniforme; revisione a mano dei casi rimasti |
+| aggiunte al dataset (uccelli e aerei grandi) non trovate o troppo lente da etichettare | fase 0 | **successo in parte**: aerei ed elicotteri trovati (DVIDS), uccelli in volo pochi (Open Images); uccelli e droni piccoli di val e test dichiarati come limite |
+| SAM 2 non rende aderenti i box degli oggetti minuscoli (sagome vuote o sbagliate) | fase 0 | **successo**: con il box come prompt SAM 2 restituiva il box stesso; box rifatti con contrasto locale e SAM 2 con un punto, poi revisione in CVAT di tutti i frame |
 | sul Pi non sta nessun modello a 720p e 1080p | 2a | sul Pi solo 480p: è un risultato |
 | lo stimatore sbaglia più del 10% sull'AGX | 4a (L4-1) | MLP sul residuo (L4-2); altrimenti sull'AGX si pota solo con i calcoli |
 | compilazione DX-COM troppo lenta per i probe completi | X1 | probe e reti potate a caso ridotti sulla DX |
@@ -1162,17 +1112,17 @@ inventati: quando arrivano i dati veri si sostituiscono le funzioni `lat` (fase 
 
 | # | scelta | stato |
 |---|---|---|
-| 1 | **ricetta di training** | **decisa**: una ricetta unica per tutti i training, niente versione ridotta per la mappatura; 1000 epoche con early stopping a patience 200 |
+| 1 | **ricetta di training** | **decisa**: una ricetta unica per tutti i training, niente versione ridotta per la mappatura; 300 epoche con early stopping a patience 200 (tempo di GPU) |
 | 2 | **software di inferenza per dispositivo** | **decisa** con X2: sul PI OpenVINO per l'fp16 e onnxruntime per l'int8, perché OpenVINO int8 su ARM è più lento (41,1 contro 29,4 ms sul pico); AGX TensorRT (int8 con la ricetta standard di Ultralytics), DX DX-COM/DX-RT |
 | 3 | **ottimo predetto al posto del riempimento** (2c) | **accettata** |
 | 4 | **secondo budget più stretto** (`B'`, es. 20 fps) in fase 4 | aperta, si decide all'inizio del blocco 2 |
 | 5 | **latenza misurata con pesi casuali**, subito (fasi 1 e 2) | **accettata**, insieme alla 3: la latenza delle candidate dell'ottimo si misura invece di predirla |
 | 6 | **alta risoluzione su S solo se sul nano aiuta** | **superata**: la risoluzione non si allena più, è una condizione di deploy |
-| 7 | **aggiunte al dataset come ritagli 640×640 a scala nativa** (fase 0) | **superata**: niente fonti ad alta risoluzione, tutte le immagini sono 640×512 come Svanström |
+| 7 | **aggiunte al dataset come ritagli 640×640 a scala nativa** (fase 0) | **superata**: tutte le immagini sono 640×512, le fonti più grandi ritagliate attorno agli oggetti senza ridimensionare |
 | 8 | **quali ottimi confermare con 3 seed**: tutti quelli distinti per dispositivo e risoluzione di deploy, o uno per dispositivo | **aperta**, si decide in 2c quando si sa quanti sono |
-| 9 | **ottimizzatore, learning rate e augmentation** della ricetta unica | **decisi** MuSGD, `lr0` 0.01, `lrf` 0.01, batch secondo la GPU, mosaic acceso, `scale` 0.25 (regole fisse, training e seed) |
+| 9 | **ottimizzatore, learning rate e augmentation** della ricetta unica | **decisi** MuSGD, `lr0` 0.01, `lrf` 0.01, batch secondo la GPU; augmentation di `yolo26n.pt` con cutmix e degrado della camera dal 28/10/2026 (regole fisse, training e seed) |
 | 10 | **soglia di confidenza di deploy** | **decisa**: quella che massimizza l'F1 sul val, una per tutte le classi, per modello e risoluzione di deploy; applicata al test in fase 5 senza ricalcolarla (regole fisse, metriche) |
-| 11 | **minimo di istanze e di video per cella** della matrice classe × fascia (fase 0, passo 1) | **decisa**: train ≥ 1500 immagini e ≥ 10.000 istanze per classe (Ultralytics), > 100 immagini e ≥ 10 video per cella; val e test ≥ 385 istanze per cella, verificate con bootstrap per sessione (`air-detection/docs/regole.md`) |
+| 11 | **minimo di istanze e di video per cella** della matrice classe × fascia (fase 0) | **superata**: niente minimi per cella; una distribuzione obiettivo delle grandezze uguale per tutte le classi (s^−0,3 fra 8 e 320 px; val sulla curva, test uniforme in log s), con almeno 2.000 istanze per classe in val e 1.000 in test, mai oltre il 20% del materiale in dominio; le classi sotto l'obiettivo sono limiti dichiarati (`air-detection/README.md`, Regole e Limiti dichiarati) |
 
 ### Sulla scelta 1: la ricetta
 
@@ -1185,9 +1135,9 @@ inventati: quando arrivano i dati veri si sostituiscono le funzioni `lat` (fase 
   penalizzerebbe di più, renderebbe il trend della larghezza più ripido del vero e sposterebbe l'ottimo verso modelli
   più grandi: cioè falserebbe il risultato principale del blocco 1. \<esempio>Il risparmio sarebbe di 2–3 giorni su un piano di
   10–14 settimane\</esempio>, e con la ricetta unica i training della mappatura si riusano come seed 0 dei confronti.
-- **Lunghezza**: 1000 epoche con patience 200. Su AOD4 il pico arrivava al 99% del suo massimo verso l'epoca 620 e il
-  nano verso la 400–430; su Svanström tutti e tre i modelli piccoli toccavano il massimo verso l'epoca 15–30 e poi
-  calavano. 1000 epoche coprono il caso lento, la patience evita di sprecare GPU nel caso veloce.
+- **Lunghezza**: 300 epoche con patience 200, per il tempo di GPU. Su AOD4 il pico arrivava al 99% del suo massimo
+  verso l'epoca 620 e il nano verso la 400–430; su air-detection (28/10/2026) pico, nano e small toccano il massimo
+  fra l'epoca 187 e la 233.
 
 ### Da zero o da COCO
 

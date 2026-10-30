@@ -21,6 +21,16 @@ Da un'altra cartella (per esempio `notebooks/`) Python non trova il pacchetto
 | [`roofline`](#toolsroofline) | `results/*.json`, `results/roofline/*.json` | `reports/roofline/` | efficienza dei modelli e confronto con la baseline |
 | [`artifacts`](#toolsartifacts) | `artifacts/`, `results/` | niente (tranne `prune --apply`) | vedere e ripulire la cache di pesi ed export |
 
+Tre script si lanciano invece come file (`python tools/<nome>.py`), ognuno con l'uso scritto nella docstring:
+
+| script | legge | scrive | a cosa serve |
+|---|---|---|---|
+| `curva_fbeta.py` | pesi `.pt`, dataset in `data/air-detection/all/` | una figura | curva F-beta per classe in funzione della soglia di confidenza (`--beta`, `--split`) |
+| `figure_sintesi.py` | `results/` (con `--risultati`) o dati di esempio | figure A, B, C | figure di sintesi del blocco 1 per dispositivo (`NEW_MASTERPLAN.md`, sezione 13) |
+| `search_channels.py` | `pruned.pt` di una o più cartelle in `artifacts/search/` | un PNG | canali tenuti da una ricerca PIT, per layer |
+
+`order.py` e `plots.py` sono moduli di supporto (ordinamento naturale dei nomi, stile dei grafici).
+
 Le figure di tutti i tool, degli esperimenti e dei notebook usano
 `tools/thesis.mplstyle` e `tools/plots.py` (`save`, `color`, `WIDTH`): stesso
 stile, stesso colore per la stessa entità, PNG e PDF per LaTeX.
