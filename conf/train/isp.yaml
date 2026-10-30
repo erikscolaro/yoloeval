@@ -1,0 +1,18 @@
+# Prova del 30/10/2026: la ricetta di default con il degrado camera nell'ordine della camera (ottica, sensore, ISP,
+# codec), rumore solo di luminanza e due voci nuove dell'ISP: RandomGamma e UnsharpMask, per i multirotori nitidi
+# scambiati per airplane (pico 60fcfce9: 131 droni nitidi su 1964 nel val). Fogli dei parametri in scratchpad, non in repo.
+defaults:
+  - default
+  - _self_
+
+augmentations:
+  # ottica
+  - transform: {__class_fullname__: MotionBlur, blur_limit: [3, 5], p: 0.1}
+  - transform: {__class_fullname__: GaussianBlur, blur_limit: [3, 5], p: 0.1}
+  # sensore: solo luminanza, l'ISP toglie quasi tutto il rumore di colore
+  - transform: {__class_fullname__: GaussNoise, std_range: [0.01, 0.04], per_channel: false, p: 0.1}
+  # ISP
+  - transform: {__class_fullname__: RandomGamma, gamma_limit: [80, 120], p: 0.15}
+  - transform: {__class_fullname__: UnsharpMask, blur_limit: [5, 7], sigma_limit: [1.5, 2.0], alpha: [0.7, 1.0], threshold: 10, p: 0.15}
+  # codec
+  - transform: {__class_fullname__: ImageCompression, quality_range: [50, 95], p: 0.2}

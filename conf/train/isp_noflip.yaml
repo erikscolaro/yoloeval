@@ -1,0 +1,8 @@
+# Prova del 30/10/2026: isp piu' niente scambio di canali ne' capovolgimento verticale. Per la torretta il cielo non e'
+# mai arancio ne' sotto la terra: bgr e flipud vengono dalla taratura di yolo26n su COCO.
+defaults:
+  - isp
+  - _self_
+
+bgr: 0.0
+flipud: 0.0
