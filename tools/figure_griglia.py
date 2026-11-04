@@ -1,6 +1,6 @@
 # Griglia larghezza × profondità: mAP50 e mAP50-95 (miglior epoca sul val), a barre 3D e a linee (una per profondità).
 #   .venv/bin/python tools/figure_griglia.py OUT_DIR   (dalla radice di yoloeval)
-# Stile della tesi (tools/thesis.mplstyle), una figura per pannello a tutta \textwidth, PNG + PDF; titolo e note nella
+# Stile della tesi (tools/thesis.mplstyle), una figura per tipo (barre, linee) con mAP50 sopra e mAP50-95 sotto, PNG + PDF; titolo e note nella
 # didascalia LaTeX. Rileggibile mentre la griglia gira: le celle senza meta.json sono in corso (valore migliore finora,
 # barre tratteggiate e marker vuoti).
 import csv
@@ -92,18 +92,20 @@ if __name__ == "__main__":
     OUT = Path(sys.argv[1] if len(sys.argv) > 1 else ".")
     cells = celle()
     ij = np.array(list(cells))
-    for name, m in (("mAP50", 0), ("mAP50-95", 1)):
+    # due figure, una per tipo, con mAP50 sopra (valori più alti) e mAP50-95 sotto
+    figb = plt.figure(figsize=(WIDTH, 1.1 * WIDTH), layout="none")  # constrained_layout non regge gli assi 3D
+    figl, axl = plt.subplots(2, 1, figsize=(WIDTH, 0.95 * WIDTH), sharex=True)
+    for r, (name, m) in enumerate((("mAP50", 0), ("mAP50-95", 1))):
         v = np.array([cells[c][m] for c in cells])
         done = np.array([cells[c][2] for c in cells])
         norm = plt.Normalize(v.min(), v.max())
         lo = v.min() - 0.02
         zt = np.arange(np.ceil(lo * 100), np.floor((v.max() + 0.01) * 100) + 1) / 100  # griglia ogni 0,01, etichette ogni 0,02
         zl = [f"{z:.2f}" if round(z * 100) % 2 == 0 else "" for z in zt]
-        stem = f"griglia_{name.replace('-', '_')}"
 
         # barre 3D: una chiamata per barra, dalla più lontana alla più vicina alla camera
-        fig = plt.figure(figsize=(WIDTH, 0.75 * WIDTH), layout="none")  # constrained_layout non regge gli assi 3D
-        ax = fig.add_axes((0.06, 0.1, 0.92, 0.9), projection="3d", computed_zorder=False)  # disegno nell'ordine di chiamata
+        fig, yr = figb, 0.5 * (1 - r)  # metà alta per la prima metrica, metà bassa per la seconda
+        ax = fig.add_axes((0.0, yr, 0.88, 0.5), projection="3d", computed_zorder=False)  # disegno nell'ordine di chiamata
         # profondità in ordine inverso, D170 davanti e D101 in fondo: le barre più basse stanno vicino alla parete
         pos = np.array([(i, len(DEPTHS) - 1 - j) for i, j in ij])
         # sulla parete di fondo, parallela all'asse della larghezza e staccata dalle barre di GAP: per ogni larghezza
@@ -143,21 +145,19 @@ if __name__ == "__main__":
         ax.set_zticks(zt, zl)
         ax.view_init(elev=ELEV, azim=AZIM)
         obliqua(ax, ANG_X, ANG_Y)
-        ax.set_box_aspect((2.2, 0.95, 1), zoom=0.78)  # stessa scala per larghezza e profondità
+        ax.set_box_aspect((2.2, 0.95, 1), zoom=0.88)  # stessa scala per larghezza e profondità
         # etichetta z a mano: quella di mplot3d finisce fuori dalla figura e il ritaglio "tight" la perde
         fig.canvas.draw()  # le estensioni delle etichette dei tick 3D non sono affidabili: uso il bordo sinistro del contenuto
-        x0 = fig.get_tightbbox(fig.canvas.get_renderer()).x0 / fig.get_figwidth()
-        y0 = 0.53  # a metà dell'asse z
-        fig.text(x0 - 0.005, y0, name, rotation=90, ha="right", va="center", fontsize=plt.rcParams["axes.labelsize"],
-                 color=plt.rcParams["axes.labelcolor"])
-        cb = fig.colorbar(plt.cm.ScalarMappable(norm=norm, cmap=CMAP_SOFT), cax=fig.add_axes((0.25, 0.14, 0.5, 0.022)),
-                          orientation="horizontal")
-        cb.set_label(name); cb.outline.set_visible(False)
-        print(save(fig, OUT / f"{stem}_barre"))
+        x0 = ax.get_tightbbox(fig.canvas.get_renderer()).x0 / (fig.get_figwidth() * fig.dpi)
+        fig.text(x0 - 0.005, yr + 0.27, name, rotation=90, ha="right", va="center",  # a metà dell'asse z
+                 fontsize=plt.rcParams["axes.labelsize"], color=plt.rcParams["axes.labelcolor"])
+        # scala dei colori a destra del pannello: una per metrica, perché le due mAP hanno intervalli diversi
+        cb = fig.colorbar(plt.cm.ScalarMappable(norm=norm, cmap=CMAP_SOFT), cax=fig.add_axes((0.83, yr + 0.15, 0.016, 0.22)))
+        cb.outline.set_visible(False); cb.ax.tick_params(labelsize=7)
 
         # linee 2D: una per profondità, larghezze equispaziate; marker vuoti se in allenamento
-        # stile del fronte di Pareto: virgola decimale, solo griglia orizzontale, legenda sotto il grafico
-        fig, ax2 = plt.subplots(figsize=(WIDTH, 0.55 * WIDTH))
+        # stile del fronte di Pareto: solo griglia orizzontale, legenda sotto il grafico
+        ax2 = axl[r]
         # fascia fra minimo e massimo delle profondità: la stessa variazione delle barre sulla parete della figura 3D
         rng = sorted((i, min(z for (ii, _), z in zip(ij, v) if ii == i), max(z for (ii, _), z in zip(ij, v) if ii == i))
                      for i in {i for i, _ in ij})
@@ -174,8 +174,11 @@ if __name__ == "__main__":
         # sigle delle larghezze: i valori sono nella tabella del capitolo 4
         ax2.set_xticks(range(len(WIDTHS)), [LETTERA[w] for w in WIDTHS])
         ax2.set_xlim(-0.3, len(WIDTHS) - 0.7)
-        ax2.set_yticks(zt, [z.replace(".", ",") for z in zl]); ax2.set_ylim(lo, v.max() + 0.01)
+        ax2.set_yticks(zt, zl); ax2.set_ylim(lo, v.max() + 0.01)
         ax2.grid(axis="x", visible=False)
-        ax2.set_xlabel("larghezza"); ax2.set_ylabel(name)
-        ax2.legend(loc="upper center", bbox_to_anchor=(0.5, -0.25), ncol=4, columnspacing=1.5, handlelength=2.5)
-        print(save(fig, OUT / f"{stem}_linee"))
+        ax2.set_ylabel(name)
+    axl[-1].set_xlabel("larghezza")
+    figl.legend(*axl[0].get_legend_handles_labels(), loc="outside lower center", ncol=4, columnspacing=1.5,
+                handlelength=2.5)  # una legenda per i due pannelli
+    print(save(figb, OUT / "griglia_barre"))
+    print(save(figl, OUT / "griglia_linee"))

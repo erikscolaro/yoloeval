@@ -1,7 +1,7 @@
 # Fronte di Pareto mAP-latenza: un punto per ogni modello allenato della griglia, una serie per scheda con latenze
 # misurate. Latenza su asse lineare, finestra centrata sulla fascia del budget del modello (figura A, figure_sintesi.py).
 #   .venv/bin/python tools/figura_pareto.py OUT_DIR [--deploy 480p] [--precisione fp16] [--risultati results]
-# Stile della tesi, una figura per metrica (mAP50-95 e mAP50), PNG + PDF; titolo e note nella didascalia LaTeX.
+# Stile della tesi, una figura con mAP50 sopra e mAP50-95 sotto, PNG + PDF; titolo e note nella didascalia LaTeX.
 import argparse
 import sys
 from pathlib import Path
@@ -106,14 +106,16 @@ if __name__ == "__main__":
     x0 = min(x0, (1 - A_PELO) * BUDGET) - MARGIN
     x1 = 2 * BUDGET - x0
     scelte = (("conservativa", BUDGET, 120, "-"), ("con margine", (1 + A_PELO) * BUDGET, 120, (0, (1, 1.2))))
-    for name, m in (("mAP50", 0), ("mAP50-95", 1)):
-        fig, ax = plt.subplots(figsize=(WIDTH, 0.62 * WIDTH))
+    # una figura con mAP50 sopra (valori più alti) e mAP50-95 sotto, come i grafici della griglia
+    fig, axs = plt.subplots(2, 1, figsize=(WIDTH, 1.05 * WIDTH), sharex=True)
+    da_etichettare = []
+    for ax, (name, m) in zip(axs, (("mAP50", 0), ("mAP50-95", 1))):
         ax.axvspan((1 - A_PELO) * BUDGET, (1 + A_PELO) * BUDGET, color=BAND, lw=0, zorder=0)
         handles = [ax.axvline(BUDGET, color=ink, lw=1, ls="--", zorder=1, label=f"budget {BUDGET:g} ms"),
                    matplotlib.patches.Patch(color=BAND, label=f"margine ± {A_PELO:.0%}".replace("%", " %"))]
         for lab, lim, size, ls in scelte:  # in legenda anelli più piccoli: a grandezza vera dominerebbero la riga
             handles.append(ax.scatter([], [], s=size / 2, facecolors="none", edgecolors=ink, linewidths=1.3, linestyles=ls,
-                                      label=f"scelta {lab} (< {lim:.1f} ms)".replace(".", ",")))
+                                      label=f"scelta {lab} (< {lim:.1f} ms)"))
         ys, items, punti, linee, fuori = [], [], [], [], []
         for board, (k, pts) in serie.items():
             pts = [(t, v[m], w, d) for t, v, w, d in pts]
@@ -149,12 +151,13 @@ if __name__ == "__main__":
                     color=ink)
         ax.set_xlim(x0, x1)
         ax.set_ylim(min(ys) - 0.012, max(ys) + 0.012)
-        ax.set_xlabel(f"latenza in ms ({args.deploy}, {args.precisione})")
         ax.set_ylabel(name)
-        ax.yaxis.set_major_formatter(matplotlib.ticker.FuncFormatter(lambda v, _: f"{v:.2f}".replace(".", ",")))
         ax.grid(axis="x", visible=False)  # fascia e budget bastano a leggere le latenze
-        # legenda sotto il grafico: dentro coprirebbe la fascia del budget, che sta al centro
-        ax.legend(handles=handles, loc="upper center", bbox_to_anchor=(0.5, -0.2), ncol=3, columnspacing=1.2,
-                  scatteryoffsets=[0.5], labelspacing=0.9)
-        etichette(ax, items, punti, linee)
-        print(save(fig, Path(args.out) / f"pareto_{name.replace('-', '_')}_{args.deploy}"))
+        da_etichettare.append((ax, items, punti, linee))
+    axs[-1].set_xlabel(f"latenza in ms ({args.deploy}, {args.precisione})")
+    # una legenda sotto i due pannelli: dentro coprirebbe la fascia del budget, che sta al centro
+    fig.legend(handles=handles, loc="outside lower center", ncol=3, columnspacing=1.2, scatteryoffsets=[0.5],
+               labelspacing=0.9)
+    for args_et in da_etichettare:  # dopo la legenda, che sposta gli assi: le collisioni si calcolano sul layout finale
+        etichette(*args_et)
+    print(save(fig, Path(args.out) / f"pareto_{args.deploy}"))

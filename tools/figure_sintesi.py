@@ -26,12 +26,11 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from tools.figure_griglia import LETTERA  # noqa: E402
 from tools.plots import STYLE, WIDTH, save  # noqa: E402
 
 # --- valori ammessi (sezione 4 del masterplan) --------------------------------------------------------------------
 WL = np.array([0.0625, 0.09375, 0.125, 0.1875, 0.25, 0.375, 0.5, 0.75, 1.0])
-WLAB = ["F", "", "P", "", "N", "", "S", "", "M"]
-WFRAC = ["1/16", "3/32", "1/8", "3/16", "1/4", "3/8", "1/2", "3/4", "1"]
 RL = ["crop128", "crop256", "crop512", "480p", "720p", "1080p"]  # in ordine di pixel
 RPIX = {"crop128": (128, 128), "crop256": (256, 256), "crop512": (512, 512),  # ritagli quadrati del tracking
         "480p": (864, 480), "720p": (1280, 736), "1080p": (1920, 1088)}  # ingresso del modello, multipli di 32
@@ -105,9 +104,7 @@ def _frame():
             ax.grid(False)
             ax.set_xlim(-0.6, len(WL) - 0.4); ax.set_ylim(-0.6, len(RL) - 0.4)
             ax.set_aspect("equal")
-            # frazione e sigla solo sulle potenze di 2 (masterplan, sezione 4), un puntino sulle
-            # larghezze intermedie: si vede la progressione senza affollare l'asse
-            ax.set_xticks(range(len(WL)), [f"{f}\n{s}" if s else "·" for f, s in zip(WFRAC, WLAB)], fontsize=6)
+            ax.set_xticks(range(len(WL)), [LETTERA[w] for w in WL], fontsize=6)  # sigle delle larghezze (capitolo 4)
             ax.set_yticks(range(len(RL)), [RLAB.get(r, r) for r in RL], fontsize=7)
             ax.tick_params(length=0, colors=MUTED)
             for sp in ax.spines.values():
@@ -141,8 +138,8 @@ def _optimum():
     return best
 
 
-def _comma(x, f="{:.3f}"):
-    return f.format(x).replace(".", ",")
+def _num(x, f="{:.3f}"):
+    return f.format(x)  # punto decimale in tutte le figure
 
 
 def _header(fig, handles, labels, title, ncol):
@@ -155,7 +152,7 @@ def _header(fig, handles, labels, title, ncol):
 
 def _ms(t):
     """Latenza nella casella: intera da 10 ms in su, un decimale sotto."""
-    return _comma(t, "{:.0f}" if t >= 9.95 else "{:.1f}")
+    return _num(t, "{:.0f}" if t >= 9.95 else "{:.1f}")
 
 
 def _box(ax, b, a, fill, edge="none"):
@@ -178,7 +175,7 @@ def figura_a(out, device, dettaglio=False, misure=None, titolo=True):
         if dettaglio:
             axs[i, j].text(b, a, _ms(t), fontsize=4.5, color=INK, ha="center", va="center")
     h = [plt.Rectangle((0, 0), 1, 1, facecolor=c, edgecolor="none") for c in fills]
-    lo, hi = _comma((1 - A_PELO) * BUDGET, "{:.1f}"), _comma((1 + A_PELO) * BUDGET, "{:.1f}")
+    lo, hi = _num((1 - A_PELO) * BUDGET, "{:.1f}"), _num((1 + A_PELO) * BUDGET, "{:.1f}")
     labels = [f"≤ {lo} ms", f"{_ms(BUDGET)} ms ±{A_PELO:.0%}", f"> {hi} ms"]
     if misure is not None and any(misure.get((w, r, d, q)) is None for _, _, q, d, _, r, _, w in _cells()):
         h.append(plt.Rectangle((0, 0), 1, 1, facecolor="white", edgecolor=GRID))
@@ -213,7 +210,7 @@ def _colorbar(fig, axs, norm, cmap):
     cb.ax.tick_params(labelsize=6.5)
     cb.outline.set_visible(False)
     cb.ax.yaxis.set_major_locator(matplotlib.ticker.MultipleLocator(0.02))
-    cb.ax.yaxis.set_major_formatter(matplotlib.ticker.FuncFormatter(lambda v, _: _comma(v, "{:.2f}")))
+    cb.ax.yaxis.set_major_formatter(matplotlib.ticker.FuncFormatter(lambda v, _: _num(v, "{:.2f}")))
 
 
 def figura_b(out, device):
@@ -255,7 +252,7 @@ def figura_c(out, device):
          plt.Line2D([], [], marker="*", ls="", mfc=OPT, mec=INK, ms=10),
          plt.Line2D([], [], marker="D", ls="", mfc="none", mec=PRUNE, mew=1.3, ms=6)]
     _header(fig, h, ["Entro il budget",
-                     f"Candidato alla potatura (ΔmAP > {_comma(NOISE * 100, '{:.1f}')} punti, riduzione ≤ {MAXCUT:.0%})",
+                     f"Candidato alla potatura (ΔmAP > {_num(NOISE * 100, '{:.1f}')} punti, riduzione ≤ {MAXCUT:.0%})",
                      "Oltre il budget", "Ottimo della risoluzione", "Candidato selezionato (taglio di latenza)"],
             f"{device}: candidati alla potatura, per risoluzione di deploy", 3)
     return save(fig, Path(out) / "C_potabili", pdf=False)
