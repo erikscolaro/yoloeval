@@ -2,4 +2,5 @@ map_conf: 0.001        # basso: la mAP integra su tutte le soglie
 map_iou: 0.7
 bench_conf: 0.25       # operativo, IDENTICO in tutte le celle di latenza
 bench_iou: 0.45
-max_det: 300
+# max_det uguale a export_max_det: la mAP si misura con le stesse 64 uscite degli export.
+max_det: ${export_max_det}

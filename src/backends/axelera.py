@@ -223,7 +223,7 @@ class AxeleraBackend(Backend):
             f"imgsz={int(cfg.model.imgsz)} "
             # soglie operative, identiche in tutte le celle di latenza
             f"conf={cfg.eval.bench_conf} iou={cfg.eval.bench_iou} "
-            f"max_det={cfg.eval.max_det} "
+            f"max_det={cfg.eval.max_det} nms=False "
             f"save=False verbose=True stream=False"
         )
         return self._wrap(cfg, cmd)

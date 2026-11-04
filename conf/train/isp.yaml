@@ -1,6 +1,6 @@
 # Prova del 30/10/2026: la ricetta di default con il degrado camera nell'ordine della camera (ottica, sensore, ISP,
 # codec), rumore solo di luminanza e due voci nuove dell'ISP: RandomGamma e UnsharpMask, per i multirotori nitidi
-# scambiati per airplane (pico 60fcfce9: 131 droni nitidi su 1964 nel val). Fogli dei parametri in scratchpad, non in repo.
+# scambiati per airplane (pico 59d8534a: 131 droni nitidi su 1964 nel val). Fogli dei parametri in scratchpad, non in repo.
 defaults:
   - default
   - _self_

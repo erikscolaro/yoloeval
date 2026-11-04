@@ -1,0 +1,2 @@
+name: crop512
+imgsz: [512, 512]

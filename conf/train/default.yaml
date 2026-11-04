@@ -1,5 +1,5 @@
 # Ricetta unica di tutti i training della tesi (NEW_MASTERPLAN §2, training e seed).
-# Dal 28/10/2026 le augmentation di yolo26n piu' cutmix e degrado camera (pico 60fcfce9, mAP50 0.842 contro 0.819 con
+# Dal 28/10/2026 le augmentation di yolo26n piu' cutmix e degrado camera (pico 59d8534a, mAP50 0.842 contro 0.819 con
 # degrees 5 e scale 0.25): i run prima non sono confrontabili.
 # I nomi delle chiavi coincidono 1:1 con gli argomenti di model.train() di Ultralytics.
 epochs: 1000

@@ -20,6 +20,7 @@ bench_conf: 0.25
 bench_iou: 0.45
   # IoU dell'NMS durante la misura.
 
-max_det: 300
-  # Massimo numero di detection per immagine. Vale per entrambe: e' anche la
-  # dimensione dell'output della testa one-to-one, [1, max_det, 6].
+max_det: ${export_max_det}
+  # Massimo numero di detection per immagine, uguale a export_max_det (64). Vale
+  # per entrambe: e' anche la dimensione dell'output della testa one-to-one,
+  # [1, max_det, 6].

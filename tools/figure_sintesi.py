@@ -1,6 +1,7 @@
 """Figure di sintesi del blocco 1 (NEW_MASTERPLAN.md, sezione 13), una per dispositivo, a piccoli multipli:
 righe = precisione (fp16, int8), colonne = profondità (101, 126, 170 conv), in ogni pannello la griglia
-discreta larghezza × risoluzione di deploy (480p, 720p, 1080p).
+discreta larghezza × ingresso: i ritagli quadrati del tracking (128, 256, 512) e la camera 16:9 (480p, 720p,
+1080p), in ordine di pixel.
 
     A. chi sta nel budget         (dopo la griglia di latenza, fase 2a); variante dettagliata con la latenza in ms
                                   dentro ogni casella
@@ -9,6 +10,8 @@ discreta larghezza × risoluzione di deploy (480p, 720p, 1080p).
 
     python tools/figure_sintesi.py OUT_DIR                                   # tutte, dati di esempio
     python tools/figure_sintesi.py OUT_DIR --risultati results --board rpi5  # A e A dettagliata, latenze misurate
+    python tools/figure_sintesi.py OUT_DIR --precisioni fp16                 # solo le righe scelte
+    python tools/figure_sintesi.py OUT_DIR --risoluzioni 480p 720p 1080p     # solo gli ingressi scelti
 
 I DATI DI ESEMPIO QUI SOTTO SONO INVENTATI (tranne femto e pico a 640 sul Pi, 18,2 e 27,9 ms): vanno sostituiti da
 `lat(w, r, d, q)` misurata (fase 2a) e `mAP(w, r, d, q)` del modello di precisione sul set di val della risoluzione di
@@ -29,8 +32,10 @@ from tools.plots import STYLE, WIDTH, save  # noqa: E402
 WL = np.array([0.0625, 0.09375, 0.125, 0.1875, 0.25, 0.375, 0.5, 0.75, 1.0])
 WLAB = ["F", "", "P", "", "N", "", "S", "", "M"]
 WFRAC = ["1/16", "3/32", "1/8", "3/16", "1/4", "3/8", "1/2", "3/4", "1"]
-RL = ["480p", "720p", "1080p"]
-RPIX = {"480p": (864, 480), "720p": (1280, 736), "1080p": (1920, 1088)}  # ingresso del modello, multipli di 32
+RL = ["crop128", "crop256", "crop512", "480p", "720p", "1080p"]  # in ordine di pixel
+RPIX = {"crop128": (128, 128), "crop256": (256, 256), "crop512": (512, 512),  # ritagli quadrati del tracking
+        "480p": (864, 480), "720p": (1280, 736), "1080p": (1920, 1088)}  # ingresso del modello, multipli di 32
+RLAB = {"crop128": "128²", "crop256": "256²", "crop512": "512²"}  # etichetta sull'asse, se diversa dal nome
 DEPTHS = ["D101", "D126", "D170"]  # profondità = numero di conv (masterplan, sezione 4)
 PRECS = ["fp16", "int8"]
 
@@ -81,7 +86,7 @@ def lat_misurate(results, board):
     return {k: float(np.median(v)) for k, v in acc.items()}
 
 
-BOARDS = {"rpi5": "Raspberry Pi5", "jetson_orin": "Jetson AGX Orin", "rpi5_axelera": "Raspberry Pi 5 + Axelera"}
+BOARDS = {"rpi5": "Raspberry Pi 5", "jetson_orin": "Jetson AGX Orin", "rpi5_axelera": "Raspberry Pi 5 + Axelera"}
 
 
 # --- figure ---------------------------------------------------------------------------------------------------------
@@ -91,18 +96,19 @@ OPT, PRUNE = "#d9531e", "#8a5d00"
 
 def _frame():
     """Piccoli multipli a passo uguale in orizzontale e in verticale (aspetto 1:1 della griglia)."""
-    fig, axs = plt.subplots(len(PRECS), len(DEPTHS), figsize=(WIDTH, (0.08 + 0.13 * len(PRECS)) * WIDTH), sharex=True,
-                            sharey=True, squeeze=False)
+    h = 0.08 + 0.13 * len(PRECS) * len(RL) / 3  # 0,13 per riga di pannelli con tre ingressi
+    fig, axs = plt.subplots(len(PRECS), len(DEPTHS), figsize=(WIDTH, h * WIDTH), sharex=True, sharey=True,
+                            squeeze=False)
     for i, q in enumerate(PRECS):
         for j, d in enumerate(DEPTHS):
             ax = axs[i, j]
             ax.grid(False)
             ax.set_xlim(-0.6, len(WL) - 0.4); ax.set_ylim(-0.6, len(RL) - 0.4)
             ax.set_aspect("equal")
-            # etichette solo sui modelli con nome (frazione e sigla, masterplan, sezione 4), un puntino sulle
+            # frazione e sigla solo sulle potenze di 2 (masterplan, sezione 4), un puntino sulle
             # larghezze intermedie: si vede la progressione senza affollare l'asse
             ax.set_xticks(range(len(WL)), [f"{f}\n{s}" if s else "·" for f, s in zip(WFRAC, WLAB)], fontsize=6)
-            ax.set_yticks(range(len(RL)), RL, fontsize=7)
+            ax.set_yticks(range(len(RL)), [RLAB.get(r, r) for r in RL], fontsize=7)
             ax.tick_params(length=0, colors=MUTED)
             for sp in ax.spines.values():
                 sp.set_visible(False)
@@ -140,8 +146,9 @@ def _comma(x, f="{:.3f}"):
 
 
 def _header(fig, handles, labels, title, ncol):
-    """Titolo in alto, legenda sotto le figure."""
-    fig.suptitle(title, fontsize=8.5)
+    """Titolo in alto (niente titolo nella tesi: lo dice la didascalia), legenda sotto le figure."""
+    if title:
+        fig.suptitle(title, fontsize=8.5)
     fig.legend(handles, labels, loc="upper center", ncol=ncol, bbox_to_anchor=(0.5, 0.0), fontsize=7,
                handletextpad=0.4, columnspacing=1.5, frameon=False)
 
@@ -157,7 +164,7 @@ def _box(ax, b, a, fill, edge="none"):
                                                    linewidth=0.6, boxstyle="round,pad=0,rounding_size=0.15"))
 
 
-def figura_a(out, device, dettaglio=False, misure=None):
+def figura_a(out, device, dettaglio=False, misure=None, titolo=True):
     """`misure` da `lat_misurate`: le configurazioni non ancora misurate sono caselle vuote. Senza, dati di esempio."""
     fills = ["#cfeee0", "#fbe7b8", "#eeeeee"]
     fig, axs = _frame()
@@ -169,15 +176,15 @@ def figura_a(out, device, dettaglio=False, misure=None):
         k = 0 if t <= (1 - A_PELO) * BUDGET else 1 if t <= (1 + A_PELO) * BUDGET else 2
         _box(axs[i, j], b, a, fills[k])
         if dettaglio:
-            axs[i, j].text(b, a, _ms(t), fontsize=4, color=INK, ha="center", va="center")
+            axs[i, j].text(b, a, _ms(t), fontsize=4.5, color=INK, ha="center", va="center")
     h = [plt.Rectangle((0, 0), 1, 1, facecolor=c, edgecolor="none") for c in fills]
     lo, hi = _comma((1 - A_PELO) * BUDGET, "{:.1f}"), _comma((1 + A_PELO) * BUDGET, "{:.1f}")
     labels = [f"≤ {lo} ms", f"{_ms(BUDGET)} ms ±{A_PELO:.0%}", f"> {hi} ms"]
-    if misure is not None:
+    if misure is not None and any(misure.get((w, r, d, q)) is None for _, _, q, d, _, r, _, w in _cells()):
         h.append(plt.Rectangle((0, 0), 1, 1, facecolor="white", edgecolor=GRID))
         labels.append("Non misurato")
-    _header(fig, h, labels, f"{device}: latenza per modello", len(h))
-    return save(fig, Path(out) / ("A_budget_dettaglio" if dettaglio else "A_budget"), pdf=False)
+    _header(fig, h, labels, f"{device}: latenza per modello" if titolo else None, len(h))
+    return save(fig, Path(out) / ("A_budget_dettaglio" if dettaglio else "A_budget"))
 
 
 def _points(axs, norm, cmap, rings):
@@ -261,14 +268,18 @@ if __name__ == "__main__":
     ap.add_argument("out", nargs="?", default=".")
     ap.add_argument("--risultati", help="cartella dei JSON del benchmark: figura A con le latenze misurate")
     ap.add_argument("--board", default="rpi5")
+    ap.add_argument("--precisioni", nargs="+", choices=PRECS, default=PRECS, help="righe da disegnare, in ordine")
+    ap.add_argument("--risoluzioni", nargs="+", choices=RL, default=RL, help="ingressi da disegnare, dal basso")
+    ap.add_argument("--tesi", action="store_true", help="senza titolo, per la tesi (lo dice la didascalia)")
     args = ap.parse_args()
+    PRECS, RL = args.precisioni, args.risoluzioni
     plt.style.use(STYLE)
     out = args.out
     if args.risultati:
         misure = lat_misurate(args.risultati, args.board)
         device = BOARDS.get(args.board, args.board)
         for dettaglio in (False, True):
-            print(figura_a(out, device, dettaglio, misure))
+            print(figura_a(out, device, dettaglio, misure, titolo=not args.tesi))
         sys.exit()
     device = "Raspberry Pi 5, dati di esempio"
     print(figura_a(out, device, dettaglio=True))

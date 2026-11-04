@@ -139,7 +139,7 @@ Queste regole valgono per tutta la tesi. Servono a rendere i confronti onesti e 
   - **augmentation** (dal 28/10/2026, `conf/train/default.yaml`): i valori di `yolo26n.pt` (train_args, COCO), fra
     cui mosaic 0.91, `scale` 0.56, `degrees` 1.1, `shear` 1.5, `hsv_v` 0.57, flip verticale 0.06; in più `cutmix`
     0.1 e il **degrado della camera** con Albumentations (motion blur e blur gaussiano 0.1, rumore 0.1, JPEG 50–95
-    0.2, kernel fino a 5 px per non cancellare gli uccelli da 8–16 px). Sul pico (`60fcfce9`) mAP50 0,842 contro
+    0.2, kernel fino a 5 px per non cancellare gli uccelli da 8–16 px). Sul pico (`59d8534a`) mAP50 0,842 contro
     0,819 della ricetta precedente;
   - seed fisso e `nms=False` (testa). Niente ricette ridotte per
   esplorare: a poche epoche i modelli piccoli sono più indietro dei grandi e i trend risulterebbero falsati. Così le
@@ -272,6 +272,10 @@ Si usa la famiglia **YOLO26** con la testa **one-to-one** (senza NMS). Nel train
 La **risoluzione** non si varia nel training (sempre 640×640): è la condizione di deploy (480p, 720p, 1080p, regole
 fisse), su cui si misurano latenza e mAP.
 
+**Sigle**: ogni modello ha una sigla = lettera della larghezza + segno della profondità. Lettere: F 0.0625, FP 0.09375,
+P 0.125, PN 0.1875, N 0.25, NS 0.375, S 0.5, SM 0.75, M 1.0 (le intermedie prendono le lettere delle due vicine). Segno:
+`-` D101, nessuno D126, `+` D170. Esempi: N- = 0.25 D101, NS+ = 0.375 D170. I modelli usati più spesso:
+
 | sigla | nome | larghezza | profondità | ruolo |
 |---|---|---|---|---|
 | F | femto | 0.0625 | D126 | il più piccolo, sotto il pico |
@@ -281,7 +285,7 @@ fisse), su cui si misurano latenza e mAP.
 | N+ | nano profondo | 0.25 | D170 | prova della profondità |
 | S- | small corto | 0.5 | D101 | prova della profondità |
 | S | small | 0.5 | D126 | candidato per AGX e DX; secondo centro |
-| M | medium | 1.0 | D126 | il più grande |
+| M | medium | 1.0 | D126 | il più grande; solo latenza (fuori budget sul PI, 2b) |
 
 ### Profondità: definizione operativa
 
@@ -336,8 +340,8 @@ lo stesso tetto di canali della m ufficiale (512 invece di 1024), altrimenti 0.7
 | parametri | 0,20 M | 0,40 M | 0,68 M | 1,45 M | 2,5 M | 5,6 M | 10 M | 12,3 M | 21,7 M |
 | conv a multipli di 16 | 59% | 40% | 87% | 60% | 99% | 87% | 100% | ~100% | 100% |
 
-Le 5 larghezze con nome (F, P, N, S, M) sono quelle della griglia di training; le 4 intermedie servono alla ricerca
-dell'ottimo (se ne misura la latenza, la loro mAP si predice, l'ottimo si allena). **Le larghezze intermedie danno
+La griglia di training usa le prime 8 larghezze, fino a 0.75; la M (1.0) si misura solo in latenza, perché sul PI
+è fuori budget di un ordine di grandezza (2b). **Le larghezze intermedie danno
 canali multipli di 3** (3, 6, 12, 24, 48, 96): lo 0.09375 ha solo il 62% di conv a multipli di 8 e il 40% a multipli
 di 16, e femto e 0.09375 hanno 9 conv sotto gli 8 canali. \<esempio>Su GPU e NPU, che lavorano a blocchi di canali, queste
 larghezze rischiano di costare più delle potenze di 2 a parità di calcoli\</esempio>: la griglia di latenza della 2a lo misura,
@@ -421,7 +425,7 @@ questo i set si costruiscono a parte.
   siano 0 (con la memoria unificata potrebbero esserlo davvero, e allora il controllo del parser va rivisto).
 - **Ricetta di training** fissata una volta per tutte (regole fisse): MuSGD, `lr0` 0.01, `lrf` 0.01, batch secondo la
   GPU, augmentation di `yolo26n.pt` con cutmix e degrado della camera (regole fisse), 300 epoche con patience 200. Il controllo sulla lunghezza è gratis: è la curva del nano
-  della mappatura (T2-03).
+  della mappatura (T2-14).
 - **Misura end-to-end** sui tre dispositivi, secondo la definizione delle regole fisse, con il controllo automatico
   delle condizioni (frequenze, temperatura, clock).
 
@@ -599,8 +603,7 @@ nella conv int8; XNNPACK come esecutore.
 > larghezza e profondità, alle tre risoluzioni di deploy.
 >
 > **Come**: misurando subito la latenza di tutti i modelli con pesi casuali, alle risoluzioni di deploy; allenando da
-> zero a 640, con una ricetta fissa, modelli che differiscono dal nano per una sola cosa alla volta (e ripetendo la
-> profondità su small); valutando ogni modello sul val a 640 e sui tre set di val di deploy; confermando con 3 seed i
+> zero a 640, con una ricetta fissa, tutte le combinazioni di larghezza e profondità fino a 0.75; valutando ogni modello sul val a 640 e sui tre set di val di deploy; confermando con 3 seed i
 > modelli che servono ai confronti finali.
 >
 > **Conoscenza che produciamo**: i **trend** (come cambiano mAP e latenza con larghezza e profondità, a ogni
@@ -655,42 +658,31 @@ volte i pixel di un 640×640, a 1080p circa 5 volte, e la latenza sul Pi segue i
 
 ### 2b. Training di mappatura (un seed)
 
-Si cambia **una cosa alla volta rispetto al nano**. Così, se il modello cambia precisione, si sa a cosa è dovuto.
-Le prove di profondità si ripetono su S per vedere se l'effetto cambia con la larghezza. Tutti i training sono a
-**640×640**: la risoluzione non è una leva di training (regole fisse).
+Si allenano **tutte le combinazioni** di larghezza e profondità della scala discreta fino a 0.75: 8 larghezze × 3
+profondità = **24 training** (griglia fattoriale completa). Ogni effetto si legge così su tutta la griglia, compresa
+l'interazione fra le due leve, e il modello di precisione della 2c **interpola** fra punti misurati invece di
+estrapolare: non servono training "fuori asse". Tutti i training sono a **640×640**: la risoluzione non è una leva di
+training (regole fisse).
 
-Si chiama "griglia non fattoriale": provare tutte le combinazioni (5 larghezze × 3 profondità) vorrebbe dire 15
-training; così ne bastano 8, più 2–3 "fuori asse". Le combinazioni non allenate si **predicono** in 2c.
+**Il limite superiore lo fissa l'hardware.** La M (1.0) non si allena: sul PI, il dispositivo più stretto, in fp16 a
+480p la M D126 impiega 360 ms contro un budget di 28 (13 volte), e già la 0.75 ne impiega 246. Oltre la 0.75 non c'è
+nessun candidato da cercare. La latenza della M si misura comunque nella griglia della 2a, perché è il dato che lo
+dimostra. In più la precisione arriva a un plateau prima (dalla 0.375 il mAP50-95 sale di circa 1 punto in tutto).
 
-| run | modello | larghezza | profondità | a cosa serve |
-|---|---|---|---|---|
-| T2-01 | F | 0.0625 | D126 | curva della larghezza |
-| T2-02 | P | 0.125 | D126 | curva della larghezza |
-| **T2-03** | **N** | **0.25** | **D126** | **centro** |
-| T2-04 | S | 0.5 | D126 | curva della larghezza |
-| T2-05 | M | 1.0 | D126 (non la scala `m`, sezione 4) | curva della larghezza |
-| T2-06 | N- | 0.25 | D101 | effetto della profondità |
-| T2-07 | S- | 0.5 | D101 | profondità su S |
-| T2-08 | N+ | 0.25 | D170 | profondità verso l'alto |
+| run | larghezze | profondità | note |
+|---|---|---|---|
+| T2-01…T2-24 | 0.0625, 0.09375, 0.125, 0.1875, 0.25, 0.375, 0.5, 0.75 | D101, D126, D170 | numerati per larghezza crescente e, a pari larghezza, per profondità: N (0.25 D126) è **T2-14**, P è T2-08, S è T2-20 |
+
+Script: `scripts/train_griglia_larghezza_profondita.sh` (fino a 0.25 due training alla volta, sopra uno alla volta);
+figure: `tools/figure_griglia.py OUT_DIR` (mAP50 e mAP50-95 sul val a 640, a barre 3D e a linee).
 
 **Ogni training si valuta quattro volte**: sul val a 640 (quello del training) e sui tre set di val di deploy
-(`val_480p`, `val_720p`, `val_1080p`, fase 0). Sono solo validazioni, pochi minuti per modello. Così ogni modello ha
-una mAP **misurata** per ogni risoluzione di deploy: `E2-01` per `T2-01` e così via.
+(`val_480p`, `val_720p`, `val_1080p`, fase 0, ancora da produrre). Sono solo validazioni, pochi minuti per modello.
+Così ogni modello ha una mAP **misurata** per ogni risoluzione di deploy: `E2-01` per `T2-01` e così via.
 
 **Limite dei mosaici.** I set di deploy sono mosaici: le giunture fra un frame e l'altro sono bordi artificiali
 (attenuati dallo sfondo dello stesso video). Senza fotogrammi veri ad alta risoluzione non si possono confrontare
 con un fotogramma vero: si dichiara come limite.
-
-**Training fuori asse (T2-F1…F3).** Con 8 punti il modello di precisione \<esempio>regge bene dentro la griglia\</esempio>, ma è
-inaffidabile se l'ottimo cade in una combinazione lontana da tutti i punti allenati (per esempio larghezza
-intermedia + profondità D101: due cambiamenti insieme, mai visti). Dopo la griglia di latenza (2a) si vede dove
-passano i confini del budget di ogni dispositivo; lì si allenano **2–3 combinazioni fuori asse**, nella zona dove
-probabilmente cadrà l'ottimo \<esempio>(per il Pi, per esempio, una larghezza fra pico e nano a profondità D101)\</esempio>. Costano
-circa un giorno di GPU e mettono punti veri dove servono.
-
-| run | modello | a cosa serve |
-|---|---|---|
-| T2-F1…F3 | combinazioni scelte dopo la 2a, vicino ai confini del budget | punti veri dove cadrà l'ottimo |
 
 ### 2c. Dai trend alla ricetta ottima per dispositivo
 
@@ -701,15 +693,15 @@ trasforma in una scelta, in quattro passi, **per ogni dispositivo e per ogni ris
 profondità) si calcola quanta precisione si guadagna per ogni ms di latenza in più, fra punti vicini della griglia:
 `Δ mAP50-95 / Δ ms`. \<esempio>Esempio con numeri inventati, su PI a 480p:
 larghezza +2 punti ogni 10 ms, profondità +0,5. Vuol dire che su PI i ms conviene spenderli in larghezza. Su AGX il
-conto sarà diverso, perché lì la larghezza costa poco finché la GPU resta mezza vuota.\</esempio> Il tasso si calcola attorno
-a entrambi i centri (N e S), per vedere se cambia con la taglia. A parte si riporta **quanto costa salire di
+conto sarà diverso, perché lì la larghezza costa poco finché la GPU resta mezza vuota.\</esempio> Il tasso si calcola su tutta la
+griglia, per vedere come cambia con la taglia. A parte si riporta **quanto costa salire di
 risoluzione di deploy**: quanti ms in più, e quanta mAP in più o in meno, da 480p a 720p a 1080p.
 
 **Passo 2 — Due modelli che predicono.**
 
 - **Precisione**: per ogni risoluzione di deploy, `mAP(w, d)` stimata dai training della griglia valutati sul set di
   val di quella risoluzione, con una curva per leva (per esempio lineare nel logaritmo della larghezza) più un
-  termine di interazione stimato dagli incroci su S. Dipende solo dal dataset, quindi è uguale per tutti i
+  termine di interazione, misurato direttamente perché la griglia è completa. Dipende solo dal dataset, quindi è uguale per tutti i
   dispositivi. Si verifica togliendo un punto alla volta e predicendolo dagli altri (\<esempio>errore atteso sotto 1
   punto di mAP\</esempio>).
 - **Latenza**: non serve predirla: è già **misurata** per ogni configurazione ammessa nella griglia discreta della 2a.
@@ -783,7 +775,7 @@ no; a 720p forse nessuno), **AGX e DX** probabilmente "liberi".\</esempio>
 ### 2e. Conferma con 3 seed
 
 Le baseline sono già allenate con 3 seed (T2-O, in 2c). Resta da allenare il **modello da cui parte la potatura**,
-solo sui dispositivi "stretti". Se è un punto della griglia (per esempio N, cioè T2-03), il seed 0 è
+solo sui dispositivi "stretti". Se è un punto della griglia (per esempio N, cioè T2-14), il seed 0 è
 il suo training di mappatura e servono solo i seed 1 e 2.
 
 | run | modello | seed |
@@ -801,7 +793,7 @@ farli diventare un collo di bottiglia. Se il blocco 2 non si fa, restano punti d
 
 \<esempio>
 
-- Oltre una certa taglia la precisione smette di salire: con quattro classi potrebbe valere S ≈ M.
+- Oltre una certa taglia la precisione smette di salire: con quattro classi potrebbe valere S ≈ 0.75.
 - La mAP ai set di deploy cambia poco con la risoluzione (regole fisse); la differenza fra modelli la fanno le
   detection multiple sullo stesso oggetto, più frequenti nei modelli piccoli.
 - Sotto il pico la precisione cala in fretta (canali interni minuscoli).
@@ -1080,7 +1072,7 @@ come il dispositivo cambia la risposta.
 
 | figura | cosa mostra | quando si fa | a quale scelta serve |
 |---|---|---|---|
-| **A. Chi sta nel budget** | ogni configurazione come casella colorata: entro il budget, entro ±5% dal budget, oltre il budget | dopo la griglia di latenza (2a) | dove passano i confini del budget; dove mettere i training fuori asse (2b); quanto l'int8 e la profondità spostano il confine |
+| **A. Chi sta nel budget** | ogni configurazione come casella colorata: entro il budget, entro ±5% dal budget, oltre il budget | dopo la griglia di latenza (2a) | dove passano i confini del budget; quanto l'int8 e la profondità spostano il confine |
 | **B. Dove sta l'ottimo** | le configurazioni nel budget come pallini colorati per mAP predetta (sul set di val di quella risoluzione di deploy), fuori budget in grigio; stella = ottimo di ogni risoluzione (il migliore fra tutte le precisioni e profondità a quella risoluzione). Non c'è un ottimo globale: la mAP non premia la risoluzione, il confronto fra risoluzioni si fa con la distanza in fase 5 | dopo il modello di precisione (2c); si rifà dopo la fase 3 con le latenze int8 | quale configurazione allenare come ottimo (e quali candidate dentro l'intorno di errore, vedi la nota pending in 2c) |
 | **C. Candidati alla potatura** | come B, più gli anelli: configurazioni fuori budget ma più precise dell'ottimo della stessa risoluzione di più di 1 punto e con un taglio di latenza realistico (≤ 50%); rombo = miglior candidato di ogni risoluzione (più mAP per punto di taglio), con il taglio da fare | alla decisione 2d, prima del blocco 2 | se la potatura ha senso su quel dispositivo (ci sono anelli?) e da quale modello partire |
 

@@ -51,6 +51,11 @@ def run_training(cfg) -> Path:
         model = YOLO(str(yaml_path))
         check_convs(model.model, cfg.model.depth)
         train_args = OmegaConf.to_container(cfg.train, resolve=True)
+        # Run interrotto a metà (c'è last.pt ma non meta.json): Ultralytics riprende con gli argomenti salvati nel checkpoint.
+        last_pt = out_dir / "run" / "weights" / "last.pt"
+        if last_pt.exists() and int(cfg.train.epochs) > 0:
+            log.info("riprendo il training da %s", last_pt)
+            model, train_args = YOLO(str(last_pt)), {"resume": True}
 
     results = None
     with timer.phase("compute"):

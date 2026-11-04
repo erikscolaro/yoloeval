@@ -39,6 +39,8 @@ def main() -> int:
         conf=args.conf,          # basso: la mAP integra su tutte le soglie
         iou=args.iou,
         max_det=args.max_det,
+        nms=False,               # testa one-to-one, come negli export
+        rect=False,              # ingresso quadrato letterbox, come negli export
         device=args.device,
         split=args.split,
         batch=1,
@@ -54,6 +56,7 @@ def main() -> int:
         "conf": args.conf,
         "iou": args.iou,
         "split": args.split,
+        "max_det": args.max_det,
         "wall_s": round(time.time() - t0, 3),
     }
     print("YOLOBENCH_JSON " + json.dumps(payload))
