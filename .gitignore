@@ -5,6 +5,7 @@ results/**
 !results/.gitkeep
 reports/**
 !reports/.gitkeep
+logs/
 multirun/
 outputs/
 *.parquet
