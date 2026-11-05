@@ -1,0 +1,482 @@
+{
+ "k1s1_20_64_64": {
+  "fused": false,
+  "compute_ops": [
+   {
+    "name": "Convert_364",
+    "type": "Subgraph",
+    "original": "Convert_364",
+    "precision": "f32"
+   },
+   {
+    "name": "w",
+    "type": "Const",
+    "original": "w",
+    "precision": "f16"
+   },
+   {
+    "name": "Reshape_15",
+    "type": "Const",
+    "original": "Reshape_15",
+    "precision": "f16"
+   },
+   {
+    "name": "Constant_5015",
+    "type": "Const",
+    "original": "Constant_5015",
+    "precision": "i32"
+   },
+   {
+    "name": "Reshape_15_flatten_reshape",
+    "type": "Reshape",
+    "original": "Reshape_15_flatten_reshape",
+    "precision": "f16"
+   },
+   {
+    "name": "conv/WithoutBiases",
+    "type": "Convolution",
+    "original": "conv/WithoutBiases,conv",
+    "precision": "f16"
+   },
+   {
+    "name": "output.0",
+    "type": "Subgraph",
+    "original": "output,output.0",
+    "precision": "f16"
+   }
+  ],
+  "all_types": [
+   "Input",
+   "Subgraph",
+   "Reorder",
+   "Const",
+   "Const",
+   "Const",
+   "Reshape",
+   "Convolution",
+   "Subgraph",
+   "Reorder",
+   "Output"
+  ]
+ },
+ "k1s1_160_32_32": {
+  "fused": false,
+  "compute_ops": [
+   {
+    "name": "Convert_5493",
+    "type": "Subgraph",
+    "original": "Convert_5493",
+    "precision": "f32"
+   },
+   {
+    "name": "w",
+    "type": "Const",
+    "original": "w",
+    "precision": "f16"
+   },
+   {
+    "name": "Reshape_5144",
+    "type": "Const",
+    "original": "Reshape_5144",
+    "precision": "f16"
+   },
+   {
+    "name": "Constant_10144",
+    "type": "Const",
+    "original": "Constant_10144",
+    "precision": "i32"
+   },
+   {
+    "name": "Reshape_5144_flatten_reshape",
+    "type": "Reshape",
+    "original": "Reshape_5144_flatten_reshape",
+    "precision": "f16"
+   },
+   {
+    "name": "conv/WithoutBiases",
+    "type": "Convolution",
+    "original": "conv/WithoutBiases,conv",
+    "precision": "f16"
+   },
+   {
+    "name": "output.0",
+    "type": "Subgraph",
+    "original": "output,output.0",
+    "precision": "f16"
+   }
+  ],
+  "all_types": [
+   "Input",
+   "Subgraph",
+   "Reorder",
+   "Const",
+   "Const",
+   "Const",
+   "Reshape",
+   "Convolution",
+   "Subgraph",
+   "Reorder",
+   "Output"
+  ]
+ },
+ "k3s1_20_64_128": {
+  "fused": false,
+  "compute_ops": [
+   {
+    "name": "Convert_10622",
+    "type": "Subgraph",
+    "original": "Convert_10622",
+    "precision": "f32"
+   },
+   {
+    "name": "w",
+    "type": "Const",
+    "original": "w",
+    "precision": "f16"
+   },
+   {
+    "name": "Reshape_10273",
+    "type": "Const",
+    "original": "Reshape_10273",
+    "precision": "f16"
+   },
+   {
+    "name": "Constant_15273",
+    "type": "Const",
+    "original": "Constant_15273",
+    "precision": "i32"
+   },
+   {
+    "name": "Reshape_10273_flatten_reshape",
+    "type": "Reshape",
+    "original": "Reshape_10273_flatten_reshape",
+    "precision": "f16"
+   },
+   {
+    "name": "conv/WithoutBiases",
+    "type": "Convolution",
+    "original": "conv/WithoutBiases,conv",
+    "precision": "f16"
+   },
+   {
+    "name": "output.0",
+    "type": "Subgraph",
+    "original": "output,output.0",
+    "precision": "f16"
+   }
+  ],
+  "all_types": [
+   "Input",
+   "Subgraph",
+   "Reorder",
+   "Const",
+   "Const",
+   "Const",
+   "Reshape",
+   "Convolution",
+   "Subgraph",
+   "Reorder",
+   "Output"
+  ]
+ },
+ "k3s1_80_16_32": {
+  "fused": false,
+  "compute_ops": [
+   {
+    "name": "Convert_15751",
+    "type": "Subgraph",
+    "original": "Convert_15751",
+    "precision": "f32"
+   },
+   {
+    "name": "w",
+    "type": "Const",
+    "original": "w",
+    "precision": "f16"
+   },
+   {
+    "name": "Reshape_15402",
+    "type": "Const",
+    "original": "Reshape_15402",
+    "precision": "f16"
+   },
+   {
+    "name": "Constant_20402",
+    "type": "Const",
+    "original": "Constant_20402",
+    "precision": "i32"
+   },
+   {
+    "name": "Reshape_15402_flatten_reshape",
+    "type": "Reshape",
+    "original": "Reshape_15402_flatten_reshape",
+    "precision": "f16"
+   },
+   {
+    "name": "conv/WithoutBiases",
+    "type": "Convolution",
+    "original": "conv/WithoutBiases,conv",
+    "precision": "f16"
+   },
+   {
+    "name": "output.0",
+    "type": "Subgraph",
+    "original": "output,output.0",
+    "precision": "f16"
+   }
+  ],
+  "all_types": [
+   "Input",
+   "Subgraph",
+   "Reorder",
+   "Const",
+   "Const",
+   "Const",
+   "Reshape",
+   "Convolution",
+   "Subgraph",
+   "Reorder",
+   "Output"
+  ]
+ },
+ "k3s2_40_64_64": {
+  "fused": false,
+  "compute_ops": [
+   {
+    "name": "Convert_20880",
+    "type": "Subgraph",
+    "original": "Convert_20880",
+    "precision": "f32"
+   },
+   {
+    "name": "w",
+    "type": "Const",
+    "original": "w",
+    "precision": "f16"
+   },
+   {
+    "name": "Reshape_20531",
+    "type": "Const",
+    "original": "Reshape_20531",
+    "precision": "f16"
+   },
+   {
+    "name": "Constant_25531",
+    "type": "Const",
+    "original": "Constant_25531",
+    "precision": "i32"
+   },
+   {
+    "name": "Reshape_20531_flatten_reshape",
+    "type": "Reshape",
+    "original": "Reshape_20531_flatten_reshape",
+    "precision": "f16"
+   },
+   {
+    "name": "conv/WithoutBiases",
+    "type": "Convolution",
+    "original": "conv/WithoutBiases,conv",
+    "precision": "f16"
+   },
+   {
+    "name": "output.0",
+    "type": "Subgraph",
+    "original": "output,output.0",
+    "precision": "f16"
+   }
+  ],
+  "all_types": [
+   "Input",
+   "Subgraph",
+   "Reorder",
+   "Const",
+   "Const",
+   "Const",
+   "Reshape",
+   "Convolution",
+   "Subgraph",
+   "Reorder",
+   "Output"
+  ]
+ },
+ "k3s2_320_3_16": {
+  "fused": false,
+  "compute_ops": [
+   {
+    "name": "Convert_26009",
+    "type": "Subgraph",
+    "original": "Convert_26009",
+    "precision": "f32"
+   },
+   {
+    "name": "w",
+    "type": "Const",
+    "original": "w",
+    "precision": "f16"
+   },
+   {
+    "name": "Reshape_25660",
+    "type": "Const",
+    "original": "Reshape_25660",
+    "precision": "f16"
+   },
+   {
+    "name": "Constant_30660",
+    "type": "Const",
+    "original": "Constant_30660",
+    "precision": "i32"
+   },
+   {
+    "name": "Reshape_25660_flatten_reshape",
+    "type": "Reshape",
+    "original": "Reshape_25660_flatten_reshape",
+    "precision": "f16"
+   },
+   {
+    "name": "conv/WithoutBiases",
+    "type": "Convolution",
+    "original": "conv/WithoutBiases,conv",
+    "precision": "f16"
+   },
+   {
+    "name": "output.0",
+    "type": "Subgraph",
+    "original": "output,output.0",
+    "precision": "f16"
+   }
+  ],
+  "all_types": [
+   "Input",
+   "Subgraph",
+   "Reorder",
+   "Const",
+   "Const",
+   "Const",
+   "Reshape",
+   "Convolution",
+   "Subgraph",
+   "Reorder",
+   "Output"
+  ]
+ },
+ "k3s1_20_63_128": {
+  "fused": false,
+  "compute_ops": [
+   {
+    "name": "Convert_31138",
+    "type": "Subgraph",
+    "original": "Convert_31138",
+    "precision": "f32"
+   },
+   {
+    "name": "w",
+    "type": "Const",
+    "original": "w",
+    "precision": "f16"
+   },
+   {
+    "name": "Reshape_30789",
+    "type": "Const",
+    "original": "Reshape_30789",
+    "precision": "f16"
+   },
+   {
+    "name": "Constant_35789",
+    "type": "Const",
+    "original": "Constant_35789",
+    "precision": "i32"
+   },
+   {
+    "name": "Reshape_30789_flatten_reshape",
+    "type": "Reshape",
+    "original": "Reshape_30789_flatten_reshape",
+    "precision": "f16"
+   },
+   {
+    "name": "conv/WithoutBiases",
+    "type": "Convolution",
+    "original": "conv/WithoutBiases,conv",
+    "precision": "f16"
+   },
+   {
+    "name": "output.0",
+    "type": "Subgraph",
+    "original": "output,output.0",
+    "precision": "f16"
+   }
+  ],
+  "all_types": [
+   "Input",
+   "Subgraph",
+   "Reorder",
+   "Const",
+   "Const",
+   "Const",
+   "Reshape",
+   "Convolution",
+   "Subgraph",
+   "Reorder",
+   "Output"
+  ]
+ },
+ "k1s1_20_1_1": {
+  "fused": false,
+  "compute_ops": [
+   {
+    "name": "Convert_36267",
+    "type": "Subgraph",
+    "original": "Convert_36267",
+    "precision": "f32"
+   },
+   {
+    "name": "w",
+    "type": "Const",
+    "original": "w",
+    "precision": "f16"
+   },
+   {
+    "name": "Reshape_35918",
+    "type": "Const",
+    "original": "Reshape_35918",
+    "precision": "f16"
+   },
+   {
+    "name": "Constant_40918",
+    "type": "Const",
+    "original": "Constant_40918",
+    "precision": "i32"
+   },
+   {
+    "name": "Reshape_35918_flatten_reshape",
+    "type": "Reshape",
+    "original": "Reshape_35918_flatten_reshape",
+    "precision": "f16"
+   },
+   {
+    "name": "conv/WithoutBiases",
+    "type": "Convolution",
+    "original": "conv/WithoutBiases,conv",
+    "precision": "f16"
+   },
+   {
+    "name": "output.0",
+    "type": "Subgraph",
+    "original": "output,output.0",
+    "precision": "f16"
+   }
+  ],
+  "all_types": [
+   "Input",
+   "Subgraph",
+   "Reorder",
+   "Const",
+   "Const",
+   "Const",
+   "Reshape",
+   "Convolution",
+   "Subgraph",
+   "Reorder",
+   "Output"
+  ]
+ }
+}
