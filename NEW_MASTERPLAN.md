@@ -48,7 +48,7 @@ blocco 2 si fa sono pronti, se non si fa restano punti confermati del fronte.
 
 | fase | cosa testiamo | conoscenza che produciamo | come la usiamo dopo |
 |---|---|---|---|
-| 0 | se i dati sono adatti | dataset custom a 640×512 (repo air-detection) con **box corretti** e bilanciato su classe e grandezza, split per gruppi di sessioni; set di val alle risoluzioni di deploy | il dataset e la ricetta valgono per tutta la tesi; i set di val di deploy danno la mAP usata nella scelta dell'ottimo (2c) |
+| 0 | se i dati sono adatti | dataset custom a 640×512 (VEDETTA, repo vedetta) con **box corretti** e bilanciato su classe e grandezza, split per gruppi di sessioni; set di val alle risoluzioni di deploy | il dataset e la ricetta valgono per tutta la tesi; i set di val di deploy danno la mAP usata nella scelta dell'ottimo (2c) |
 | X1 (prima della fase 1) | se le nostre varianti girano sulla DX-M1 | operatori supportati; tempo di compilazione | decide se DX resta nel piano e quanto costano le misure sulla DX |
 | 1 (base) | quanto sono ripetibili le misure; quanto dei 33 ms resta al modello; come si comporta ogni dispositivo | la **soglia di rumore** della latenza; il **budget del modello**; i tratti di base di ogni dispositivo (gradini, costo per strato, granularità N) | la soglia dice quando una differenza di latenza è vera; il budget è il vincolo dell'ottimo (2c) e della decisione (2d); i tratti spiegano i trend della fase 2 e sono il punto di partenza dello stimatore (4a) |
 | X2 (prima della fase 2, **risolta**) | se l'int8 funziona sulla testa one-to-one, e come va sul PI | causa della mAP 0 (coda della testa quantizzata); ricetta int8; prova preliminare: sul PI l'int8 non è più veloce dell'fp16 | sul PI: quali nodi quantizzare nella 2a e nella fase 3, quale software usare per l'int8 sul PI; l'attesa da verificare in 2a e fase 3 |
@@ -69,7 +69,7 @@ Queste regole valgono per tutta la tesi. Servono a rendere i confronti onesti e 
 ### Dataset
 
 - **Un solo dataset**, con le quattro classi, usato per tutta la tesi: quello congelato della repo
-  `~/Desktop/air-detection` (`data/output`, qui in `data/air-detection/`). Regole, fonti, procedura, split e limiti
+  `~/Desktop/vedetta` (`data/output`, qui in `data/air-detection/`, nome storico). Regole, fonti, procedura, split e limiti
   sono nel README di quella repo (sezioni Regole, Fonti e licenze, Procedura, Limiti dichiarati) e non si ripetono
   qui.
 - In breve: immagini 640×512 da sei fonti pubbliche di oggetti più due di background, box aderenti rivisti a mano,
@@ -217,7 +217,7 @@ Queste regole valgono per tutta la tesi. Servono a rendere i confronti onesti e 
     l'errore di qualche pixel pesa molto sull'IoU;
   - **perché anche 8–16 px in val e test** (decisione del 19/10/2026, prima il campo partiva da 16 px): sono i droni
     lontani, il caso che conta per la torretta. Il loro peso nella mAP è fissato dalla distribuzione obiettivo del
-    dataset (densità ∝ s^−0,3 fra 8 e 320 px, uguale per tutte le classi; `air-detection/README.md`, Regole).
+    dataset (densità ∝ s^−0,3 fra 8 e 320 px, uguale per tutte le classi; `vedetta/README.md`, Regole).
 - mAP50 e mAP50-95, come al solito, sugli oggetti ≥ 8 px, sul val a 640 e sui tre set di val alle risoluzioni di
   deploy. È la **metrica principale** di tutte le scelte;
 - **recall sugli oggetti piccoli** (8–32 px), sul test in fase 5: sono i droni lontani, il caso più difficile;
@@ -376,7 +376,7 @@ Ogni run ha un codice `<tipo><fase>-<numero>`, per esempio `T2-03` = training 3 
 
 > **Cosa testiamo**: se il dataset copre ogni classe a ogni grandezza, con box corretti, ed è diviso senza leakage.
 >
-> **Come**: il dataset si costruisce nella repo air-detection (README, Procedura); qui si preparano i set di val alle
+> **Come**: il dataset VEDETTA si costruisce nella repo vedetta (README, Procedura); qui si preparano i set di val alle
 > risoluzioni di deploy e il resto del protocollo.
 >
 > **Conoscenza che produciamo**: la distribuzione del dataset per classe, grandezza e split; i set di val di deploy.
@@ -391,7 +391,7 @@ dataset**: girano in parallelo a questa fase.
 
 ### Il dataset
 
-Costruito e congelato nella repo `~/Desktop/air-detection`: l'ordine delle operazioni è nel suo README
+Costruito e congelato nella repo `~/Desktop/vedetta`: l'ordine delle operazioni è nel suo README
 (Procedura), la procedura generale in `docs/procedura_ideale.md`. Qui resta solo quello che riguarda yoloeval.
 
 ### Set di deploy
@@ -1271,7 +1271,7 @@ inventati: quando arrivano i dati veri si sostituiscono le funzioni `lat` (fase 
 | 8 | **quali ottimi confermare con 3 seed**: tutti quelli distinti per dispositivo e risoluzione di deploy, o uno per dispositivo | **aperta**, si decide in 2c quando si sa quanti sono |
 | 9 | **ottimizzatore, learning rate e augmentation** della ricetta unica | **decisi** MuSGD, `lr0` 0.01, `lrf` 0.01, batch secondo la GPU; augmentation di `yolo26n.pt` con cutmix e degrado della camera dal 28/10/2026 (regole fisse, training e seed) |
 | 10 | **soglia di confidenza di deploy** | **decisa**: quella che massimizza l'F1 sul val, una per tutte le classi, per modello e risoluzione di deploy; applicata al test in fase 5 senza ricalcolarla (regole fisse, metriche) |
-| 11 | **minimo di istanze e di video per cella** della matrice classe × fascia (fase 0) | **superata**: niente minimi per cella; una distribuzione obiettivo delle grandezze uguale per tutte le classi (s^−0,3 fra 8 e 320 px; val sulla curva, test uniforme in log s), con almeno 2.000 istanze per classe in val e 1.000 in test, mai oltre il 20% del materiale in dominio; le classi sotto l'obiettivo sono limiti dichiarati (`air-detection/README.md`, Regole e Limiti dichiarati) |
+| 11 | **minimo di istanze e di video per cella** della matrice classe × fascia (fase 0) | **superata**: niente minimi per cella; una distribuzione obiettivo delle grandezze uguale per tutte le classi (s^−0,3 fra 8 e 320 px; val sulla curva, test uniforme in log s), con almeno 2.000 istanze per classe in val e 1.000 in test, mai oltre il 20% del materiale in dominio; le classi sotto l'obiettivo sono limiti dichiarati (`vedetta/README.md`, Regole e Limiti dichiarati) |
 
 ### Sulla scelta 1: la ricetta
 
@@ -1285,7 +1285,7 @@ inventati: quando arrivano i dati veri si sostituiscono le funzioni `lat` (fase 
   più grandi: cioè falserebbe il risultato principale del blocco 1. \<esempio>Il risparmio sarebbe di 2–3 giorni su un piano di
   10–14 settimane\</esempio>, e con la ricetta unica i training della mappatura si riusano come seed 0 dei confronti.
 - **Lunghezza**: 300 epoche con patience 200, per il tempo di GPU. Su AOD4 il pico arrivava al 99% del suo massimo
-  verso l'epoca 620 e il nano verso la 400–430; su air-detection (28/10/2026) pico, nano e small toccano il massimo
+  verso l'epoca 620 e il nano verso la 400–430; su VEDETTA (28/10/2026) pico, nano e small toccano il massimo
   fra l'epoca 187 e la 233.
 
 ### Da zero o da COCO

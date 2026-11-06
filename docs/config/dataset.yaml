@@ -1,6 +1,6 @@
 # Riferimento dei campi di conf/dataset/<nome>.yaml
 
-name: air_detection_${.subset}
+name: air_detection_${.subset}   # VEDETTA: identificativo storico, entra nelle chiavi degli artefatti
   # OBBLIGATORIO. Compare nei nomi delle cartelle degli artefatti e decide
   # dove il dataset viene copiato sulla board: <workdir>/data/<name>/
 
@@ -25,7 +25,7 @@ names: [drone, airplane, helicopter, bird]
   # Averli anche qui serve a leggere il file senza aprirne un altro.
 
 subset: all
-  # Sottoinsieme consegnato da air-detection: `all` (train, val, test, calib), il dataset
+  # Sottoinsieme consegnato da VEDETTA (repo vedetta, prima air-detection): `all` (train, val, test, calib), il dataset
   # congelato il 23/10/2026. La mAP per fascia, i mosaici alle risoluzioni di deploy e il
   # bootstrap per gruppo si fanno qui in yoloeval (decisione del 23/10/2026). Entra in `name`
   # e `local_path`, quindi ogni sottoinsieme ha artefatti e copia sulla board suoi.

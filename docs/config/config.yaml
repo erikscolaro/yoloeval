@@ -11,8 +11,8 @@ defaults:
   - model: yolo26n
   - deploy: "640"
   - train: short
-  - dataset: air_detection
-  - dataset@pretrain_dataset: air_detection
+  - dataset: vedetta
+  - dataset@pretrain_dataset: vedetta
   - quantization: fp32
   - backend: onnxruntime
   - hardware: wks4_rtx6000
