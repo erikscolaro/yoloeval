@@ -2,7 +2,7 @@
 the measure change it?
 
   python warmup.py measure    # ~20 nets from 0.01 to 3 ms, each run for DURATION_S (-t), not -niter
-  python warmup.py analyze    # results/warmup.json, figures/warmup.png
+  python warmup.py analyze    # results/warmup.json (figure: figures.py warmup)
   python warmup.py log        # wandb yolo-bench (job_type lut_pi_warmup)
   python warmup.py check      # same nets, LUT protocol (-niter 200) with bench_dump's WARMUP_MS warm-up,
                               # vs the steady state above: results/warmup_check.csv, warmup_check.json
@@ -10,7 +10,7 @@ the measure change it?
                               # gains overall (results/warmup_pilot.csv, warmup_pilot.json)
 
 Nets: identities at every input map (smallest and largest c_in), plus conv nets from results/pilot.csv
-and results/transient.csv nearest to log-spaced latency targets. Repeats 0-2 start right after the previous measure; repeats 3-4
+and results/transient.csv nearest (results/pilot_0511.csv: the 05/11 pilot, frozen) to log-spaced latency targets. Repeats 0-2 start right after the previous measure; repeats 3-4
 idle PAUSE_S on the Pi first. Steady state = median of the last second. Transient = time after which 3
 windows in a row of max(WIN iterations, WIN_MS) have their median within TOL of the steady state; the
 jitter of those windows in the last second is reported apart (steady_jitter_p90).
@@ -49,7 +49,7 @@ def nets() -> list[tuple]:
     for hw, c in top.items():
         lo = c if hw == 640 else 2                      # the stem reads a fixed 3-channel image
         out |= {(f"id{hw}", "identity", lo, lo), (f"id{hw}", "identity", c, c)}
-    pilot = [r for p in ("pilot.csv", "transient.csv")          # transient.csv reaches 0.05 and 3 ms
+    pilot = [r for p in ("pilot_0511.csv", "transient.csv")          # transient.csv reaches 0.05 and 3 ms
              for r in csv.DictReader(open(run.RES / p)) if r["kind"] == "conv"]
     for t in TARGETS_MS:
         r = min(pilot, key=lambda r: abs(np.log(float(r["ms"]) / t)))
@@ -114,7 +114,7 @@ def pilot():
     path = run.RES / "warmup_pilot.csv"
     if len(sys.argv) < 3 or sys.argv[2] != "analyze":
         pts = [(r["family"], "conv", int(r["c_in"]), int(r["c_out"]))
-               for r in csv.DictReader(open(run.RES / "pilot.csv")) if r["kind"] == "conv"]
+               for r in csv.DictReader(open(run.RES / "pilot_0511.csv")) if r["kind"] == "conv"]
         rng = random.Random(5)
         order = []
         for rep in (0, 1):
@@ -124,7 +124,7 @@ def pilot():
         path.unlink(missing_ok=True)
         run.run(order, path, run.make_cfg())
     old = {(r["family"], int(r["c_in"]), int(r["c_out"])): float(r["ms"])
-           for r in csv.DictReader(open(run.RES / "pilot.csv")) if r["kind"] == "conv"}
+           for r in csv.DictReader(open(run.RES / "pilot_0511.csv")) if r["kind"] == "conv"}
     new = {}
     for r in csv.DictReader(open(path)):
         new.setdefault((r["family"], int(r["c_in"]), int(r["c_out"])), []).append(float(r["ms"]))
@@ -161,16 +161,11 @@ def transient_idx(v: np.ndarray, t: np.ndarray, steady: float, end: int, tol: fl
     return next((s for j, s in enumerate(starts) if all(ok[j:j + 3])), end)
 
 
-def analyze():
-    import matplotlib
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
-    from tools.plots import STYLE, color
-    plt.style.use(STYLE)
-
+def series():
+    """(key, meta row, latencies ms, estimated time since the first inference ms, steady ms, index of the
+    last second) for every measure of `measure`; also used by figures.py."""
     meta = {(int(r["repeat"]), r["family"], r["kind"], int(r["c_in"]), int(r["c_out"])): r
             for r in csv.DictReader(open(CSV))}
-    rows, curves = [], []
     for line in open(LAT):
         rep, f, kind, ci, co, vs = line.rstrip("\n").split(",", 5)
         k = (int(rep), f, kind, int(ci), int(co))
@@ -179,10 +174,16 @@ def analyze():
         # is not saved); between-inference overhead (~17 us) dominates tiny nets, so cumsum(v) alone is wrong
         t = np.cumsum(v + max(0.0, DURATION_S * 1000 - v.sum()) / len(v))
         last = int(np.searchsorted(t, t[-1] - 1000))      # steady state: last second
-        steady = float(np.median(v[last:]))
-        row = {"rep": k[0], "paused": k[0] in REPS_PAUSED, "cooled": int(meta[k]["remeasured"]) > 0,
+        yield k, meta[k], v, t, float(np.median(v[last:])), last
+
+
+def analyze():
+    rows = []
+    for k, m, v, t, steady, last in series():
+        f, kind = k[1], k[2]
+        row = {"rep": k[0], "paused": k[0] in REPS_PAUSED, "cooled": int(m["remeasured"]) > 0,
                "family": f, "kind": kind, "c_in": k[3], "c_out": k[4], "iters": len(v), "steady_ms": steady,
-               "temp_c": float(meta[k]["temp_c"]), "first10_over_steady": float(v[:10].mean() / steady)}
+               "temp_c": float(m["temp_c"]), "first10_over_steady": float(v[:10].mean() / steady)}
         win = max(WIN, int(np.searchsorted(t, WIN_MS)))
         late = [np.median(v[i:i + win]) / steady - 1 for i in range(last, len(v) - win + 1, win)]
         row["steady_jitter_p90"] = float(np.percentile(np.abs(late), 90)) if late else 0.0
@@ -197,7 +198,6 @@ def analyze():
             row[f"err_W{w}ms_T200ms"] = float(np.median(v[s:np.searchsorted(t, w + 200)]) / steady - 1)
         row["err_niter200"] = float(np.median(v[:200]) / steady - 1)   # what the LUT does now
         rows.append(row)
-        curves.append((row, t, v / steady))
 
     def stats(sel, key):
         x = np.array([r[key] for r in rows if sel(r)])
@@ -226,30 +226,6 @@ def analyze():
     (run.RES / "warmup.json").write_text(json.dumps({**summary, "measures_detail": rows}, indent=1),
                                          encoding="utf-8")
 
-    fig, axes = plt.subplots(1, 2, figsize=(7.16, 2.8), constrained_layout=True, sharey=True)
-    speeds = np.log10([r["steady_ms"] for r, *_ in curves])
-    lo, hi = speeds.min(), speeds.max()
-    cmap = plt.get_cmap("viridis")
-    for (r, t, rel), s in zip(curves, speeds):
-        if r["paused"] or r["cooled"]:
-            continue
-        k = max(1, len(rel) // 2000)                     # thin long series for plotting
-        sm = np.convolve(rel, np.ones(5) / 5, mode="valid")[::k]
-        c = cmap((s - lo) / (hi - lo + 1e-9))
-        axes[0].plot((np.arange(len(sm)) * k) + 1, sm, lw=0.5, alpha=0.6, color=c)
-        axes[1].plot(t[2:len(rel) - 2][::k], sm, lw=0.5, alpha=0.6, color=c)
-    for ax, lab in zip(axes, ("iteration", "time since first inference [ms]")):
-        ax.set_xscale("log")
-        ax.axhline(1.02, color="#9e9e9e", lw=0.5)
-        ax.axhline(0.98, color="#9e9e9e", lw=0.5)
-        ax.set_xlabel(lab)
-    axes[0].set_ylim(0.8, 3)
-    axes[0].set_ylabel("latency / steady state")
-    sm = plt.cm.ScalarMappable(cmap=cmap, norm=plt.Normalize(lo, hi))
-    fig.colorbar(sm, ax=axes, label="log10 steady state [ms]")
-    (OUT / "figures").mkdir(exist_ok=True)
-    fig.savefig(OUT / "figures" / "warmup.png", dpi=200)
-    plt.close(fig)
     print(json.dumps({k: v for k, v in summary.items() if k != "per_net"}, indent=1))
     for k, v in sorted(summary["per_net"].items(), key=lambda kv: np.median(kv[1]["steady_ms"])):
         print(k, v)
@@ -265,13 +241,15 @@ def log():
                            **json.loads((run.RES / "env.json").read_text())})
     r.summary.update({f"transient/{k}/{m}": x for k, v in s["transient"].items() if v for m, x in v.items()})
     r.summary.update({f"abs_err/{k}/{m}": x for k, v in s["abs_err"].items() for m, x in v.items()})
-    r.log({"warmup": wandb.Image(str(OUT / "figures" / "warmup.png"))})
+    for png in sorted((OUT / "figures").glob("warmup*.png")):
+        r.log({png.stem: wandb.Image(str(png))})
     art = wandb.Artifact("lut_pi_warmup_rpi5", type="dataset")
     chk = run.RES / "warmup_check.json"
     if chk.exists():
         r.summary.update({f"check/{k}": v for k, v in json.loads(chk.read_text()).items() if k != "per_net"})
     for f in (CSV, run.RES / "warmup.json", LAT, OUT / "warmup.py", OUT / "bench_dump.py",
-              OUT / "figures" / "warmup.png", run.RES / "warmup_check.csv", chk):
+              *(OUT / "figures").glob("warmup*.p*"), run.RES / "warmup_check.csv", chk,
+              run.RES / "warmup_pilot.csv", run.RES / "warmup_pilot.json"):
         if f.exists():
             art.add_file(str(f), name=f.name)
     r.log_artifact(art)

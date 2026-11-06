@@ -3,7 +3,7 @@
 OpenVINO fp16 (-infer_precision f16), 4 cores, governor performance, 2.4 GHz: same config, board tuning
 (src.measure.board.tuned) and benchmark_app command (backend.build_cmd + _wrap_command) as
 src/stages/probe.py and pruning/separability. One conv + bias + SiLU per net (as the exported Conv with BN
-fused), plus an identity net per input shape. Input, output, weights and bias are fp16, the precision used at
+fused); no identity nets (DECISIONE_IDENTITA.md). Input, output, weights and bias are fp16, the precision used at
 inference: no f32<->f16 Convert in the compiled graph (that belongs to the preprocessing). Input and output
 tensors are NHWC (PrePostProcessor, saved as IR), the layout the ARM CPU plugin uses inside: no NCHW<->NHWC
 Reorder either. At every inference only the Convolution and the SiLU Subgraph run. benchmark_app runs through
@@ -12,7 +12,9 @@ measure, so the LUT can be re-aggregated later. Each net is built here and copie
 measurement (70k nets: no bulk copy).
 
   ITERS=200 python run.py pilot 100   # time per measure on 100 random points, estimate of the total
-  ITERS=200 python run.py run         # full run, resumable: skips what is already in results/raw.csv
+  ITERS=200 python run.py run         # full run, resumable: skips what is already in results/raw.csv;
+                                      # then the unstable points again (see unstable())
+bench_dump.py repeats benchmark_app's single warm-up inference for 60 ms (warmup.py, README).
 """
 from __future__ import annotations
 
@@ -53,6 +55,7 @@ FAMILIES = {
 FIXED_CIN = {"k3s2_320"}
 N_CONV = 69989
 REPEATS, SEED = 3, 0
+UNSTABLE_REL, EXTRA_REPEATS = 0.05, 6      # (max-min)/median of the first REPEATS above this: 6 more repeats
 TEMP_MAX_C, TEMP_RESUME_C = 75.0, 65.0         # Pi 5 firmware throttles at 80 C, no fan: stay below
 CHECKPOINT_S = 6 * 3600
 FIELDS = ["family", "kind", "kernel", "stride", "map", "c_in", "c_out", "repeat", "sequence", "ms",
@@ -177,6 +180,18 @@ def write_status(csv_path: Path, t0: float, n0: int, n_new: int, total: int, pat
     return st
 
 
+def unstable(csv_path: Path) -> list[tuple]:
+    """Points whose first REPEATS measures spread more than UNSTABLE_REL: two regimes per process seen on
+    k1s1_160 48x64 (bimodal.py), so a median of 3 can pick either. Uses only repeats < REPEATS, so the set
+    does not change when the extra repeats are resumed after a restart."""
+    by = {}
+    for r in csv.DictReader(open(csv_path)):
+        if int(r["repeat"]) < REPEATS:
+            by.setdefault((r["family"], r["kind"], int(r["c_in"]), int(r["c_out"])), []).append(float(r["ms"]))
+    return sorted(k for k, v in by.items()
+                  if len(v) == REPEATS and (max(v) - min(v)) / float(np.median(v)) > UNSTABLE_REL)
+
+
 def run(order: list[tuple], csv_path: Path, cfg, status_path: Path | None = None) -> float:
     from omegaconf import read_write
     from src.backends import get_backend
@@ -298,6 +313,16 @@ def main():
         rng.shuffle(p)                 # all families mixed, new order at every repeat, fixed seed
         order += [(rep, *x) for x in p]
     run(order, RES / "raw.csv", cfg, RES / "status.json")
+    bad = unstable(RES / "raw.csv")
+    print(f"UNSTABLE: {len(bad)} punti con dispersione > {UNSTABLE_REL:.0%}, {EXTRA_REPEATS} ripetizioni in piu'",
+          flush=True)
+    extra = []
+    for rep in range(REPEATS, REPEATS + EXTRA_REPEATS):
+        p = bad[:]
+        rng.shuffle(p)
+        extra += [(rep, *x) for x in p]
+    if extra:
+        run(extra, RES / "raw.csv", cfg, RES / "status.json")
 
 
 if __name__ == "__main__":

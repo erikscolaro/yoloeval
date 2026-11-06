@@ -262,6 +262,7 @@ per strato (perf counters di OpenVINO) sulle reti B4-R, così cache e parallelis
 
 1. ~~Esperimento di separabilità~~: fatto, rifiutata (sezione 6).
 2. LUT 2D a passo 2 per le 13 famiglie (circa 92 ore di macchina, in corso).
-3. Generatore delle reti B4-R (nano potato a caso con i vincoli di yolopit) e loro misura.
+3. Generatore delle reti B4-R (nano potato a caso con i vincoli di yolopit) e loro misura: script pronti il 06/11
+   in `experiments/pruning/b4r_composizione` (74 conv per rete: i `cv1` dei C3k2 sono divisi in due).
 4. Stima di `C`, `a_f` (ed eventualmente `γ`) e verifica.
 5. Integrazione in yolopit come costo `latency` e confronto con la potatura guidata dai calcoli (S4-01 contro S4-02).

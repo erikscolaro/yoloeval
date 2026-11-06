@@ -1,7 +1,6 @@
-"""Analysis of results/raw.csv (run.py): one LUT per family, summary, heatmaps.
+"""Analysis of results/raw.csv (run.py): one LUT per family and a summary. Figures: figures.py lut.
 
-  python analyze.py [raw.csv]   -> results/lut_<family>.csv, results/summary.json,
-                                   figures/heatmap_<family>.png
+  python analyze.py [raw.csv]   -> results/lut_<family>.csv, results/summary.json
 """
 from __future__ import annotations
 
@@ -14,22 +13,14 @@ from pathlib import Path
 import numpy as np
 
 OUT = Path(__file__).resolve().parent
-RES, FIG = OUT / "results", OUT / "figures"
+RES = OUT / "results"
 sys.path.insert(0, str(OUT))
-from run import FAMILIES  # noqa: E402  (run.py adds the repo root to sys.path)
+from run import REPEATS  # noqa: E402
 
 ANOMALY = 5            # a point is anomalous if its spread is > ANOMALY x the family noise (and > 10%)
-W1 = 3.5               # one-column figure width [in]
 
 
 def main():
-    import matplotlib
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
-    from matplotlib.colors import LogNorm
-    from tools.plots import STYLE
-    plt.style.use(STYLE)
-
     raw = Path(sys.argv[1]) if len(sys.argv) > 1 else RES / "raw.csv"
     rows = list(csv.DictReader(open(raw)))
     by = {}
@@ -41,7 +32,6 @@ def main():
         pts[k] = dict(ms=med, min=min(v), max=max(v), spread=(max(v) - min(v)) / med, n=len(v))
 
     RES.mkdir(exist_ok=True)
-    FIG.mkdir(exist_ok=True)
     fams = sorted({k[0] for k in pts})
     ts = [datetime.fromisoformat(r["timestamp"]) for r in rows]
     summary = {"measures": len(rows), "points": len(pts),
@@ -50,6 +40,7 @@ def main():
                "remeasured": sum(int(r["remeasured"]) for r in rows),
                "throttled_nonzero": sum(r["throttled"] != "0x0" for r in rows),
                "temp_max_c": max(float(r["temp_c"]) for r in rows),
+               "unstable_remeasured": sum(p["n"] > REPEATS for p in pts.values()),
                "freq_khz": sorted({int(r["freq_khz"]) for r in rows}),
                "families": {}}
     for f in fams:
@@ -66,19 +57,6 @@ def main():
             w.writerow(["c_in", "c_out", "median_ms", "min_ms", "max_ms", "spread_rel", "n"])
             for (ci, co), p in sorted(P.items()):
                 w.writerow([ci, co, p["ms"], p["min"], p["max"], round(p["spread"], 5), p["n"]])
-        cis, cos = sorted({c for c, _ in P}), sorted({c for _, c in P})
-        M = np.full((len(cis), len(cos)), np.nan)
-        for (ci, co), p in P.items():
-            M[cis.index(ci), cos.index(co)] = p["ms"]
-        fig, ax = plt.subplots(figsize=(W1, 2.9), constrained_layout=True)
-        im = ax.pcolormesh(cos, cis, M, norm=LogNorm(), shading="nearest", cmap="viridis")
-        k, s, hw, _ = FAMILIES[f]
-        ax.set_title(f"conv {k}x{k} s{s}, output {hw}x{hw}", fontsize=8)
-        ax.set_xlabel("c_out")
-        ax.set_ylabel("c_in")
-        fig.colorbar(im, ax=ax).set_label("median latency [ms]", fontsize=7)
-        fig.savefig(FIG / f"heatmap_{f}.png", dpi=200)
-        plt.close(fig)
     (RES / "summary.json").write_text(json.dumps(summary, indent=1), encoding="utf-8")
     print(json.dumps({k: v for k, v in summary.items() if k != "families"}, indent=1))
     for f, d in summary["families"].items():

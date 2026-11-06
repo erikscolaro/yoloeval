@@ -142,6 +142,11 @@ e c_out ∈ {1, 2, 4, 6, …, c_out max}: cioè 1, tutti i pari e il massimo.
 ## Protocollo
 
 - 3 ripetizioni per punto, in tutto 209 967 misure.
+- **Punti instabili.** Alla fine, i punti in cui le 3 ripetizioni differiscono più del 5%
+  ((max − min) / mediana) vengono misurati altre 6 volte, e la LUT ne prende la mediana su 9. Serve per i
+  punti con due regimi come `k1s1_160` 48×64 (sezione Due regimi). Nel pilota rimisurato nessun punto
+  superava il 5,2%, quindi sono attesi pochi punti. `run.py unstable()`, test in `test_run.py`; il numero
+  finisce in `summary.json` (`unstable_remeasured`).
 - L'ordine di tutti i punti di tutte le famiglie è mescolato con seme 0 e rimescolato a ogni
   ripetizione. Così una deriva non si concentra su una famiglia o su una zona della griglia.
 - Ogni misura è scritta subito in `results/raw.csv`, in append. Lo script riprende da dove si era
@@ -162,7 +167,8 @@ python check_fusion.py                # SiLU fusa o no nel grafo compilato (resu
 systemd-run --user --unit=lut-pi-passo2 --working-directory=$PWD ./launch.sh   # misura completa
 systemctl --user status lut-pi-passo2; tail -f runs/run.log; cat results/status.json
 systemctl --user stop lut-pi-passo2   # ferma e ripristina la board (run.py tratta SIGTERM come Ctrl-C)
-python analyze.py                     # LUT, riepilogo, heatmap
+python analyze.py                     # LUT e riepilogo
+python figures.py lut                 # heatmap per famiglia e di tutte le famiglie
 python log_wandb.py                   # run su wandb yolo-bench
 ```
 
@@ -180,7 +186,7 @@ cui 3 finestre di fila (max(20 iterazioni, 10 ms)) hanno la mediana entro il 2% 
 stimato: alle latenze si aggiunge un intervallo uniforme fra le inferenze, perché la durata reale non viene
 salvata. wandb run `jgq9syim` (misure, analisi e verifica; `fz2d692t` è la prima versione, senza verifica).
 
-**Risultati** (`results/warmup.json`, `figures/warmup.png`):
+**Risultati** (`results/warmup.json`, `figures/warmup.png`, `figures/warmup_gain.png`):
 - **Il warmup dura un tempo fisso, non un numero di iterazioni:** circa 20 ms (mediana 17, p90 33,
   massimo 58), da 0 a 1540 iterazioni secondo la rete. Nella figura le curve si sovrappongono sull'asse
   del tempo e scendono a gradino intorno a 20 ms, non in modo graduale.
@@ -223,7 +229,7 @@ come la LUT, rimisurate 2 volte con il warmup da 60 ms e confrontate con i valor
 
 ```bash
 python warmup.py measure; python warmup.py analyze; python warmup.py check; python warmup.py pilot
-python warmup.py log
+python figures.py warmup; python warmup.py log
 ```
 
 ## Due regimi di `k1s1_160` 48×64 (`bimodal.py`, 06/11)
@@ -244,7 +250,7 @@ aperta. Non è la scelta del kernel. Nel pilota rimisurato (97 punti, 2 ripetizi
 più del 5,2% fra le due ripetizioni: i punti bimodali sono pochi.
 
 ```bash
-python bimodal.py measure; python bimodal.py compile; python bimodal.py analyze
+python bimodal.py measure; python bimodal.py compile; python bimodal.py analyze; python figures.py bimodal
 ```
 
 ## Durata reale e risultati
@@ -272,9 +278,10 @@ alle 22:06 per la prova del warmup. Avvio previsto con la ventola montata, dopo 
 | `bimodal.py` | indagine sui due regimi di `k1s1_160` 48×64 |
 | `DECISIONE_IDENTITA.md` | perché la LUT non misura né sottrae le reti identità (06/11) |
 | `warmup.py`, `transient.py` | durata del warmup di benchmark_app (`transient.py` non si chiude senza ventola) |
-| `analyze.py`, `log_wandb.py` | analisi e upload |
+| `analyze.py`, `log_wandb.py` | analisi (solo numeri) e upload |
+| `figures.py` | tutte le figure, stile comune `tools/plots.py` (PNG + PDF): `lut`, `warmup`, `bimodal`, `all` |
 | `results/raw.csv` | una riga per misura: famiglia, kernel, stride, mappa, c_in, c_out, ripetizione, ms, temperatura, frequenza, throttling, timestamp |
 | `results/lut_<famiglia>.csv` | mediana, min, max e dispersione relativa per punto |
 | `results/summary.json`, `results/status.json`, `results/env.json`, `results/fusion.json` | riepilogo, avanzamento, ambiente, fusione |
-| `figures/heatmap_<famiglia>.png` | latenza mediana per famiglia (c_in × c_out, scala logaritmica) |
+| `figures/heatmap_<famiglia>.png`, `figures/heatmap_all.png` | latenza mediana per famiglia (c_in × c_out, scala logaritmica; la stem come curva) |
 | `runs/run.log`, `runs/pilot.log` | log (ignorati da git) |
