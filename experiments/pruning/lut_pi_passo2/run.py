@@ -56,7 +56,7 @@ FIXED_CIN = {"k3s2_320"}
 N_CONV = 69989
 REPEATS, SEED = 3, 0
 UNSTABLE_REL, EXTRA_REPEATS = 0.05, 6      # (max-min)/median of the first REPEATS above this: 6 more repeats
-TEMP_MAX_C, TEMP_RESUME_C = 75.0, 65.0         # Pi 5 firmware throttles at 80 C, no fan: stay below
+TEMP_MAX_C, TEMP_RESUME_C = 75.0, 65.0         # guard: firmware throttles at 80 C; with the fan at max it never trips
 CHECKPOINT_S = 6 * 3600
 FIELDS = ["family", "kind", "kernel", "stride", "map", "c_in", "c_out", "repeat", "sequence", "ms",
           "mean_ms", "min_ms", "max_ms", "iters", "temp_c", "freq_khz", "throttled", "governor",
@@ -142,8 +142,7 @@ def make_cfg():
     with initialize_config_dir(config_dir=str(REPO / "conf"), version_base=None):
         return compose("config", overrides=[
             "stage=probe_edge", "hardware=rpi5", "backend=openvino", "quantization=fp16",
-            "freq_target=max", "compute_target=cpu_4", f"project_root={REPO}",
-            "stage.thermal.threshold_c=60"])        # idle Pi is ~53 C: 50 would always time out
+            "freq_target=max", "compute_target=cpu_4", f"project_root={REPO}"])  # start threshold 50 C, as in the deploy benchmark
 
 
 STATE = ("; rc=$?; echo \"STATE $(cat /sys/class/thermal/thermal_zone0/temp) "

@@ -57,6 +57,18 @@ fi
 retry "apt git/build-essential" sudo apt-get install -y git build-essential
 ORT_VENV="$VENV" bash "$WORKDIR/tools/build_ort_perf_test.sh"
 
+# 4. ventola sempre al massimo: soglie attive a 1-4 °C e velocita' 255 (default 50-75 °C).
+#    config.txt vale dal prossimo avvio, i trip point in sysfs da subito. Critico a 110 °C intatto.
+FAN="dtparam=fan_temp0=1000,fan_temp0_speed=255,fan_temp1=2000,fan_temp1_speed=255,fan_temp2=3000,fan_temp2_speed=255,fan_temp3=4000,fan_temp3_speed=255"
+CFG=/boot/firmware/config.txt
+if ! grep -qxF "$FAN" "$CFG"; then
+  sudo sed -i '/^dtparam=fan_temp/d' "$CFG"
+  echo "$FAN" | sudo tee -a "$CFG" >/dev/null
+fi
+for i in 1 2 3 4; do
+  echo $((i * 1000)) | sudo tee /sys/class/thermal/thermal_zone0/trip_point_${i}_temp >/dev/null
+done
+
 sudo -n true 2>/dev/null || \
   say "ATTENZIONE: sudo senza password non configurato (serve per cpufreq)"
 

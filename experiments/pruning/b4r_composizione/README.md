@@ -69,6 +69,10 @@ python figures.py fit
 
 - **La LUT deve essere completa:** `fit.py` legge `../lut_pi_passo2/results/lut_<famiglia>.csv`.
 - **Nessun γ** per concat, add e upsample: se il residuo cresce con i canali, va aggiunto.
+- **Estensione decisa il 06/11:** il dataset diventerà le potature casuali di tutte le architetture fino al
+  nano (larghezze 0,0625–0,25 × D101, D126, D170), con il test diviso per architettura e C tarato per
+  architettura sulla rete intera non potata (C2PSA, PSABlock e Detect non si potano). Larghezze 0,375, S e
+  oltre solo in futuro: prima va estesa la LUT ai loro canali (fino a 4× i punti).
 - **Stessa architettura di partenza:** le reti sono tutte potature del nano D126; per F, P e N
   interi servono misure a parte.
 

@@ -255,8 +255,27 @@ python bimodal.py measure; python bimodal.py compile; python bimodal.py analyze;
 
 ## Durata reale e risultati
 
-Non ancora lanciata. Il lancio del 05/11 alle 21:48 (I/O fp16 NHWC, un'inferenza di warmup) è stato fermato
-alle 22:06 per la prova del warmup. Avvio previsto con la ventola montata, dopo un pilota di 100 punti.
+Lanciata il 06/11 alle 11:10 con la ventola sempre al massimo (`scripts/provision/rpi5.sh`) e soglia di partenza
+a 50 °C come il benchmark. Pilota con ventola (06/11, 100 punti, `results/pilot.csv`): 0,67 s/misura, 35–46 °C,
+nessun throttling; stima 39 h, fine attesa domenica 08/11 verso le 02:00. Il lancio del 05/11 alle 21:48 (senza
+ventola, un'inferenza di warmup) era stato fermato alle 22:06 per la prova del warmup; il suo log è `runs/run_0511.log`.
+
+**Coda dopo la LUT principale** (decisa il 06/11):
+1. estensione della LUT alle forme delle architetture B4-R che mancano (circa 2 500 punti, 1–2 h): k3s1_40 fino a
+   32×64/64×32 (D101), k1s1_160 64×64 e k1s1_80 128×128 (w0.25_D170), k3s1_160 con 3 canali (w0.09375);
+2. profiling per nodo sul Pi (PERF_COUNT, nano intero e un potato): quanto pesano Concat, Add, Interpolate e
+   MaxPool. Sulla workstation (x86, bf16) cambiano con la potatura di circa l'1%, meno del rumore delle conv;
+3. misura delle reti B4-R (`../b4r_composizione`).
+
+**Efficienza, da fare prima della prossima LUT (estensione o S), non a misura in corso:** il Pi calcola solo per
+circa il 23% del tempo (0,14 s di 200 inferenze più warmup, su 0,60 s per misura). Il resto è preparazione:
+build e IR sulla workstation (0,07 s), invio, e soprattutto un Python nuovo sul Pi che importa OpenVINO e compila
+(stimato 0,3–0,4 s). Due modifiche, circa 2× più veloce:
+- un processo sempre aperto sul Pi (`bench_dump.py` in modalità server) che riceve le reti una dopo l'altra;
+- la rete successiva costruita sulla workstation mentre il Pi misura quella corrente.
+
+Cambia il protocollo: con il processo aperto il plugin CPU parte già caldo. Prima di usarlo va rifatta la prova
+del warmup (`warmup.py check`), e una LUT va misurata tutta con lo stesso protocollo.
 
 ## Limiti
 
@@ -268,6 +287,10 @@ alle 22:06 per la prova del warmup. Avvio previsto con la ventola montata, dopo 
 - **SiLU non fusa nella conv**, sia qui sia nel nano vero: la LUT comprende il nodo di attivazione
   separato.
 - **Temperatura** letta dopo ogni misura, non durante.
+- **Pesi in cache.** Ogni strato gira 200 volte di fila, quindi i suoi pesi stanno in cache (L2 512 KB per core,
+  L3 2 MB). Nel nano che gira in continuo i pesi (~5 MB in fp16) non ci stanno, e gli strati con molti pesi li
+  rileggono dalla RAM. A mappa fissa, sia questo costo sia il calcolo crescono con c_in·c_out·k², quindi lo
+  dovrebbe assorbire a_f; i residui di B4-R lo diranno.
 
 ## Percorsi
 

@@ -1,7 +1,10 @@
-"""B4-R: random pruned nanos (YOLO26 N, 0.25, D126, 4 classes) with yolopit's constraints, exported for the Pi.
+"""B4-R: random pruned YOLO26 of every architecture up to the nano (widths 0.0625-0.25 x D101/D126/D170,
+4 classes) with yolopit's constraints, exported for the Pi as in the pipeline (OpenVINO IR fp16, 640, one-to-one).
 
-  python generate.py [N]      # N nets (default 150) + the unpruned nano: runs/nets/<net>/ (IR, ignored by git),
-                              # results/nets.csv (one row per net), results/layers.csv (one row per conv)
+  python generate.py [N]      # per architecture: N random nets (default 50) + the unpruned one (<arch>_full):
+                              # runs/nets/<net>/ (IR and .pt, ignored by git), results/nets.csv (one row per net:
+                              # MACs, parameters, output elements of Concat/Add/Interpolate/MaxPool),
+                              # results/layers.csv (one row per conv)
 
 Each net is built with yolopit (build_pit_model, n = 2 = LUT step): its block masks already encode the
 constraints (residual/concat masks shared, outputs feeding C2PSA/PSABlock/Detect frozen, C3k2 split in cv1a
@@ -28,16 +31,19 @@ sys.path.insert(0, str(LUT_DIR))
 import run as lut  # noqa: E402  (adds the repo root to sys.path)
 
 RES, NETS = OUT / "results", OUT / "runs" / "nets"
-WIDTH, DEPTH, NC, N_STEP = 0.25, "D126", 4, 2
+# every architecture up to the nano: the LUT covers only the nano's channels (0.375, S and up need a wider LUT)
+ARCHS = [(w, d) for w in (0.0625, 0.09375, 0.125, 0.1875, 0.25) for d in ("D101", "D126", "D170")]
+NC, N_STEP = 4, 2
+NONCONV = ("Concat", "Add", "Interpolate", "MaxPool")   # data-movement nodes that pruning shrinks, in C
 LEVEL, SIGMA = (0.1, 1.0), 0.5
 
 
-def pit_model():
+def pit_model(width: float, depth: str):
     from ultralytics.utils import YAML
     from yolopit.search import build_pit_model
     from src.models import arch
     d = Path(tempfile.mkdtemp())
-    YAML.save(d / "arch.yaml", arch(WIDTH, DEPTH, NC))
+    YAML.save(d / "arch.yaml", arch(width, depth, NC))
     return build_pit_model(str(d / "arch.yaml"), n=N_STEP, verbose=False)
 
 
@@ -92,40 +98,53 @@ def conv_layers(model) -> list[tuple]:
     return rows
 
 
+def nonconv_elems(xml: Path) -> int:
+    """Output elements of the NONCONV nodes of the IR: the gamma term of the fit, known before measuring."""
+    import openvino as ov
+    return sum(int(np.prod(list(op.get_output_shape(0)))) for op in ov.Core().read_model(xml).get_ordered_ops()
+               if op.get_type_name() in NONCONV)
+
+
 def main():
     from src.backends import get_backend
     from src.remote.connection import LocalConnection
     from yolopit.search import PITYOLO
-    n = int(sys.argv[1]) if len(sys.argv) > 1 else 150
+    n = int(sys.argv[1]) if len(sys.argv) > 1 else 50   # random nets per architecture
     cfg = lut.make_cfg()                             # rpi5, openvino, fp16, deploy 640: as the LUT
     backend = get_backend("openvino", cfg)
     grid = {(f, ci, co) for f, _, ci, co in lut.points()}
     RES.mkdir(exist_ok=True)
     NETS.mkdir(parents=True, exist_ok=True)
     nets_rows, layer_rows = [], []
-    for j in [-1, *range(n)]:                        # -1: the unpruned nano, as reference
-        name = "full" if j < 0 else f"r{j:03d}"
-        w = pit_model()                              # fresh model: masks of the previous net do not leak
-        g = randomize(maskers(w), j)
-        costs = {m: float(v) for m, v in w.real_costs().items()}
-        p = PITYOLO.__new__(PITYOLO)                 # export_pruned without a search: only model/trainer used
-        p.model, p.trainer = w, None
-        tmp = Path(tempfile.mkdtemp())
-        yo = p.export_pruned(tmp / f"{name}.pt")
-        layers = conv_layers(yo.model.eval())
-        off = [(f, ci, co) for _, f, ci, co in layers if (f, ci, co) not in grid]
-        assert not off, f"{name}: punti fuori dalla griglia della LUT: {off}"
-        dst = NETS / name
-        shutil.rmtree(dst, ignore_errors=True)
-        ir = backend.export(LocalConnection(), cfg, tmp / f"{name}.pt", tmp / "ov")
-        shutil.copytree(ir, dst)
-        shutil.copy(tmp / f"{name}.pt", dst / f"{name}.pt")
-        shutil.rmtree(tmp, ignore_errors=True)
-        nets_rows.append({"net": name, "seed": j, "level": round(g, 4), "layers": len(layers),
-                          **{f"cost_{m}": v for m, v in costs.items()}})
-        layer_rows += [{"net": name, "order": i, "layer": ln, "family": f, "c_in": ci, "c_out": co}
-                       for i, (ln, f, ci, co) in enumerate(layers)]
-        print(name, f"g={g:.2f}", len(layers), "strati", {m: f"{v:.3g}" for m, v in costs.items()}, flush=True)
+    for a, (width, depth) in enumerate(ARCHS):
+        for j in [-1, *range(n)]:                    # -1: the unpruned architecture, calibrates its C
+            name = f"w{width}_{depth}_" + ("full" if j < 0 else f"r{j:03d}")
+            seed = -1 if j < 0 else 1000 * a + j     # different masks for every architecture
+            w = pit_model(width, depth)              # fresh model: masks of the previous net do not leak
+            g = randomize(maskers(w), seed)
+            costs = {m: float(v) for m, v in w.real_costs().items()}
+            p = PITYOLO.__new__(PITYOLO)             # export_pruned without a search: only model/trainer used
+            p.model, p.trainer = w, None
+            tmp = Path(tempfile.mkdtemp())
+            yo = p.export_pruned(tmp / f"{name}.pt")
+            layers = conv_layers(yo.model.eval())
+            off = [(f, ci, co) for _, f, ci, co in layers if (f, ci, co) not in grid]
+            if off:                                  # D101/D170 and w0.09375 have shapes the nano LUT lacks
+                print(name, "fuori dalla griglia della LUT:", off, flush=True)
+            dst = NETS / name
+            shutil.rmtree(dst, ignore_errors=True)
+            ir = backend.export(LocalConnection(), cfg, tmp / f"{name}.pt", tmp / "ov")
+            shutil.copytree(ir, dst)
+            shutil.copy(tmp / f"{name}.pt", dst / f"{name}.pt")
+            shutil.rmtree(tmp, ignore_errors=True)
+            nets_rows.append({"net": name, "arch": f"w{width}_{depth}", "width": width, "depth": depth,
+                              "seed": seed, "level": round(g, 4), "layers": len(layers),
+                              **{f"cost_{m}": v for m, v in costs.items()},
+                              "nonconv_elems": nonconv_elems(next(dst.glob("*.xml"))),
+                              "off_grid": " ".join(f"{f}:{ci}x{co}" for f, ci, co in sorted(set(off)))})
+            layer_rows += [{"net": name, "order": i, "layer": ln, "family": f, "c_in": ci, "c_out": co}
+                           for i, (ln, f, ci, co) in enumerate(layers)]
+            print(name, f"g={g:.2f}", len(layers), "strati", {m: f"{v:.3g}" for m, v in costs.items()}, flush=True)
     for path, rows in ((RES / "nets.csv", nets_rows), (RES / "layers.csv", layer_rows)):
         with open(path, "w", newline="") as fh:
             w = csv.DictWriter(fh, list(rows[0]))
