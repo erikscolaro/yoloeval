@@ -118,14 +118,14 @@ if __name__ == "__main__":
                 ax.plot([i, i], [yb, yb], [min(zs), max(zs)], color=INK, lw=0.6)
                 for z in (min(zs), max(zs)):
                     ax.plot([i - cap, i + cap], [yb, yb], [z, z], color=INK, lw=0.6)
-                ax.text(i, yb, max(zs) + 0.002, "Δ" + f"{max(zs) - min(zs):.3f}"[1:], ha="center", va="bottom", fontsize=4.5, color=INK)
+                ax.text(i, yb, max(zs) + 0.002, "Δ" + f"{max(zs) - min(zs):.3f}"[1:], ha="center", va="bottom", fontsize=7, color=INK)
         cam = np.array([np.cos(np.radians(AZIM)) * 2.2 / len(WIDTHS), np.sin(np.radians(AZIM)) * 1.2 / len(DEPTHS)])
         for (i, j), z, f in sorted(zip(map(tuple, pos), v, done), key=lambda t: np.dot(t[0], cam)):
             c, a_ = CMAP(norm(z)), 1 if f else 0.4
             ax.bar3d(i - 0.3, j - 0.3, lo, 0.6, 0.6, z - lo, color=1 - TINT * (1 - np.array(c[:3])), edgecolor=(*c[:3], a_),
                      linewidth=0.8, shade=False, linestyle="-" if f else (0, (3, 2)))
         for (i, j), z in zip(pos, v):  # valori sopra le barre, dopo tutto il resto perché restino in primo piano
-            ax.text(i, j, z, f"{z:.3f}"[1:], ha="center", va="bottom", fontsize=5.5,
+            ax.text(i, j, z, f"{z:.3f}"[1:], ha="center", va="bottom", fontsize=7,
                     bbox=dict(boxstyle="round,pad=0.1", fc="white", ec="none", alpha=0.8))
         # sigle delle larghezze (tabella del capitolo 4) a mano, orizzontali e subito sotto ogni tick:
         # mplot3d le sposterebbe in diagonale, lontane dal loro tick

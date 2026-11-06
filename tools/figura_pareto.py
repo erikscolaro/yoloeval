@@ -26,7 +26,7 @@ BAND = "#fbe7b8"   # giallo della fascia "a pelo" della figura A
 # budget più il margine (con margine): anelli dello stesso raggio, pieno e puntinato (la linea del budget è tratteggiata)
 MARGIN = 0.1 * BUDGET
 # riquadro bianco con il bordo del colore della serie: l'etichetta si lega alla scheda anche con più serie
-LABEL = dict(fontsize=6.5, bbox=dict(boxstyle="round,pad=0.3,rounding_size=0.4", fc="white", lw=0.7))
+LABEL = dict(fontsize=7, bbox=dict(boxstyle="round,pad=0.3,rounding_size=0.4", fc="white", lw=0.7))
 # posizioni candidate delle etichette, in punti dal centro del marker: prima vicine, poi più lontane
 DIRS = [(dx * r, dy * r, "left" if dx > 0 else "right" if dx < 0 else "center",
          "bottom" if dy > 0 else "top" if dy < 0 else "center")
@@ -147,7 +147,7 @@ if __name__ == "__main__":
             if len(pts) > len(inside):
                 fuori.append(f"{BOARDS[board]}: {len(pts) - len(inside)} modelli oltre {x1:.0f} ms →")
         if fuori:  # i modelli fuori dalla finestra non spariscono in silenzio
-            ax.text(0.99, 0.02, "\n".join(fuori), transform=ax.transAxes, ha="right", va="bottom", fontsize=6,
+            ax.text(0.99, 0.02, "\n".join(fuori), transform=ax.transAxes, ha="right", va="bottom", fontsize=7,
                     color=ink)
         ax.set_xlim(x0, x1)
         ax.set_ylim(min(ys) - 0.012, max(ys) + 0.012)
