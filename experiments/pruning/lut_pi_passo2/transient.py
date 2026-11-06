@@ -69,7 +69,7 @@ def analyze():
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
-    from tools.plots import STYLE, color
+    from tools.plots import STYLE, WIDTH, color
     plt.style.use(STYLE)
 
     lat = load()
@@ -101,7 +101,7 @@ def analyze():
     }
     (run.RES / "transient.json").write_text(json.dumps(summary, indent=1), encoding="utf-8")
 
-    fig, axes = plt.subplots(1, 2, figsize=(7.16, 2.8), constrained_layout=True)
+    fig, axes = plt.subplots(1, 2, figsize=(WIDTH, 0.39 * WIDTH), constrained_layout=True)
     for i, (k, v) in enumerate(sorted(lat.items())):
         if k[0] != 0:
             continue

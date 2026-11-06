@@ -18,9 +18,9 @@ from pathlib import Path
 
 STYLE = Path(__file__).with_name("thesis.mplstyle")
 
-#: tesi e paper a due colonne: tutta pagina (figure*, \textwidth) e una colonna (\columnwidth)
-WIDTH = 7.16
-HALF = 3.5
+#: \textwidth della tesi (426,79 pt) e mezza pagina (0.49\textwidth): figure a grandezza naturale, font come nel testo
+WIDTH = 5.9
+HALF = 2.9
 
 # slot della palette in thesis.mplstyle
 _P = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100",

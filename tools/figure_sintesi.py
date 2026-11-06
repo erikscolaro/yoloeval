@@ -104,7 +104,7 @@ def _frame():
             ax.grid(False)
             ax.set_xlim(-0.6, len(WL) - 0.4); ax.set_ylim(-0.6, len(RL) - 0.4)
             ax.set_aspect("equal")
-            ax.set_xticks(range(len(WL)), [LETTERA[w] for w in WL], fontsize=6)  # sigle delle larghezze (capitolo 4)
+            ax.set_xticks(range(len(WL)), [LETTERA[w] for w in WL], fontsize=7)  # sigle delle larghezze (capitolo 4)
             ax.set_yticks(range(len(RL)), [RLAB.get(r, r) for r in RL], fontsize=7)
             ax.tick_params(length=0, colors=MUTED)
             for sp in ax.spines.values():
@@ -112,11 +112,11 @@ def _frame():
             if i == 0:
                 ax.set_title(d[1:], fontsize=8)
                 if j == 0:   # nome dell'asse una volta, a sinistra, sulla riga dei numeri di conv
-                    ax.set_title("Profondità (conv)", loc="left", x=-0.3, fontsize=6, color=INK)
+                    ax.set_title("Profondità (conv)", loc="left", x=-0.3, fontsize=7, color=INK)
             if j == 0:
                 ax.set_ylabel(q.upper(), fontsize=8)
             if i == len(PRECS) - 1 and j == len(DEPTHS) // 2:   # una sola volta, sotto il pannello centrale
-                ax.set_xlabel("Larghezza (modello)", fontsize=6)
+                ax.set_xlabel("Larghezza (modello)", fontsize=7)
     return fig, axs
 
 
@@ -207,7 +207,7 @@ def _colorbar(fig, axs, norm, cmap):
     cb = fig.colorbar(matplotlib.cm.ScalarMappable(norm=norm, cmap=cmap), ax=axs, pad=0.015, shrink=0.85,
                       aspect=15, extend="both")
     cb.set_label("mAP50-95 (predetta)", fontsize=7.5)
-    cb.ax.tick_params(labelsize=6.5)
+    cb.ax.tick_params(labelsize=7)
     cb.outline.set_visible(False)
     cb.ax.yaxis.set_major_locator(matplotlib.ticker.MultipleLocator(0.02))
     cb.ax.yaxis.set_major_formatter(matplotlib.ticker.FuncFormatter(lambda v, _: _num(v, "{:.2f}")))
@@ -244,7 +244,7 @@ def figura_c(out, device):
         ax = axs[i, j]
         ax.scatter(b, a, marker="D", s=55, facecolor="none", edgecolor=PRUNE, linewidth=1.3, zorder=6)
         # una riga per risoluzione: l'etichetta (taglio di latenza da fare) sta a destra, sulla stessa riga
-        ax.text(b + 0.5, a, f"−{cut:.0%}", fontsize=5.5, color=INK, va="center", zorder=7,
+        ax.text(b + 0.5, a, f"−{cut:.0%}", fontsize=7, color=INK, va="center", zorder=7,
                 bbox=dict(facecolor="white", edgecolor="none", pad=0.6))
     h = [plt.Line2D([], [], marker="o", ls="", mfc=cmap(0.6), mec="white", ms=5),
          plt.Line2D([], [], marker="o", ls="", mfc="white", mec=cmap(0.75), mew=1.5, ms=5),

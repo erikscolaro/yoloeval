@@ -74,8 +74,8 @@ def fit():
     lo = min(float(x["measured_ms"]) for x in rows) * 0.95
     hi = max(float(x["measured_ms"]) for x in rows) * 1.05
     ax.plot([lo, hi], [lo, hi], color=GRAY, lw=0.6)
-    ax.set_xlabel("misurata [ms]")
-    ax.set_ylabel("stimata [ms]")
+    ax.set_xlabel("misurata in ms")
+    ax.set_ylabel("stimata in ms")
     ax.legend(loc="upper left")
     _panel(ax, "a", "composizione")
     ax = axs[1]
@@ -93,8 +93,8 @@ def fit():
                    alpha=0.75, label={"composition_ms": "composizione", "lut_sum_ms": "somma LUT + C",
                                       "macs_ms": "MAC"}[m])
     ax.axhline(0, color=GRAY, lw=0.6)
-    ax.set_xlabel("misurata [ms]")
-    ax.set_ylabel("errore sul test [%]")
+    ax.set_xlabel("misurata in ms")
+    ax.set_ylabel("errore sul test in %")
     ax.legend(loc="best")
     _panel(ax, "c", "confronto")
     save(fig, FIG / "fit")

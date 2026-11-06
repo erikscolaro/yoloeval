@@ -17,7 +17,7 @@ sys.path.insert(0, str(OUT))
 from run import GRID, REFS  # noqa: E402  (run.py adds the repo root to sys.path)
 
 REF = 64
-W2 = 7.16                       # two-column figure width [in]
+from tools.plots import WIDTH as W2  # noqa: E402  (\textwidth della tesi)
 
 
 def load(path: Path):
@@ -136,7 +136,7 @@ def main():
             n2 = 200 * summary[f]["noise_rel"]
             ax.set_title(f"({'abcd'[2 * r + c]}) {'A, 1×1 a 40×40' if f == 'A' else 'B, 3×3 a 20×20'}: {title}", loc="left", fontsize=8)
             cb = fig.colorbar(im, ax=ax, shrink=0.85)
-            cb.set_label("errore relativo [%]", fontsize=7)
+            cb.set_label("errore relativo in %", fontsize=7)
             if key == "err_c":         # mark points outside 2x noise
                 yy, xx = np.where(np.abs(E) > n2)
                 ax.scatter(xx, yy, s=4, c="k", marker="x", linewidths=0.6)

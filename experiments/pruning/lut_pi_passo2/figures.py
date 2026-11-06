@@ -56,7 +56,7 @@ def _draw(ax, f: str, norm):
     if len(cis) == 1:
         ax.plot(cos, M[0], marker="o", ms=3, lw=1)
         ax.set_yscale("log")
-        ax.set_ylabel("latenza [ms]", fontsize=7)
+        ax.set_ylabel("latenza in ms", fontsize=7)
         return None
     ax.grid(False)
     return ax.pcolormesh(cos, cis, M, norm=norm, shading="nearest", cmap="viridis", rasterized=True)
@@ -74,10 +74,10 @@ def lut():
         im = _draw(ax, f, LogNorm())
         ax.set_xlabel("c_out")
         if im is None:
-            ax.set_ylabel("latenza mediana [ms]")
+            ax.set_ylabel("latenza mediana in ms")
         else:
             ax.set_ylabel("c_in")
-            fig.colorbar(im, ax=ax).set_label("latenza mediana [ms]")
+            fig.colorbar(im, ax=ax).set_label("latenza mediana in ms")
         save(fig, FIG / f"heatmap_{f}")
     n, cols = len(fams), 5                              # all families, full width, shared colour scale
     rows = -(-n // cols)
@@ -95,7 +95,7 @@ def lut():
             ax.set_ylabel("c_in", fontsize=7)
         if i >= n - cols:
             ax.set_xlabel("c_out", fontsize=7)
-    fig.colorbar(im, ax=axs, shrink=0.7).set_label("latenza mediana [ms]")
+    fig.colorbar(im, ax=axs, shrink=0.7).set_label("latenza mediana in ms")
     save(fig, FIG / "heatmap_all")
 
 
@@ -115,7 +115,7 @@ def warmup():
         sm = np.convolve(rel, np.ones(5) / 5, mode="valid")[::step]
         axs[0].plot(np.arange(len(sm)) * step + 1, sm, lw=0.5, alpha=0.6, color=cmap(norm(s)), rasterized=True)
         axs[1].plot(t[2:len(rel) - 2][::step], sm, lw=0.5, alpha=0.6, color=cmap(norm(s)), rasterized=True)
-    for ax, lab, letter, title in zip(axs, ("iterazione", "tempo dalla prima inferenza [ms]"), "ab",
+    for ax, lab, letter, title in zip(axs, ("iterazione", "tempo dalla prima inferenza in ms"), "ab",
                                       ("per iterazione", "per tempo")):
         ax.set_xscale("log")
         ax.axhspan(0.98, 1.02, color=GRAY, alpha=0.25, lw=0)
@@ -123,7 +123,7 @@ def warmup():
         _panel(ax, letter, title)
     axs[0].set_ylim(0.8, 3)
     axs[0].set_ylabel("latenza / regime")
-    fig.colorbar(plt.cm.ScalarMappable(cmap=cmap, norm=norm), ax=axs).set_label("log10 regime [ms]")
+    fig.colorbar(plt.cm.ScalarMappable(cmap=cmap, norm=norm), ax=axs).set_label("log₁₀ del regime in ms")
     save(fig, FIG / "warmup")
     # (a) error of the LUT protocol before/after on the 19 nets, (b) pilot points old vs new
     w = json.loads((RES / "warmup.json").read_text())["measures_detail"]
@@ -147,8 +147,8 @@ def warmup():
     ax.scatter([], [], s=10, marker="s", color=GRAY, label="rete identità")
     ax.axhline(0, color=GRAY, lw=0.6)
     ax.set_xscale("log")
-    ax.set_xlabel("latenza a regime [ms]")
-    ax.set_ylabel("errore della mediana [%]")
+    ax.set_xlabel("latenza a regime in ms")
+    ax.set_ylabel("errore della mediana in %")
     ax.legend(loc="upper right")
     _panel(ax, "a", "protocollo LUT, 19 reti")
     ax = axs[1]
@@ -161,8 +161,8 @@ def warmup():
         ax.set_xscale("log")
         ax.set_yscale("symlog", linthresh=5, linscale=2)
         ax.set_yticks([-5, 0, 5, 20, 100], ["−5", "0", "5", "20", "100"])
-        ax.set_xlabel("latenza con il warmup nuovo [ms]")
-        ax.set_ylabel("vecchio / nuovo − 1 [%]")
+        ax.set_xlabel("latenza con il warmup nuovo in ms")
+        ax.set_ylabel("vecchio / nuovo − 1, in %")
     _panel(ax, "b", "pilota, 97 conv")
     save(fig, FIG / "warmup_gain")
 
@@ -182,7 +182,7 @@ def bimodal():
                    color=color("x", 1) if target else color("x", 0))
     ax.axhline(0, color=GRAY, lw=0.6)
     ax.set_xticks(range(len(nets)), [k.replace("_", " ", 1).replace("_", "×") for k in nets], fontsize=7)
-    ax.set_ylabel("misura / mediana − 1 [%]")
+    ax.set_ylabel("misura / mediana − 1, in %")
     save(fig, FIG / "bimodal")
 
 
