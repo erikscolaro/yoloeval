@@ -2,7 +2,7 @@
 
 Questo esperimento misura le LUT di latenza delle conv potabili del nano YOLO26 (N, larghezza 0.25,
 D126) sul Raspberry Pi 5. Ingresso sempre 640×640, 4 classi. Le LUT servono allo stimatore di latenza
-per la potatura per canale (PIT, `~/Desktop/yolopit`): vedi `STIMATORE_LATENZA_PI.md` (sezione 6) e
+per la potatura per canale (PIT, `~/Desktop/yolopit`): vedi
 `NEW_MASTERPLAN.md` (sezione 11, fase 4a).
 
 ## Perché lo facciamo

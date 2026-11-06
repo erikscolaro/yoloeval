@@ -55,7 +55,7 @@ blocco 2 si fa sono pronti, se non si fa restano punti confermati del fronte.
 | 2 (2a–2b) | quanto sono precisi e veloci i modelli normali | i **trend**: mAP e latenza in funzione di larghezza e profondità, a ogni risoluzione di deploy, per dispositivo | materia prima della fase 2c |
 | **2 (2c)** | **qual è la configurazione migliore nel budget** | **tasso di cambio** di ogni leva (mAP per ms), un **modello di precisione**, l'**ottimo predetto e verificato** per dispositivo e risoluzione di deploy | l'ottimo è la **baseline** da battere; la leva più redditizia dice **su cosa deve lavorare la potatura**; il gap fra ottimo e modello migliore senza budget dice **se la potatura serve** (2d) |
 | 3 | quanto rende l'int8 | perdita di mAP e guadagno di latenza dell'int8, per modello e dispositivo | si ricalcola l'ottimo (2c) con le latenze int8; chiude il blocco 1; si sceglie la precisione della fase 4 |
-| 4a (blocco 2) | se una formula predice la latenza di una rete potata | lo **stimatore di latenza** per dispositivo e precisione, con il suo errore; i suoi parametri descrivono il dispositivo | è il costo che guida la potatura in 4b |
+| 4a (blocco 2) | se una formula predice la latenza di una rete potata | lo **stimatore di latenza** del PI (LUT per strato e composizione nella rete), con il suo errore | è il costo che guida la potatura in 4b |
 | 4b (blocco 2) | se potare batte lo scaling ottimizzato | quanto rende la potatura rispetto all'ottimo scalato; se conta la forma o i pesi ereditati; se lo stimatore rende più dei calcoli | sceglie il modello finale per dispositivo e il metodo da raccomandare |
 | 5 (alla fine di tutto) | se i risultati reggono su dati mai visti | lo scarto fra val e test; la robustezza a bassa potenza; la mAP per classe e per grandezza del box | i numeri e le conclusioni della tesi; un esempio di distanza massima di rilevamento |
 
@@ -864,53 +864,210 @@ Sugli altri non c'è niente da ottimizzare. Ha due parti: prima lo stimatore (4a
 
 ### 4a. Stimatore di latenza (circa 2 settimane)
 
-> **Cosa testiamo**: se una formula semplice predice la latenza di una rete potata su ogni dispositivo, guardando solo
-> com'è fatta (quanti strati, di che tipo, con quanti canali in ingresso e in uscita, a che dimensione di mappa).
+> **Cosa testiamo**: se la latenza di una rete potata per canale si predice sommando le latenze dei suoi strati,
+> misurate una volta per tutte in una tabella (LUT), più pochi parametri di composizione.
 >
-> **Come**: misurando reti finte (probe completi, ingressi e uscite diversi, catene di strati) per stimare i
-> parametri, e circa 100 reti potate a caso per verificare la formula.
+> **Come**: sul PI si misurano da sole tutte le conv potabili del nano, a passo 2 di canali (la LUT); poi si misurano
+> intere circa 750 reti potate a caso, per stimare i parametri e verificare l'errore.
 >
-> **Conoscenza che produciamo**: lo **stimatore di latenza** per dispositivo e precisione, con il suo errore; i suoi
-> parametri, che descrivono il dispositivo in pochi numeri (quanto costa uno strato, quanto costa un calcolo per tipo
-> di strato, a che blocchi di canali lavora).
+> **Conoscenza che produciamo**: lo **stimatore di latenza** del PI, con il suo errore; la LUT stessa, che mostra
+> dove i canali costano (salti, cali, plateau); quanta parte della latenza non dipende dai canali (`C`).
 >
-> **Come la usiamo**: è il costo che guida la potatura in 4b, al posto del conteggio dei calcoli; i parametri sono un
-> risultato della tesi di per sé.
+> **Come la usiamo**: è il costo che guida la potatura in 4b, al posto del conteggio dei calcoli.
 
-**La formula**:
+#### Perimetro
+
+- **Un solo dispositivo come dimostrazione: il PI.** AGX e DX si fanno con lo stesso metodo solo se c'è tempo e se
+  la decisione 2d li dà stretti.
+- **Una sola configurazione, fissata a priori**: OpenVINO fp16 (`infer_precision` f16), 4 core, governor
+  `performance`, 2,4 GHz, ventola al massimo. Con un altro backend, un'altra precisione, altri core o un'altra
+  frequenza i parametri vanno rimisurati. Il comando è quello del deploy (`conf/hardware/rpi5.yaml`,
+  `conf/backend/openvino.yaml`, `conf/deploy/640.yaml`):
+
+  ```
+  benchmark_app -d CPU -b 1 -hint none -nstreams 1 -nthreads 4 -niter 200 -infer_precision f16 -report_type no_counters
+  ```
+
+  con il tuning della board di `src/measure/board.py` e la metrica `median_ms`.
+- **Ingresso sempre 640×640, 4 classi.** Le risoluzioni di deploy (480p, 720p, 1080p) restano fuori: 640×640 basta a
+  dimostrare che il metodo funziona.
+- **Modello da potare: N** (0.25, D126). Per la verifica si usano anche le architetture più piccole (B4-R).
+
+#### Cosa pota PIT (yolopit)
+
+Verificato sul codice di yolopit (`~/Desktop/yolopit`, HEAD `fd2f3a3`):
+
+- La potatura è **solo per canale**: toglie filtri di una conv. **Uno strato non viene mai eliminato**: sopravvive
+  anche con un solo filtro, quindi la rete potata ha sempre gli strati del modello di partenza.
+- **Esclusi** C2PSA, PSABlock e Detect (foglie fx, `LEAVES` in `yolopit/search.py:63`): il loro costo è fisso.
+- Gli strati che alimentano una foglia hanno i **canali di uscita congelati** (`masks.py:256-320`); residui, add e
+  concat hanno **maschere condivise** fra i rami (`masks.py:171`); i C3k2 sono potati all'interno (`C3k2Split`).
+- Le depthwise di YOLO26 stanno tutte dentro Detect e non si potano (\<esempio>da verificare\</esempio>).
+- Le strategie attuali (`pit_standard.yaml`, `pit_duccio.yaml`) potano **a blocchi di 16** (`pit.n: 16`). Lo
+  stimatore toglie questo vincolo: è lui a dire quanto costa un numero di canali non allineato. Con la LUT
+  `pit.n` diventa 2.
+
+Ne seguono due correzioni al resto del piano. La sola leva della potatura è la larghezza: "togliere canali o togliere
+blocchi" (2c, 4b) non si applica. Il costo degli strati (`α × numero di strati`) è uguale per tutte le reti potate
+dallo stesso modello, quindi si fonde nella costante `C` e non guida la potatura.
+
+#### Perché una LUT e non una formula
+
+La formula prevista all'inizio era
 
 ```
 latenza = c0 + (numero di strati × α) + Σ (calcoli di ogni strato, a canali arrotondati a g) × β del suo tipo
 ```
 
-| parametro | cosa rappresenta | come si misura | cosa dice alla potatura |
-|---|---|---|---|
-| `c0` | la parte fissa della rete: testa, attenzione, concatenazioni | dalle reti intere, è quello che resta | il pavimento: sotto non si scende |
-| `α` | il costo di uno strato che esiste, anche se calcola poco | catene di strati minuscoli | togliere canali non lo riduce, togliere strati sì |
-| `β` (per tipo: conv 3×3, conv 1×1, depthwise) | il prezzo di un calcolo | pendenza dei probe | **dove** conviene togliere canali |
-| `g` | a che blocchi il dispositivo elabora i canali | gradini dei probe | **di quanto** potare alla volta |
-| `γ` (facoltativo) | il costo di spostare dati (concat, upsample, somme) | dalle reti intere, se serve | \<esempio>di solito poco\</esempio> |
+e, tolto `α` e l'arrotondamento forzato, una versione con un termine di allineamento:
+`C + Σ_strati [β_tipo · MAC + δ · MAC_pad]`, con `MAC_pad` i calcoli in più arrotondando `c_in` e `c_out` a `g`.
+Widget della formula: https://claude.ai/artifact/394Eb6UYTtSqU7UPAqa7G2 (valori di AGX e DX inventati).
 
-\<esempio>Esempio sul Pi (numeri inventati, tranne i 28 ms): il pico si scompone in circa 12 ms di parte fissa, circa 5 ms di
-costo degli strati e circa 11 ms di calcoli. Il pico potato viene predetto a 23 ms, misurato 22. Si legge che circa
-17 dei 28 ms non dipendono dai canali: per questo sul Pi la potatura rende poco.\</esempio>
+Non basta, perché le curve canali → latenza del PI non sono né lineari né a gradini semplici:
+
+- **probe `probe_edge`** (26 probe, conv 3×3 su 20×20, `c_in = c_out` da 1 a 96): salto del +30% a 33 canali, cali a
+  48 e 64. Questi probe usano 30 iterazioni, con cui la mediana viene circa 2× il regime: sono poco affidabili, e da
+  qui in poi si usano 200 iterazioni;
+- **CPU della workstation**: andamento lineare con plateau (64, 68, 72 e 76 canali costano quasi uguale);
+- **separabilità rifiutata** (05/11, [`pruning/separability`](experiments/pruning/separability), wandb `6lhj71tw`).
+  L'ipotesi era `LUT_f(c_in, c_out) ≈ F_f(c_out) · G_f(c_in)`: se avesse retto, una LUT si sarebbe ricavata da due
+  scansioni 1D (circa 2,5 ore). Esito su 5 928 misure, criterio "90% dei punti entro 2× il rumore":
+
+  | | 1×1 s1 40×40 | 3×3 s1 20×20 |
+  |---|---|---|
+  | rumore (mediana della dispersione) | 3,4% | 2,2% |
+  | predizione dalle scansioni 1D: errore mediano / massimo | 3,8% / 64% | 14% / 99% |
+  | punti entro 2× il rumore | 71% | 34% |
+
+  Dove fallisce: nella 3×3 un cambio di kernel a `c_in` = 64 (con `c_out` = 128: da 0,39 a 0,22 ms); gradini su
+  `c_out` a 32, 64 e 96 con altezza che dipende da `c_in`; nella 1×1, con `c_out` = 128, alcuni `c_in` vanno 2× più
+  veloci dei vicini, senza legame con i multipli di 8.
+
+**Decisione: LUT 2D misurata direttamente, una per famiglia di strati, a passo 2.**
+
+#### Strati potabili del nano e griglia
+
+Tolti C2PSA, PSABlock e Detect, il nano a 640×640 ha **66 conv potabili in 13 famiglie** (tipo, stride, mappa
+d'uscita; per le s2 l'ingresso è il doppio). `c_in` e `c_out` massimi del nano sono i limiti della LUT.
+
+| famiglia | strati | coppie (c_in, c_out) massime | MAC del nano | punti a passo 2 |
+|---|---|---|---|---|
+| 1×1 s1 20×20 | 9 | (128,64) (128,128) (256,128) (256,256) (384,256) (512,256) | 10% | 33 153 |
+| 1×1 s1 40×40 | 15 | (64,32) (64,64) (128,128) (192,128) (384,128) | 13% | 12 545 |
+| 1×1 s1 80×80 | 7 | (32,16) (32,32) (64,64) (96,64) (96,128) (256,64) | 12% | 5 825 |
+| 1×1 s1 160×160 | 2 | (32,32) (48,64) | 5% | 825 |
+| 3×3 s1 20×20 | 6 | (64,64) (64,128) (128,64) | 5% | 3 201 |
+| 3×3 s1 40×40 | 12 | (32,32) | 8% | 289 |
+| 3×3 s1 80×80 | 6 | (16,16) (16,32) (32,16) | 5% | 225 |
+| 3×3 s1 160×160 | 2 | (8,16) (16,8) | 3% | 65 |
+| 3×3 s2 20×20 | 2 | (128,128) (128,256) | 8% | 8 385 |
+| 3×3 s2 40×40 | 2 | (64,64) (128,128) | 13% | 4 225 |
+| 3×3 s2 80×80 | 1 | (64,64) | 11% | 1 089 |
+| 3×3 s2 160×160 | 1 | (16,32) | 5% | 153 |
+| 3×3 s2 320×320 (stem) | 1 | (3,16), `c_in` fisso a 3 | 2% | 9 |
+| **totale** | **66** | | | **69 989** |
+
+- Nessuna famiglia supera il 13% dei MAC: escluderne una per risparmiare misure vorrebbe dire non predire una parte
+  reale della rete.
+- La griglia di una famiglia è l'unione, sugli strati, dei punti con `c_in, c_out ∈ {1, 2, 4, …, massimo}`.
+- **Il passo coincide con `pit.n`**: ogni configurazione che PIT può scegliere ha un valore misurato, senza
+  interpolazione. A passo 1 i punti sarebbero 273 872 (circa 15 giorni di macchina senza ventola), a passo 2 69 989
+  (stima iniziale circa 92 ore con 3 ripetizioni). Si è scelto il passo più piccolo che il tempo permette.
+
+#### Protocollo della LUT
+
+Dettagli, prove e decisioni in [`pruning/lut_pi_passo2`](experiments/pruning/lut_pi_passo2).
+
+- **Rete di misura**: una sola conv con pesi casuali, bias e SiLU, come le Conv di YOLO26 con la BN fusa. La SiLU
+  **non è fusa** nella conv, né qui né nel nano vero (102 `Convolution` e 101 `Subgraph`): la LUT misura lo strato
+  come gira nella rete.
+- **I/O fp16 in NHWC**, salvata come IR: con l'ONNX NCHW OpenVINO aggiungeva due `Reorder` che nel nano non ci sono
+  (su 160×160 costavano più della conv).
+- **Niente reti identità**: il costo fisso di ogni chiamata (circa 0,013 ms) entra nella somma sempre per gli stessi
+  strati, qualunque sia la potatura, e lo assorbe `C` (`DECISIONE_IDENTITA.md`).
+- **200 iterazioni dopo 60 ms di warmup** (`bench_dump.py`): il warmup dura un tempo fisso (circa 20 ms), non un
+  numero di iterazioni; senza, le reti sotto 0,1 ms uscivano gonfiate fino al +76%.
+- **3 ripetizioni**, ordine di tutti i punti mescolato con seme 0 e rimescolato a ogni ripetizione. I punti con
+  dispersione oltre il 5% si rimisurano altre 6 volte (mediana su 9): ci sono reti con due regimi decisi all'avvio,
+  come `k1s1_160` 48×64 (2,8 oppure 3,1 ms), causa ancora aperta.
+- **Guardia termica**: sopra 75 °C o con throttling si aspetta e si ripete. Con la ventola al massimo il Pi sta fra
+  35 e 51 °C.
+
+**Stato**: lanciata il 06/11 alle 11:10 (0,67 s a misura, 209 967 misure, fine stimata sabato 07/11 verso le 23).
+
+**Primi risultati** (06/11, circa 17 000 misure, tutte della prima ripetizione, nessun throttling):
+
+- **I MAC spiegano bene le mappe piccole e male le grandi.** Fit lineare per famiglia `a + b·MAC`: Spearman
+  0,95–0,97 ed errore mediano 10–14% su 1×1 e 3×3 s2 a 20×20; errore 25% a 80×80, 45% sulla 1×1 a 160×160.
+- **Il rumore fra punti vicini è basso**: ogni punto differisce in mediana dello 0,6% dalla media dei due vicini
+  (`c_out` ± 2), misurati in processi diversi.
+- **I salti sono strutturati**: il 3,5% dei punti si scosta dai vicini di oltre il 10%, solo con `c_out` multiplo di
+  8 (più veloce, per esempio 96) o con resto 2 modulo 8 (più lento, per esempio 34). La LUT li cattura, un fit sui
+  MAC no.
+- La stabilità fra ripetizioni si vedrà dalla seconda passata.
+
+#### Dalla LUT alla latenza della rete
+
+La LUT dà il costo di uno strato da solo. Dentro la rete cambiano cache, layout e fusioni, e ci sono nodi che non
+sono conv. Modello:
+
+```
+latenza_rete = C + Σ_f a_f · Σ_{strati in f} LUT_f(c_in, c_out)  [+ γ · elementi in uscita da concat, add, upsample, maxpool]
+```
+
+- `C`: tutto quello che la LUT non vede: C2PSA, PSABlock e Detect, i nodi non conv, il costo fisso di ogni chiamata
+  contato una volta per strato. È **per architettura**, tarato sulla rete intera non potata.
+- `a_f`: correzione della famiglia `f` dentro la rete (per esempio 0,8 = lì quegli strati costano il 20% in meno che
+  da soli). Assorbe anche i pesi che nella rete non stanno in cache (circa 5 MB in fp16 contro 2 MB di L3), perché
+  quel costo cresce come i calcoli, con `c_in·c_out·k²`.
+- `γ` (facoltativo): concat, somme e upsample costano in proporzione ai canali, quindi cambiano con la potatura.
+
+**Ipotesi sulla composizione**: sul PI OpenVINO esegue i nodi uno alla volta e i 4 core lavorano dentro ogni nodo,
+quindi i rami paralleli (C3k2, FPN) non si sovrappongono e sommare gli strati è corretto.
+
+**Stima e verifica** ([`pruning/b4r_composizione`](experiments/pruning/b4r_composizione)):
+
+1. **Reti B4-R**: potature casuali di **tutte le architetture fino al nano** (larghezze 0.0625–0.25 × D101, D126,
+   D170: 15 architetture), 50 per architettura più quella intera, 765 reti. Potatura con i vincoli di yolopit
+   (`build_pit_model(n=2)`), rapporto indipendente per maschera, da circa il 10% alla rete intera; pesi casuali,
+   export come nel deploy (IR fp16, one-to-one). Misura intera sul PI, 50 iterazioni, 3 ripetizioni.
+   Le forme che la LUT del nano non copre (D101, D170 e w0.09375, circa 2 500 punti) si aggiungono alla LUT prima
+   della misura. Larghezze 0.375, S e oltre solo in futuro: la LUT dovrebbe coprire fino a 4× i punti.
+2. Per la rete `j` e la famiglia `f`: `x_jf = Σ LUT_f(c_in, c_out)` sui suoi strati.
+3. **Ridge verso 1** con `a ≥ 0`: `min ‖y − C − X·a‖² + λ‖a − 1‖²`, `λ` con cross-validation a 5 fold. Forma chiusa,
+   niente gradient descent. Le famiglie che variano sempre insieme (correlazione > 0,98) condividono un solo `a`.
+4. **Verifica** su reti tenute fuori (test diviso per architettura), confrontata con due stimatori più semplici:
+   somma della LUT + `C` (`a_f` = 1) e `C + β·MAC`.
+
+Se gli `a_f` non bastano, l'alternativa più fedele è misurare la latenza degli strati dentro la rete con i
+performance counter di OpenVINO sulle reti B4-R. Prima della misura di B4-R si fa comunque il profiling per nodo di
+un nano intero e di un potato, per vedere quanto pesano concat, add, upsample e maxpool sul PI.
+
+#### Integrazione con PIT (da decidere)
+
+- `pit.n` = 2, uguale al passo della LUT: ogni scelta discreta di PIT cade su un punto misurato.
+- Per il gradiente la LUT si interpola (lineare fra i punti della griglia) sul numero di canali atteso dalle maschere
+  morbide di PIT.
+- In alternativa: search con la sola parte liscia (`C + Σ β·MAC`) e, dopo la search, ricerca locale strato per strato
+  (qualche passo in più o in meno) verso il valore che costa meno secondo la LUT.
+- Il costo passa da PLiNIO come costo `latency` sullo stesso modello, con un obiettivo DUCCIO in ms invece che in
+  percentuale di calcoli.
 
 **Run**:
 
-| run | cosa misura | dove |
+| run | cosa | stato |
 |---|---|---|
-| P4-1 | probe completi: conv 3×3, conv 1×1, depthwise, a 3–4 dimensioni di mappa prese dalle risoluzioni usate (r/2 … r/32), canali fino a 128 | PI, AGX, DX nelle loro precisioni |
-| P4-2 | probe fuori diagonale: canali in ingresso fissi e in uscita variabili, e viceversa | come sopra |
-| B4-R | circa 100 reti potate a caso partendo dai modelli da potare (2e), pesi casuali, misurate intere | come sopra |
-| L4-1 | stima dei parametri (regressione) e verifica: errore della latenza predetta sulle reti B4-R | — |
-| L4-2 | (solo se l'errore supera il 10%) un piccolo MLP che corregge il residuo della formula | — |
+| P4-1 | separabilità della LUT: 2 famiglie, scansioni 1D e griglia 2D | fatto il 05/11: rifiutata |
+| P4-2 | LUT 2D a passo 2 delle 13 famiglie del nano, poi l'estensione alle forme di B4-R | in corso dal 06/11 |
+| B4-R | 765 reti potate a caso di 15 architetture, misurate intere | reti generate il 06/11, misura dopo la LUT |
+| L4-1 | stima di `C`, `a_f` (ed eventualmente `γ`) e verifica sulle reti tenute fuori | — |
+| L4-2 | (solo se l'errore supera il 10%) un piccolo MLP che corregge il residuo | — |
 
-**Integrazione nella potatura**: il costo della search passa da PLiNIO, che ha già modelli di latenza per hardware
-specifici (con l'arrotondamento dei canali e il gradiente adatto); si aggiunge un costo `latency` sullo stesso
-modello e un obiettivo DUCCIO espresso in ms invece che in percentuale di calcoli.
+**Cosa ci aspettiamo**: \<esempio>errore sotto il 10% sul PI; gli `a_f` vicini a 1 sulle mappe piccole e sotto 1 su
+quelle grandi, dove la cache conta di più.\</esempio>
 
-**Cosa ci aspettiamo**: \<esempio>errore sotto il 10% su PI; più difficile su AGX, dove le fusioni e le scelte di TensorRT sono
-meno prevedibili (lì potrebbe servire L4-2).\</esempio>
+**Limiti da dichiarare**: strati misurati da soli, non dentro la rete (lo correggono `C` e `a_f`); temperatura letta
+dopo ogni misura, non durante; le prove preliminari del 05–06/11 sono senza ventola, la LUT con la ventola.
 
 ### 4b. Potatura (circa 2 settimane)
 
@@ -936,7 +1093,7 @@ meno prevedibili (lì potrebbe servire L4-2).\</esempio>
 - **La potatura lavora sulla leva che rende di più (tasso di cambio, 2c)**, alla risoluzione di deploy a cui il
   dispositivo è stretto.
 - Il costo che guida la potatura (PIT) è o il **numero di calcoli** (il metodo classico) o lo **stimatore** del
-  dispositivo (4a), con canali potati a blocchi di `g`.
+  dispositivo (4a); sul PI con `pit.n` = 2, il passo della LUT.
 - Dopo la potatura il modello si riallena per recuperare precisione (finetune).
 
 **Run: potatura e finetune (seed 0)**. Ogni search `S4-xx` è seguita dal suo finetune `FT4-xx`. `B` è il budget del

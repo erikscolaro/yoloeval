@@ -42,7 +42,7 @@ Per ogni forma d'ingresso (c_in, mappa) si misurava una rete identità (ingresso
    meno un'identità misurata 0,022 invece di 0,013, dà 0,028 netti invece di 0,037 (−24%).
 
 Prima ancora, nella prova di separabilità, sottrarre l'identità peggiorava il fit: nella famiglia A i punti
-entro soglia scendevano dal 71 al 47% (`STIMATORE_LATENZA_PI.md`, sezione 6).
+entro soglia scendevano dal 71 al 47% (`NEW_MASTERPLAN.md`, 4a; [`separability`](../separability)).
 
 ## Decisione
 

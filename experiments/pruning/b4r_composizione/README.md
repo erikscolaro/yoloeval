@@ -2,7 +2,7 @@
 
 Questo esperimento stima i parametri del modello che passa dalla LUT di latenza per strato
 ([`lut_pi_passo2`](../lut_pi_passo2)) alla latenza della rete intera, e ne verifica l'errore. Sono le reti
-B4-R del masterplan (`NEW_MASTERPLAN.md`, sezione 11; `STIMATORE_LATENZA_PI.md`, sezione 7).
+B4-R del masterplan (`NEW_MASTERPLAN.md`, sezione 11, 4a, «Dalla LUT alla latenza della rete»).
 
 ```
 latenza_rete = C + Σ_f a_f · Σ_{strati in f} LUT_f(c_in, c_out)

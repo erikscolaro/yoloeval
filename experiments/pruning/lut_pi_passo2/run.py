@@ -36,7 +36,7 @@ from _lib import ROOT as REPO  # noqa: E402
 OUT = Path(__file__).resolve().parent
 RES = OUT / "results"
 
-# family -> (kernel, stride, output map, layers as (c_in max, c_out max)); from STIMATORE_LATENZA_PI.md, sec. 4
+# family -> (kernel, stride, output map, layers as (c_in max, c_out max)); from NEW_MASTERPLAN.md, 4a, "Strati potabili del nano e griglia"
 FAMILIES = {
     "k1s1_20": (1, 1, 20, [(128, 64), (128, 128), (256, 128), (256, 256), (384, 256), (512, 256)]),
     "k1s1_40": (1, 1, 40, [(64, 32), (64, 64), (128, 128), (192, 128), (384, 128)]),

@@ -4,7 +4,7 @@
                     # (../lut_pi_passo2/results/lut_<family>.csv) -> results/fit.json, results/predictions.csv
 
 - y_j = median of the repeats of net j; x_jf = sum of the LUT medians of its layers in family f.
-- Ridge towards 1 with a_f >= 0 (STIMATORE_LATENZA_PI.md, section 7): min |y - C - X a|^2 + lam |a - 1|^2,
+- Ridge towards 1 with a_f >= 0 (NEW_MASTERPLAN.md, 4a, "Dalla LUT alla latenza della rete"): min |y - C - X a|^2 + lam |a - 1|^2,
   solved as a bounded least-squares problem (scipy lsq_linear); lam by 5-fold cross-validation on the
   training nets. Columns that always move together (correlation > MERGE_R on the training nets) share one a.
 - Test: HOLDOUT of the random nets, never used in the fit, plus the unpruned nano ("full").
