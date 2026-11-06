@@ -53,23 +53,66 @@ Le condizioni sono quelle del deploy, da `conf/hardware/rpi5.yaml`, `conf/backen
 
 - Una sola conv con pesi casuali (seme fisso per rete), bias e SiLU, come le Conv di YOLO26
   esportate con la BN fusa. La SiLU è scritta come Sigmoid·Mul, come nell'export ONNX.
+- Ingresso, uscita, pesi e bias sono in **fp16**, la precisione usata in inferenza: fp16 → fp16.
+  Nel grafo compilato non c'è nessun `Convert` (`results/fusion.json`, `converts` vuoto per tutte le
+  reti provate). La conversione fp32 → fp16 dell'ingresso fa parte del preprocessing, non dello
+  strato, e se serve si misurerà a parte.
+- Ingresso e uscita delle conv sono in **NHWC**, il layout che il plugin CPU ARM usa all'interno.
+  L'ONNX resta NCHW: il PrePostProcessor di OpenVINO dichiara i tensori NHWC e la rete è salvata come
+  IR (`.xml` + `.bin`, funzione `to_ir` di `run.py`). Con l'ONNX NCHW, invece, OpenVINO eseguiva a
+  ogni inferenza un `Reorder` NCHW → NHWC sull'ingresso e uno NHWC → NCHW sull'uscita. Nel nano
+  questi riordini non ci sono, perché fra uno strato e l'altro i tensori restano NHWC. Su 160×160
+  costavano più della conv: 290 + 745 µs contro 381.
+- **Cosa gira a ogni inferenza.** I performance counter (`PERF_COUNT`, ventesima inferenza,
+  `results/fusion.json`) mostrano solo `Convolution` e `Subgraph` (la SiLU), in f16, per tutte le
+  famiglie provate. Il `Reshape` sui pesi è preparato alla compilazione e non compare.
 - Le conv 3×3 hanno padding 1, le 1×1 nessun padding. Per le stride 2 l'ingresso è il doppio della
   mappa d'uscita.
-- Una rete identità per ogni forma d'ingresso (c_in, mappa d'ingresso), per stimare il costo fisso:
-  622 forme.
 - Ogni rete viene costruita al momento e copiata sul Pi subito prima della sua misura, perché le
   reti sono più di 70 mila.
 
 **La SiLU non è fusa nella conv** (`check_fusion.py`, `results/fusion.json`). Nel grafo compilato da
-OpenVINO sul Pi (CPU ARM, f16) la conv con il bias è un nodo `Convolution`, mentre la SiLU finisce in
-un nodo `Subgraph` (snippets, Swish) separato. Vale per tutte le famiglie provate: 1×1 e 3×3, stride
+OpenVINO sul Pi (CPU ARM, f16) restano due nodi, tutti e due in f16: la conv con il bias in un nodo
+`Convolution` e la SiLU in un nodo `Subgraph` (snippets, Swish) separato. Vale per tutte le famiglie provate: 1×1 e 3×3, stride
 1 e 2, compresa la stem.
 
 Il nano vero, compilato sul Pi nello stesso modo, fa lo stesso: 102 nodi `Convolution` e 101
 `Subgraph` con la Swish. La LUT misura quindi lo strato come gira dentro la rete, cioè la conv più un
 nodo di attivazione a parte. Nella rete però quel `Subgraph` può contenere anche altre operazioni
-elementari dopo la SiLU. Nella rete di misura ci sono inoltre le conversioni f32 → f16 all'ingresso
-e f16 → f32 all'uscita: anche questo costo, in parte, lo misura la rete identità.
+elementari dopo la SiLU.
+
+Il nano vero non ha conversioni fra gli strati. In tutto il grafo compilato (484 nodi) c'è un solo
+f32 → f16, al nodo 2, sull'immagine in ingresso. Backbone e neck girano interamente in f16: 290
+nodi di calcolo. Nodi in f32 o int32 compaiono solo dal nodo 445, nel post-processing della Detect
+(TopK, gather, divisioni), che non viene potato e finisce nella costante C.
+
+**Costo fisso per inferenza: lo assorbe C, niente reti identità.** benchmark_app misura ogni inferenza
+dalla chiamata `infer()` al ritorno. Dentro c'è lo strato, ma anche un lavoro fisso di OpenVINO a ogni
+chiamata: avvio della richiesta, risveglio e sincronizzazione dei 4 thread, ritorno del risultato. Nel
+nano vero si paga una volta per immagine, mentre sommando i 102 strati della LUT lo si conta 102 volte.
+
+PIT pota solo canali, quindi i 102 strati ci sono sempre e quel costo entra nella somma sempre 102
+volte, qualunque sia la potatura. È una costante, e la assorbe C nel fit sui nani potati (B4-R): non
+serve sottrarlo strato per strato. Le identità a 2 canali di `warmup.py` danno circa 0,013 ms a chiamata,
+uguale a 20, 40 e 80 di mappa (0,0128, 0,0131, 0,0134 ms).
+
+Il piano iniziale prevedeva 622 reti identità, una per forma d'ingresso, da sottrarre forma per forma.
+Sono state tolte il 06/11 per due motivi. Primo, sulle forme grandi l'identità copia tutto l'ingresso
+(0,76 ms a 160×160×64), una copia che la conv non fa: la sottrazione toglierebbe un costo che lo strato
+non paga, e che dipende da c_in, quindi C non lo compenserebbe. Secondo, con 200 iterazioni le identità
+piccole escono gonfiate dal warmup del 47–76% (sezione Warmup). Decisione e prove per esteso in
+[`DECISIONE_IDENTITA.md`](DECISIONE_IDENTITA.md). Ipotesi non verificata: il costo per
+chiamata di una rete conv (NHWC) non dipende dai canali; per assorbirlo in C basta questo.
+
+**Versioni scartate**, i cui dati sono stati cancellati il 05/11 su richiesta. Tutte e tre sono state
+lanciate e fermate il 05/11:
+- *I/O fp32*, dalle 18:59 alle 21:30, con pesi fp32 e calcolo f16 (`-infer_precision f16`). Il grafo
+  aveva un `Convert` f32 → f16 all'ingresso e uno f16 → f32 all'uscita, un costo che lo strato
+  dentro la rete non paga: le conv costavano dal 4 al 43% in più, di più sulle mappe grandi.
+- *I/O fp16 ma NCHW.* Fermata prima della prima misura, quando i performance counter hanno mostrato
+  i `Reorder`: senza questi le conv costano dal 10 al 58% in meno.
+- *I/O fp16 NHWC senza le singole inferenze*, alle 21:48, per circa 600 misure. Fermata per salvare
+  anche il tempo di ogni inferenza (`bench_dump.py`).
 
 ## Famiglie e griglia
 
@@ -91,14 +134,14 @@ massime (c_in, c_out) degli strati del nano:
 | `k3s2_80` | (64,64) | 1 089 |
 | `k3s2_160` | (16,32) | 153 |
 | `k3s2_320` (stem) | (3,16), con c_in fisso a 3 | 9 |
-| **totale** | | **69 989** (+ 622 identità) |
+| **totale** | | **69 989** |
 
 La griglia di una famiglia è l'unione, sugli strati, dei punti con c_in ∈ {1, 2, 4, 6, …, c_in max}
 e c_out ∈ {1, 2, 4, 6, …, c_out max}: cioè 1, tutti i pari e il massimo.
 
 ## Protocollo
 
-- 3 ripetizioni per punto, in tutto 211 833 misure.
+- 3 ripetizioni per punto, in tutto 209 967 misure.
 - L'ordine di tutti i punti di tutte le famiglie è mescolato con seme 0 e rimescolato a ogni
   ripetizione. Così una deriva non si concentra su una famiglia o su una zona della griglia.
 - Ogni misura è scritta subito in `results/raw.csv`, in append. Lo script riprende da dove si era
@@ -108,32 +151,116 @@ e c_out ∈ {1, 2, 4, 6, …, c_out max}: cioè 1, tutti i pari e il massimo.
 - Il processo gira staccato da Claude e dal terminale, come unit systemd utente
   `lut-pi-passo2.service` (`launch.sh`). Dopo un errore riparte da solo, fino a 20 volte.
 
-**Pilota.** Su 100 punti a caso: 0,67 s a misura senza pause termiche (67 s, massimo 70 °C), per
-una stima di 39 h. Con le pause attese senza ventola la durata cresce: con gli 1,65 s a misura della
-separabilità sarebbero circa 97 h.
+**Pilota** (I/O fp16 NHWC, 05/11 verso le 21:50): 0,62 s a misura, senza pause termiche (massimo 73 °C),
+per una stima di 36,5 h. Il primo lancio (I/O fp32) era sceso dopo due ore a 2,5 s a misura, con il
+75% del tempo in attesa termica: senza ventola il ritmo lo decide il raffreddamento, quindi la
+durata reale sarà più lunga.
 
 ```bash
 ITERS=200 python run.py pilot 100     # stima della durata (results/pilot.csv)
 python check_fusion.py                # SiLU fusa o no nel grafo compilato (results/fusion.json)
 systemd-run --user --unit=lut-pi-passo2 --working-directory=$PWD ./launch.sh   # misura completa
 systemctl --user status lut-pi-passo2; tail -f runs/run.log; cat results/status.json
+systemctl --user stop lut-pi-passo2   # ferma e ripristina la board (run.py tratta SIGTERM come Ctrl-C)
 python analyze.py                     # LUT, riepilogo, heatmap
 python log_wandb.py                   # run su wandb yolo-bench
 ```
 
+## Warmup di benchmark_app (`warmup.py`, 06/11)
+
+**Domanda.** Le prime inferenze di ogni misura sono più lente: per quanto tempo, e la mediana su 200
+iterazioni lo assorbe davvero? Un primo tentativo a 2000 iterazioni (`transient.py`) non si chiude senza
+ventola: sulle reti da 3 ms il Pi arriva a 82 °C e la misura si ripete all'infinito. Fermato a 12/84.
+
+**Come.** 19 reti fra 0,013 e 3 ms: le identità più piccole e più grandi di ogni mappa, più conv scelte
+dal pilota. Ognuna gira 2 s (`-t 2` al posto di `-niter`). 5 ripetizioni in ordine mescolato: nelle
+ripetizioni 3 e 4 il Pi resta fermo 10 s prima della misura. 95 misure in 21 minuti (06/11, 00:09–00:30),
+15 ripetute dopo una pausa termica. Regime = mediana dell'ultimo secondo. Transitorio = primo istante da
+cui 3 finestre di fila (max(20 iterazioni, 10 ms)) hanno la mediana entro il 2% del regime. Il tempo è
+stimato: alle latenze si aggiunge un intervallo uniforme fra le inferenze, perché la durata reale non viene
+salvata. wandb run `jgq9syim` (misure, analisi e verifica; `fz2d692t` è la prima versione, senza verifica).
+
+**Risultati** (`results/warmup.json`, `figures/warmup.png`):
+- **Il warmup dura un tempo fisso, non un numero di iterazioni:** circa 20 ms (mediana 17, p90 33,
+  massimo 58), da 0 a 1540 iterazioni secondo la rete. Nella figura le curve si sovrappongono sull'asse
+  del tempo e scendono a gradino intorno a 20 ms, non in modo graduale.
+- **La pausa di 10 s non cambia nulla:** transitorio mediano 15 ms contro 17.
+- **Con il protocollo attuale (mediana delle prime 200 iterazioni) le reti sotto ~0,1 ms risultano
+  gonfiate:** identità a 2 canali dal +47 al +76%, `k1s1_40` 2×2 +28%, `id20` 512×512 +27%. Sopra 0,1 ms
+  l'errore è sotto l'1,5%. Per questo, e per il motivo nella sezione Costo fisso, le identità sono
+  uscite dal piano.
+- **Scartando i primi 50 ms e prendendo la mediana dei 200 ms dopo,** l'errore rispetto al regime è dello
+  0,16% in mediana, dello 0,66% al p90 e del 2,8% al massimo.
+- **Cosa non torna:** fra una ripetizione e l'altra il regime delle identità più piccole (circa 0,013 ms)
+  varia del 10–12%, cioè di circa 1,5 µs, anche senza warmup. Una ripetizione di `k1s1_160` 48×64 viene
+  2,75 ms invece di 3,09 (−11%) alla stessa temperatura.
+
+**Correzione: warmup a tempo in `bench_dump.py`.** benchmark_app fa una sola inferenza di riscaldamento
+(`Benchmark.first_infer`) prima del ciclo misurato. `bench_dump.py` la ripete per 60 ms (`WARMUP_MS`): le
+200 iterazioni partono già a regime, per qualunque rete, senza stimare prima la latenza. Costa circa 60 ms a
+misura: la durata stimata passa da circa 36,5 a circa 40 h.
+
+**Verifica** (`warmup.py check`, 06/11 verso le 00:50): le stesse 19 reti con il protocollo della LUT
+(200 iterazioni) più il warmup da 60 ms, 3 ripetizioni, confrontate con il regime delle misure da 2 s
+(`results/warmup_check.json`):
+- **il bias del warmup sparisce:** le identità a 2 canali passano da +47/+76% a errori fra −8 e +10% di
+  segno misto, `k1s1_40` 2×2 da +28% a fra −3 e +0,5%;
+- **conv:** errore mediano 0,7%, p90 2,6%, massimo 10,4%. Senza `k1s1_160` 48×64: mediana 0,6%, massimo 2,9%;
+- **cosa non torna:** `k1s1_160` 48×64 sembra avere due regimi, circa 3,09 ms oppure 2,75–2,78 ms (−10%).
+  Succede in 1 ripetizione su 5 delle misure da 2 s e in 2 su 3 della verifica, quindi non è warmup. Da
+  capire prima della LUT: con 3 ripetizioni la mediana sceglie uno dei due regimi a caso. Gli errori residui
+  delle identità piccole (fino a −23% per `id320` 2×2) somigliano alla variabilità fra ripetizioni già vista
+  nelle misure da 2 s (10–12%); le identità non sono più nel piano.
+
+**Quanto guadagna la LUT** (`warmup.py pilot`, 06/11 verso le 01:05): le 97 conv del pilota, distribuite
+come la LUT, rimisurate 2 volte con il warmup da 60 ms e confrontate con i valori del pilota
+(`results/warmup_pilot.json`):
+- 3 punti su 97 erano molto sbagliati e ora sono corretti, tutti conv sotto 0,15 ms: `k1s1_40` 36×6 +98%,
+  `k1s1_20` 178×4 +80%, `k1s1_20` 26×8 +38%;
+- sugli altri 94 non cambia nulla: differenza mediana 0,0%, massima +3,9%, dentro il rumore fra
+  ripetizioni (mediana 0,75%, p90 2%);
+- sulla somma delle latenze dei 97 punti l'effetto è +0,4%.
+
+```bash
+python warmup.py measure; python warmup.py analyze; python warmup.py check; python warmup.py pilot
+python warmup.py log
+```
+
+## Due regimi di `k1s1_160` 48×64 (`bimodal.py`, 06/11)
+
+Con il protocollo della LUT (200 iterazioni, warmup da 60 ms) la rete misurata 20 volte dà 2,77–2,82 ms in 5
+misure e 3,07–3,12 ms nelle altre 15. Dentro una misura il regime non cambia (seconda metà / prima metà =
+1,000 ± 0,004): si decide all'avvio. Le 4 reti vicine misurate 10 volte (`k1s1_160` 32×32 e 48×62,
+`k3s1_160` 8×16, `k1s1_80` 58×126) non hanno due regimi. 48×62 costa 4,0 ms, più di 48×64.
+
+Sonde sul Pi, con 3 processi e 8 compilazioni per rete in ciascuno:
+- **v1** (`PERFORMANCE_HINT LATENCY`, ingresso lasciato a OpenVINO): kernel sempre `gemm_acl_f16`;
+  48×64 sempre fra 3,37 e 3,41 ms, regime veloce mai visto;
+- **v2** (impostazioni di benchmark_app, ingresso nuovo a ogni compilazione con l'indirizzo registrato):
+  48×64 fra 3,35 e 3,76 ms, regime veloce mai visto, nessun legame chiaro con l'allineamento dei buffer.
+
+Le sonde sono più lente di benchmark_app (3,4–3,6 contro 3,09 ms) e non lo riproducono: la causa resta
+aperta. Non è la scelta del kernel. Nel pilota rimisurato (97 punti, 2 ripetizioni) nessun punto differisce
+più del 5,2% fra le due ripetizioni: i punti bimodali sono pochi.
+
+```bash
+python bimodal.py measure; python bimodal.py compile; python bimodal.py analyze
+```
+
 ## Durata reale e risultati
 
-Avvio: 05/11/2026 alle 18:59. Da completare a fine misura.
+Non ancora lanciata. Il lancio del 05/11 alle 21:48 (I/O fp16 NHWC, un'inferenza di warmup) è stato fermato
+alle 22:06 per la prova del warmup. Avvio previsto con la ventola montata, dopo un pilota di 100 punti.
 
 ## Limiti
 
-- **Niente ventola.** Le pause termiche allungano la misura. Se il throttling scatta, la misura viene
+- **Ventola.** Le prove del 05–06/11 (pilota, warmup, bimodal) sono senza ventola; la LUT girerà con la
+  ventola. Le pause termiche allungano la misura. Se il throttling scatta, la misura viene
   ripetuta; quante volte è successo è in `status.json` e `summary.json`.
 - **Strati misurati da soli, non dentro la rete.** Cache, layout e fusioni con gli strati vicini
   sono diversi. Lo correggerà la composizione con C e a_f (B4-R).
 - **SiLU non fusa nella conv**, sia qui sia nel nano vero: la LUT comprende il nodo di attivazione
   separato.
-- **Conversioni f32 ↔ f16** all'ingresso e all'uscita della rete di misura.
 - **Temperatura** letta dopo ogni misura, non durante.
 
 ## Percorsi
@@ -142,9 +269,12 @@ Avvio: 05/11/2026 alle 18:59. Da completare a fine misura.
 |---|---|
 | `run.py`, `launch.sh` | misura (pilota e completa), lancio staccato |
 | `check_fusion.py` | verifica della fusione della SiLU |
+| `bimodal.py` | indagine sui due regimi di `k1s1_160` 48×64 |
+| `DECISIONE_IDENTITA.md` | perché la LUT non misura né sottrae le reti identità (06/11) |
+| `warmup.py`, `transient.py` | durata del warmup di benchmark_app (`transient.py` non si chiude senza ventola) |
 | `analyze.py`, `log_wandb.py` | analisi e upload |
 | `results/raw.csv` | una riga per misura: famiglia, kernel, stride, mappa, c_in, c_out, ripetizione, ms, temperatura, frequenza, throttling, timestamp |
-| `results/lut_<famiglia>.csv`, `results/lut_identity.csv` | mediana, min, max e dispersione relativa per punto |
+| `results/lut_<famiglia>.csv` | mediana, min, max e dispersione relativa per punto |
 | `results/summary.json`, `results/status.json`, `results/env.json`, `results/fusion.json` | riepilogo, avanzamento, ambiente, fusione |
 | `figures/heatmap_<famiglia>.png` | latenza mediana per famiglia (c_in × c_out, scala logaritmica) |
 | `runs/run.log`, `runs/pilot.log` | log (ignorati da git) |

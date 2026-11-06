@@ -1,6 +1,6 @@
 """Analysis of results/raw.csv (run.py): one LUT per family, summary, heatmaps.
 
-  python analyze.py [raw.csv]   -> results/lut_<family>.csv, results/lut_identity.csv, results/summary.json,
+  python analyze.py [raw.csv]   -> results/lut_<family>.csv, results/summary.json,
                                    figures/heatmap_<family>.png
 """
 from __future__ import annotations
@@ -42,7 +42,7 @@ def main():
 
     RES.mkdir(exist_ok=True)
     FIG.mkdir(exist_ok=True)
-    fams = sorted({k[0] for k in pts}, key=lambda f: (f.startswith("id"), f))
+    fams = sorted({k[0] for k in pts})
     ts = [datetime.fromisoformat(r["timestamp"]) for r in rows]
     summary = {"measures": len(rows), "points": len(pts),
                "start": min(ts).isoformat(), "end": max(ts).isoformat(),
@@ -52,12 +52,6 @@ def main():
                "temp_max_c": max(float(r["temp_c"]) for r in rows),
                "freq_khz": sorted({int(r["freq_khz"]) for r in rows}),
                "families": {}}
-    ident = [(k, p) for k, p in pts.items() if k[0].startswith("id")]
-    with open(RES / "lut_identity.csv", "w", newline="") as fh:
-        w = csv.writer(fh)
-        w.writerow(["map_in", "c", "median_ms", "min_ms", "max_ms", "spread_rel", "n"])
-        for (f, ci, _), p in sorted(ident, key=lambda x: (int(x[0][0][2:]), x[0][1])):
-            w.writerow([int(f[2:]), ci, p["ms"], p["min"], p["max"], round(p["spread"], 5), p["n"]])
     for f in fams:
         P = {(ci, co): p for (ff, ci, co), p in pts.items() if ff == f}
         noise = float(np.median([p["spread"] for p in P.values()]))
@@ -67,8 +61,6 @@ def main():
                                   "ms_min": min(p["ms"] for p in P.values()),
                                   "ms_max": max(p["ms"] for p in P.values()),
                                   "n_anomalous": len(anom), "anomalous": anom[:50]}
-        if f.startswith("id"):
-            continue
         with open(RES / f"lut_{f}.csv", "w", newline="") as fh:
             w = csv.writer(fh)
             w.writerow(["c_in", "c_out", "median_ms", "min_ms", "max_ms", "spread_rel", "n"])

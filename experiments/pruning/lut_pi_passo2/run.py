@@ -3,7 +3,12 @@
 OpenVINO fp16 (-infer_precision f16), 4 cores, governor performance, 2.4 GHz: same config, board tuning
 (src.measure.board.tuned) and benchmark_app command (backend.build_cmd + _wrap_command) as
 src/stages/probe.py and pruning/separability. One conv + bias + SiLU per net (as the exported Conv with BN
-fused), plus an identity net per input shape. Each net is built here and copied to the Pi right before its
+fused), plus an identity net per input shape. Input, output, weights and bias are fp16, the precision used at
+inference: no f32<->f16 Convert in the compiled graph (that belongs to the preprocessing). Input and output
+tensors are NHWC (PrePostProcessor, saved as IR), the layout the ARM CPU plugin uses inside: no NCHW<->NHWC
+Reorder either. At every inference only the Convolution and the SiLU Subgraph run. benchmark_app runs through
+bench_dump.py, which also prints the latency of every iteration: saved in runs/latencies_<raw|pilot>.txt, one line per
+measure, so the LUT can be re-aggregated later. Each net is built here and copied to the Pi right before its
 measurement (70k nets: no bulk copy).
 
   ITERS=200 python run.py pilot 100   # time per measure on 100 random points, estimate of the total
@@ -65,16 +70,15 @@ def in_map(f: str) -> int:
 
 
 def points() -> list[tuple]:
-    """(family, kind, c_in, c_out) in a fixed order; identity nets use family 'id<input map>'."""
-    pts, ids = [], set()
+    """(family, "conv", c_in, c_out) in a fixed order. No identity nets: the per-call fixed cost is the same
+    for every layer and all layers always exist, so the constant C absorbs it (README, Costo fisso)."""
+    pts = []
     for f, (_, _, _, layers) in FAMILIES.items():
         s = set()
         for ci, co in layers:
             s |= {(a, b) for a in ([ci] if f in FIXED_CIN else axis(ci)) for b in axis(co)}
         pts += [(f, "conv", ci, co) for ci, co in sorted(s)]
-        ids |= {(in_map(f), ci) for ci, _ in s}
-    pts += [(f"id{hw}", "identity", ci, ci) for hw, ci in sorted(ids)]
-    assert sum(p[1] == "conv" for p in pts) == N_CONV
+    assert len(pts) == N_CONV
     return pts
 
 
@@ -86,18 +90,19 @@ def geometry(f: str, kind: str) -> tuple[int, int, int]:
 def build(f, kind, ci, co) -> bytes:
     import onnx
     from onnx import TensorProto, helper, numpy_helper
+    FP16 = TensorProto.FLOAT16
     if kind == "identity":
         hw = int(f[2:])
-        inp = helper.make_tensor_value_info("input", TensorProto.FLOAT, [1, ci, hw, hw])
-        out = helper.make_tensor_value_info("output", TensorProto.FLOAT, [1, ci, hw, hw])
+        inp = helper.make_tensor_value_info("input", FP16, [1, ci, hw, hw])
+        out = helper.make_tensor_value_info("output", FP16, [1, ci, hw, hw])
         nodes, inits = [helper.make_node("Identity", ["input"], ["output"], name="output")], []
     else:
         k, s, hw, _ = FAMILIES[f]
-        inp = helper.make_tensor_value_info("input", TensorProto.FLOAT, [1, ci, hw * s, hw * s])
-        out = helper.make_tensor_value_info("output", TensorProto.FLOAT, [1, co, hw, hw])
+        inp = helper.make_tensor_value_info("input", FP16, [1, ci, hw * s, hw * s])
+        out = helper.make_tensor_value_info("output", FP16, [1, co, hw, hw])
         rng = np.random.default_rng([k, s, hw, ci, co])        # deterministic per net
-        w = rng.normal(0, 1 / np.sqrt(ci * k * k), (co, ci, k, k)).astype(np.float32)
-        b = rng.normal(0, 0.1, co).astype(np.float32)
+        w = rng.normal(0, 1 / np.sqrt(ci * k * k), (co, ci, k, k)).astype(np.float16)
+        b = rng.normal(0, 0.1, co).astype(np.float16)
         inits = [numpy_helper.from_array(w, "w"), numpy_helper.from_array(b, "b")]
         nodes = [helper.make_node("Conv", ["input", "w", "b"], ["y"], name="conv", kernel_shape=[k, k],
                                   pads=[k // 2] * 4, strides=[s, s]),
@@ -108,6 +113,25 @@ def build(f, kind, ci, co) -> bytes:
     m.ir_version = 8
     onnx.checker.check_model(m)
     return m.SerializeToString()
+
+
+def to_ir(onnx_bytes: bytes, nhwc: bool = True) -> tuple[bytes, bytes]:
+    """ONNX (NCHW) -> OpenVINO IR, with NHWC input/output tensors if nhwc: (xml, bin).
+
+    Identity nets stay NCHW: with nothing in between the PrePostProcessor Transposes are not absorbed."""
+    import tempfile
+    import openvino as ov
+    from openvino.preprocess import PrePostProcessor
+    m = ov.Core().read_model(onnx_bytes, b"")
+    if nhwc:
+        pp = PrePostProcessor(m)
+        for t in (pp.input(), pp.output()):
+            t.tensor().set_layout(ov.Layout("NHWC"))
+            t.model().set_layout(ov.Layout("NCHW"))
+        m = pp.build()
+    with tempfile.TemporaryDirectory() as d:
+        ov.save_model(m, f"{d}/net.xml", compress_to_fp16=False)   # already fp16
+        return Path(f"{d}/net.xml").read_bytes(), Path(f"{d}/net.bin").read_bytes()
 
 
 def make_cfg():
@@ -167,7 +191,7 @@ def run(order: list[tuple], csv_path: Path, cfg, status_path: Path | None = None
     backend = get_backend(cfg.backend.name, cfg)
     precision = cfg.backend.benchmark.infer_precision[cfg.quantization.precision]
     remote_dir = f"{cfg.hardware.remote.workdir}/lut_pi"
-    net = f"{remote_dir}/net.onnx"
+    net = f"{remote_dir}/net.xml"
     done = set()
     if csv_path.exists():
         done = {(int(r["repeat"]), r["family"], r["kind"], int(r["c_in"]), int(r["c_out"]))
@@ -182,6 +206,7 @@ def run(order: list[tuple], csv_path: Path, cfg, status_path: Path | None = None
         bc = board_controller(cfg)
         live = _ensure_profile(conn, cfg, bc)
         ensure_support_files(live, cfg)
+        live.put(str(OUT / "bench_dump.py"), f"{remote_dir}/bench_dump.py")
         with tuned(live, cfg, bc) as applied, open(csv_path, "a", newline="") as fh:
             print("tuning:", {k: applied.get(k) for k in ("governor", "freq_actual_khz", "cores_online",
                                                           "temp_start_c")}, env, flush=True)
@@ -190,10 +215,22 @@ def run(order: list[tuple], csv_path: Path, cfg, status_path: Path | None = None
                 w.writeheader()
             ct = resolve_compute(cfg)
             n_cores = _effective_cores(live, cfg, bc, ct)
-            cmd = _wrap_command(live, cfg, backend.build_cmd(cfg, Path(net)), ct, n_cores) + STATE
+            bench = backend.build_cmd(cfg, Path(net))
+            tool = bench.split()[0]
+            assert tool.endswith("/benchmark_app"), bench
+            bench = bench.replace(tool, f"{cfg.hardware.remote.python} {remote_dir}/bench_dump.py", 1)
+            cmd = _wrap_command(live, cfg, bench, ct, n_cores) + STATE
+            print("comando:", cmd, flush=True)
+            lat_path = OUT / "runs" / f"latencies_{csv_path.stem}.txt"   # rep,family,kind,c_in,c_out,<ms per iter>
+            lat_path.parent.mkdir(exist_ok=True)
+            if new:
+                lat_path.unlink(missing_ok=True)
+            lat_fh = open(lat_path, "a")
             t0 = last_ck = time.monotonic()
             for i, (rep, f, kind, ci, co) in enumerate(todo):
-                live.put(io.BytesIO(build(f, kind, ci, co)), net)
+                xml, bin_ = to_ir(build(f, kind, ci, co), nhwc=kind == "conv")
+                live.put(io.BytesIO(xml), net)
+                live.put(io.BytesIO(bin_), net[:-4] + ".bin")
                 remeasured = 0
                 while True:
                     r = live.run(cmd, hide=True, warn=True)
@@ -209,6 +246,10 @@ def run(order: list[tuple], csv_path: Path, cfg, status_path: Path | None = None
                     while bc.read_temp(live) > TEMP_RESUME_C:
                         time.sleep(10)
                 lat = backend.parse(r.stdout)
+                iters = next(l for l in r.stdout.splitlines() if l.startswith("LATENCIES_MS ")).split()[1:]
+                assert len(iters) == lat.iters, (len(iters), lat.iters)
+                lat_fh.write(f"{rep},{f},{kind},{ci},{co}," + " ".join(iters) + "\n")
+                lat_fh.flush()          # before raw.csv: on resume a measure is redone, analysis keeps the last line
                 k, s, hw = geometry(f, kind)
                 w.writerow({"family": f, "kind": kind, "kernel": k, "stride": s, "map": hw, "c_in": ci,
                             "c_out": co, "repeat": rep, "sequence": i, "ms": lat.median_ms,
@@ -235,6 +276,8 @@ def run(order: list[tuple], csv_path: Path, cfg, status_path: Path | None = None
 
 def main():
     import logging
+    import signal
+    signal.signal(signal.SIGTERM, signal.default_int_handler)   # systemctl stop: restore the board, as Ctrl-C
     logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(name)s: %(message)s')
     RES.mkdir(parents=True, exist_ok=True)
     pts = points()

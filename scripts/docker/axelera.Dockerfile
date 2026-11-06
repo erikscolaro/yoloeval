@@ -16,15 +16,22 @@ ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONUNBUFFERED=1
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        python3.11 python3.11-venv python3-pip \
+        python3.11 python3.11-venv python3.11-dev python3-pip \
+        build-essential protobuf-compiler libprotobuf-dev \
         libgl1 libglib2.0-0 ca-certificates curl git \
     && rm -rf /var/lib/apt/lists/*
 
 RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1
 
-COPY scripts/requirements/axelera-container.txt /tmp/requirements.txt
+# torch prima del resto e dall'indice CPU, come in rpi5.sh: quello di PyPI per aarch64 e' la
+# build CUDA e si porta dietro GB di nvidia-* e cuda-toolkit inutili sul Pi. Con torch gia'
+# installato, il vincolo torch>=2.8,<2.13 dei requirements e' soddisfatto e pip non lo tocca.
 RUN python3 -m pip install --upgrade pip wheel \
-    && sed -i "s/==1\.8\.0/==${SDK_VERSION}/g" /tmp/requirements.txt \
+    && python3 -m pip install "torch>=2.8,<2.13" torchvision \
+        --index-url https://download.pytorch.org/whl/cpu
+
+COPY scripts/requirements/axelera-container.txt /tmp/requirements.txt
+RUN sed -i "s/==1\.8\.0/==${SDK_VERSION}/g" /tmp/requirements.txt \
     && python3 -m pip install --extra-index-url "${AXELERA_INDEX}" \
         -r /tmp/requirements.txt
 

@@ -205,8 +205,9 @@ Costo con 1,57 s a misura (pause termiche comprese, senza ventola):
 Protocollo della misura (affidata a un agente sul computer aziendale, in `~/lut_pi_passo2_<data>/` con README):
 
 - rete di misura: una sola conv con bias e SiLU, come le Conv di YOLO26 esportate con la BN fusa (verificare nel
-  grafo compilato che la SiLU sia fusa); stride 2 con ingresso doppio della mappa d'uscita e padding 1; rete identità
-  per ogni forma d'ingresso;
+  grafo compilato che la SiLU sia fusa); stride 2 con ingresso doppio della mappa d'uscita e padding 1; niente reti
+  identità: il costo fisso per chiamata è uguale per tutti gli strati e lo assorbe C (tolte il 06/11, vedi il
+  README dell'esperimento);
 - 200 iterazioni, 3 ripetizioni, ordine di tutti i punti di tutte le famiglie mescolato con seed fisso e rimescolato a
   ogni ripetizione;
 - pausa e ripetizione sopra 75 °C; condizioni registrate a ogni misura; Pi senza ventola (limite da dichiarare);
