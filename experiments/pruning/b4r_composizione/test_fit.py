@@ -32,3 +32,13 @@ def test_merge_groups_joins_collinear_columns():
     base = rng.uniform(1, 2, 50)
     X = np.stack([base, 2 * base + 1e-4 * rng.normal(size=50), rng.uniform(1, 2, 50)], 1)
     assert fit.merge_groups(X, ["a", "b", "c"]) == [[0, 1], [2]]
+
+
+def test_solve_one_c_per_architecture():
+    rng = np.random.default_rng(3)
+    X = rng.uniform(0.5, 5, (90, 3))
+    arch = ["p", "q", "r"] * 30
+    C = {"p": 2.0, "q": 5.0, "r": 9.0}
+    y = np.array([C[k] for k in arch]) + X @ np.array([0.9, 1.1, 0.7]) + rng.normal(0, 0.01, 90)
+    c, a = fit.solve(X, y, 0.0, fit.onehot(arch, ["p", "q", "r"]))
+    assert np.allclose(c, [2, 5, 9], atol=0.05) and np.allclose(a, [0.9, 1.1, 0.7], atol=0.02)
