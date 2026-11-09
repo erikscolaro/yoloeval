@@ -59,7 +59,7 @@ def main():
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
     from matplotlib.colors import TwoSlopeNorm
-    from tools.plots import STYLE, color
+    from tools.plots import STYLE, color, save
     plt.style.use(STYLE)
 
     RES.mkdir(exist_ok=True)
@@ -120,32 +120,31 @@ def main():
         csv.writer(fh).writerows([["family", "c_in", "c_out", "ms", "rel_err_c"]] + fails)
 
     # heatmaps: rows = family, cols = (b) fit residual, (c) 1D prediction error, in %
-    fig, axes = plt.subplots(2, 2, figsize=(W2, 6.4), constrained_layout=True)
+    fig, axes = plt.subplots(2, 2, figsize=(W2, 0.92 * W2))
     for r, f in enumerate(("A", "B")):
-        for c, (key, title) in enumerate((("err_b", "modello additivo"), ("err_c", "predizione dalle scansioni"))):
+        for c, (key, title) in enumerate((("err_b", "additivo"), ("err_c", "dalle scansioni"))):
             ax = axes[r][c]
             E = 100 * A[f][key]
             if key == "err_c":
                 E = np.where(trivial, np.nan, E)
             lim = max(1.0, np.nanmax(np.abs(E)))
             im = ax.imshow(E, cmap="RdBu_r", norm=TwoSlopeNorm(0, -lim, lim), origin="lower")
-            ax.set_xticks(range(len(G)), G, rotation=90, fontsize=7)
-            ax.set_yticks(range(len(G)), G, fontsize=7)
+            ax.set_xticks(range(len(G)), G, rotation=90, fontsize=7.5)  # 18 irregular grid values: all of them
+            ax.set_yticks(range(len(G)), G, fontsize=7.5)
+            ax.grid(False)
             ax.set_xlabel("$c_\\mathrm{out}$")
             ax.set_ylabel("$c_\\mathrm{in}$")
             n2 = 200 * summary[f]["noise_rel"]
-            ax.set_title(f"({'abcd'[2 * r + c]}) {'A, 1×1 a 40×40' if f == 'A' else 'B, 3×3 a 20×20'}: {title}", loc="left", fontsize=8)
-            cb = fig.colorbar(im, ax=ax, shrink=0.85)
-            cb.set_label("errore relativo in %", fontsize=7)
+            ax.set_title(f"({'abcd'[2 * r + c]}) {'A, 1×1 @40' if f == 'A' else 'B, 3×3 @20'}: {title}", loc="left", fontsize=9)
+            cb = fig.colorbar(im, ax=ax, fraction=0.046, pad=0.03)  # as tall as the square image
+            cb.set_label("errore in %")
             if key == "err_c":         # mark points outside 2x noise
                 yy, xx = np.where(np.abs(E) > n2)
                 ax.scatter(xx, yy, s=4, c="k", marker="x", linewidths=0.6)
-    fig.savefig(FIG / "heatmap_residui.png", dpi=200)
-    fig.savefig(FIG / "heatmap_residui.pdf")
-    plt.close(fig)
+    save(fig, FIG / "heatmap_residui")
 
     # 1D curves normalised at the reference: if separable they overlap
-    fig, axes = plt.subplots(2, 2, figsize=(W2, 5.2), constrained_layout=True, sharex=True)
+    fig, axes = plt.subplots(2, 2, figsize=(W2, 0.85 * W2), sharex=True)
     for r, f in enumerate(("A", "B")):
         for c, scan in enumerate(("c_out", "c_in")):
             ax = axes[r][c]
@@ -157,18 +156,17 @@ def main():
                 else:
                     ys = [pts[(f, "conv", x, ref)]["ms"] / pts[(f, "conv", REF, ref)]["ms"] for x in xs]
                     lab = f"$c_\\mathrm{{out}}$ = {ref}"
-                ax.plot(xs, ys, lw=0.9, color=color("x", i), label=lab)
+                ax.plot(xs, ys, lw=1, color=color("x", i), label=lab)
             for m in range(16, 129, 16):
-                ax.axvline(m, color="#9e9e9e", lw=0.4, alpha=0.6)
+                ax.axvline(m, color="#9e9e9e", lw=0.6, alpha=0.6)
             ax.set_xticks(range(0, 129, 16))
             sym = "$c_\\mathrm{" + scan[2:] + "}$"
-            ax.set_xlabel(sym)
+            if r == 1:
+                ax.set_xlabel(sym)
             ax.set_ylabel(f"t / t({sym} = {REF})")
-            ax.set_title(f"({'abcd'[2 * r + c]}) {'A, 1×1 a 40×40' if f == 'A' else 'B, 3×3 a 20×20'}: scansione di {sym}", loc="left", fontsize=8)
-            ax.legend(fontsize=7)
-    fig.savefig(FIG / "curve_1d_normalizzate.png", dpi=200)
-    fig.savefig(FIG / "curve_1d_normalizzate.pdf")
-    plt.close(fig)
+            ax.set_title(f"({'abcd'[2 * r + c]}) {'A, 1×1 a 40×40' if f == 'A' else 'B, 3×3 a 20×20'}: scansione di {sym}", loc="left", fontsize=9)
+            ax.legend(loc="upper left" if scan == "c_out" else "lower right", handlelength=1.2)
+    save(fig, FIG / "curve_1d_normalizzate")
     print(json.dumps(summary, indent=1))
 
 

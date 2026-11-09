@@ -32,7 +32,15 @@ def _style():
 
 
 def _panel(ax, letter, text):
-    ax.set_title(f"({letter}) {text}", loc="left", fontsize=8)
+    ax.set_title(f"({letter}) {text}", loc="left", fontsize=9)
+
+
+DEPTH_MARKER = {"D101": "o", "D126": "s", "D170": "^"}
+
+
+def _fam(f: str) -> str:
+    """Three-line family label for tick marks: 13 of them fit the text width at 8 pt."""
+    return lut.family_label(f, "\n").replace(" ", "\n", 1)
 
 
 def nets():
@@ -48,24 +56,27 @@ def nets():
     for r in layers:
         if not r["net"].endswith("_full"):
             kept[r["family"]].append(int(r["c_out"]) / ref[(r["net"].rsplit("_", 1)[0], r["order"])])
-    fig, axs = plt.subplots(1, 2, figsize=(WIDTH, 0.38 * WIDTH), gridspec_kw={"width_ratios": [1, 2]})
-    axs[0].hist(frac, bins=20, color=color("x", 0))
-    axs[0].set_xlabel("MAC / MAC della rete intera")
+    fig, axs = plt.subplots(2, 1, figsize=(WIDTH, 0.72 * WIDTH), gridspec_kw={"height_ratios": [1, 1.25]})
+    axs[0].hist(frac, bins=np.linspace(0, 1, 21), color=color("x", 0), edgecolor="white", lw=0.5)
+    axs[0].set_xlabel("MAC della rete potata / MAC della rete intera")
     axs[0].set_ylabel("reti")
-    _panel(axs[0], "a", f"{len(frac)} reti, {len(full)} architetture")
-    axs[1].boxplot([kept[f] for f in fams], showfliers=False, widths=0.6,
-                   medianprops={"color": color("x", 1)})
-    axs[1].set_xticks(range(1, len(fams) + 1), [f.replace("_", " @") for f in fams], rotation=60, fontsize=7)
-    axs[1].set_ylabel("frazione di c_out tenuta")
-    axs[1].axhline(1, color=GRAY, lw=0.6)
-    _panel(axs[1], "b", "per famiglia")
+    _panel(axs[0], "a", f"{len(frac)} reti potate da {len(full)} architetture")
+    axs[1].boxplot([kept[f] for f in fams], showfliers=False, widths=0.55, patch_artist=True,
+                   boxprops={"facecolor": "white", "edgecolor": GRAY}, whiskerprops={"color": GRAY},
+                   capprops={"color": GRAY}, medianprops={"color": color("x", 1), "lw": 1.5})
+    axs[1].set_xticks(range(1, len(fams) + 1), [_fam(f) for f in fams])
+    axs[1].set_ylabel("canali tenuti / canali\ndella rete intera")
+    axs[1].set_ylim(0, 1.05)
+    axs[1].grid(axis="x", visible=False)
+    _panel(axs[1], "b", "canali di uscita tenuti, per famiglia")
     save(fig, FIG / "nets")
 
 
 def mac():
-    """Measured latency of every net against its MACs (median of the repeats measured so far), with C + beta*MAC.
+    """Measured latency of every net against its MACs (median of the repeats), with C + beta*MAC.
     Colour = width, marker = depth: nets with the same MACs and different latency are what MACs miss."""
     plt = _style()
+    from tools.figure_griglia import LETTERA
     from tools.plots import GRAY, WIDTH, color, save
     nets = {r["net"]: r for r in csv.DictReader(open(RES / "nets.csv"))}
     ms = {}
@@ -76,24 +87,23 @@ def mac():
     x = np.array([float(nets[n]["cost_ops"]) for n in names]) / 1e9
     c, b = np.polyfit(x, y, 1)[::-1]
     widths = sorted({nets[n]["width"] for n in names}, key=float)
-    fig, ax = plt.subplots(figsize=(WIDTH, 0.5 * WIDTH))
+    fig, ax = plt.subplots(figsize=(WIDTH, 0.62 * WIDTH))
     for n_, xi, yi in zip(names, x, y):
         w, d = nets[n_]["width"], nets[n_]["depth"]
-        ax.scatter(xi, yi, s=10, alpha=0.75, lw=0, color=color("x", widths.index(w)),
-                   marker={"D101": "o", "D126": "s", "D170": "^"}[d])
+        ax.scatter(xi, yi, s=14, alpha=0.8, lw=0, color=color("x", widths.index(w)), marker=DEPTH_MARKER[d])
     xs = np.linspace(0, x.max() * 1.02, 2)
-    ax.plot(xs, c + b * xs, color=GRAY, lw=0.8)
-    for i, w in enumerate(widths):
-        ax.scatter([], [], s=10, color=color("x", i), label=f"larghezza {w}")
-    for d, mk in (("D101", "o"), ("D126", "s"), ("D170", "^")):
-        ax.scatter([], [], s=10, color=GRAY, marker=mk, label=d)
-    ax.plot([], [], color=GRAY, lw=0.8, label="C + β·MAC")
-    ax.set(xlabel="GMAC", ylabel="latenza misurata in ms")
-    ax.legend(fontsize=6, ncol=2)
-    err = 100 * ((c + b * x) / y - 1)
-    ax.set_title(f"{len(names)} reti su 765; errore di C + β·MAC: mediana {np.median(abs(err)):.1f}%, "
-                   f"p95 {np.percentile(abs(err), 95):.1f}%", loc="left", fontsize=8)
+    ax.plot(xs, c + b * xs, color=GRAY, lw=1, ls="--", zorder=0)
+    h = [ax.scatter([], [], s=14, color=color("x", i), label=f"{LETTERA[float(w)]} (larghezza {float(w):g})")
+         for i, w in enumerate(widths)]
+    h.append(ax.plot([], [], color=GRAY, lw=1, ls="--", label="retta C + β·MAC")[0])
+    h += [ax.scatter([], [], s=14, color=GRAY, marker=mk, label=f"profondità {d}") for d, mk in DEPTH_MARKER.items()]
+    ax.set(xlabel="MAC in miliardi", ylabel="latenza misurata in ms", xlim=(0, None), ylim=(0, None))
+    fig.legend(handles=h, loc="outside lower center", ncol=3, columnspacing=1.2, handletextpad=0.3)  # by column
     save(fig, FIG / "mac")
+
+
+ESTIMATORS = (("macs_ms", 1, "retta sui MAC"), ("lut_sum_ms", 2, "somma della LUT"),
+              ("composition_ms", 0, "stimatore"))
 
 
 def _dummy() -> tuple[dict, list[dict]]:
@@ -110,6 +120,8 @@ def _dummy() -> tuple[dict, list[dict]]:
 
 
 def fit(dummy: bool = False):
+    """(a) ECDF of |error| on the held-out nets for the three estimators, with the target (5% at p99); (b) signed
+    error against measured latency; (c) a_f per family."""
     plt = _style()
     from tools.plots import GRAY, WIDTH, color, save
     if dummy:
@@ -117,38 +129,38 @@ def fit(dummy: bool = False):
     else:
         out = json.loads((RES / "fit.json").read_text())
         rows = list(csv.DictReader(open(RES / "predictions.csv")))
-    fig, axs = plt.subplots(1, 3, figsize=(WIDTH, 0.36 * WIDTH), gridspec_kw={"width_ratios": [1.1, 1.3, 1.1]})
+    test = [x for x in rows if x["split"] == "test"]
+    y = np.array([float(x["measured_ms"]) for x in test])
+    err = {m: 100 * (np.array([float(x[m]) for x in test]) / y - 1) for m, _, _ in ESTIMATORS}
+    fig = plt.figure(figsize=(WIDTH, 0.82 * WIDTH))
+    top, bottom = fig.subfigures(2, 1, height_ratios=[1, 0.85])
+    axs = top.subplots(1, 2)
     ax = axs[0]
-    for split, mk in (("train", "o"), ("test", "s")):
-        r = [x for x in rows if x["split"] == split]
-        ax.scatter([float(x["measured_ms"]) for x in r], [float(x["composition_ms"]) for x in r], s=10,
-                   marker=mk, color=color("x", 0 if split == "train" else 1), alpha=0.75, label=split)
-    lo = min(float(x["measured_ms"]) for x in rows) * 0.95
-    hi = max(float(x["measured_ms"]) for x in rows) * 1.05
-    ax.plot([lo, hi], [lo, hi], color=GRAY, lw=0.6)
-    ax.set_xlabel("misurata in ms")
-    ax.set_ylabel("stimata in ms")
+    for m, i, label in ESTIMATORS:
+        e = np.sort(abs(err[m]))
+        ax.step(e, 100 * np.arange(1, len(e) + 1) / len(e), where="post", color=color("x", i), lw=1.5,
+                label=label)
+    ax.axvline(5, color=GRAY, lw=1, ls="--")
+    ax.axhline(99, color=GRAY, lw=1, ls="--")  # target: 99% of the nets within 5%
+    ax.set_xscale("log")
+    ax.set_xticks([0.1, 0.3, 1, 3, 5, 10, 30], ["0,1", "0,3", "1", "3", "5", "10", "30"])
+    ax.set(xlim=(0.05, 40), ylim=(0, 101), xlabel="|errore| in %", ylabel="reti con errore minore, in %")
     ax.legend(loc="upper left")
-    _panel(ax, "a", "composizione")
+    _panel(ax, "a", "distribuzione dell'errore")
     ax = axs[1]
-    names = list(out["a"])
-    ax.bar(range(len(names)), list(out["a"].values()), color=color("x", 0))
-    ax.axhline(1, color=GRAY, lw=0.6)
-    ax.set_xticks(range(len(names)), [n.replace("_", " @") for n in names], rotation=90, fontsize=7)
-    ax.set_ylabel("a_f")
-    _panel(ax, "b", "correzione per famiglia")
-    ax = axs[2]
-    for m, i in (("composition_ms", 0), ("lut_sum_ms", 2), ("macs_ms", 1)):
-        r = [x for x in rows if x["split"] == "test"]
-        ax.scatter([float(x["measured_ms"]) for x in r],
-                   [100 * (float(x[m]) / float(x["measured_ms"]) - 1) for x in r], s=10, color=color("x", i),
-                   alpha=0.75, label={"composition_ms": "composizione", "lut_sum_ms": "somma LUT + C",
-                                      "macs_ms": "MAC"}[m])
-    ax.axhline(0, color=GRAY, lw=0.6)
-    ax.set_xlabel("misurata in ms")
-    ax.set_ylabel("errore sul test in %")
-    ax.legend(loc="upper right", fontsize=6)
-    _panel(ax, "c", "confronto")
+    for m, i, label in ESTIMATORS:
+        ax.scatter(y, err[m], s=7, lw=0, alpha=0.7, color=color("x", i))
+    ax.axhline(0, color=GRAY, lw=1)
+    ax.set(xlabel="latenza misurata in ms", ylabel="errore in %")
+    _panel(ax, "b", "errore per rete")
+    ax = bottom.subplots()
+    names = [f for f in lut.FAMILIES if f in out["a"]]
+    ax.bar(range(len(names)), [out["a"][f] for f in names], width=0.6, color=color("x", 0))
+    ax.axhline(1, color=GRAY, lw=1, ls="--")
+    ax.set_xticks(range(len(names)), [_fam(n) for n in names])
+    ax.set_ylabel("$a_f$")
+    ax.grid(axis="x", visible=False)
+    _panel(ax, "c", "correzione per famiglia")
     if dummy:
         fig.text(0.5, 0.5, "DATI FITTIZI", ha="center", va="center", fontsize=28, color=GRAY, alpha=0.25, rotation=20)
     save(fig, lut.REPO / "reports" / "stimatore_latenza" / "fit_fittizio" if dummy else FIG / "fit")

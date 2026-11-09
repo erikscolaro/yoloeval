@@ -83,7 +83,8 @@ def cv_lambda(X: np.ndarray, y: np.ndarray, arch: list[str]) -> tuple[float, dic
 
 def errors(pred: np.ndarray, y: np.ndarray) -> dict:
     e = pred / y - 1
-    return {"median": float(np.median(abs(e))), "p95": float(np.percentile(abs(e), 95)), "max": float(abs(e).max()),
+    return {"median": float(np.median(abs(e))), "p95": float(np.percentile(abs(e), 95)),
+            "p99": float(np.percentile(abs(e), 99)), "max": float(abs(e).max()),
             "bias": float(np.mean(e)), "n": int(len(y))}
 
 

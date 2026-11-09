@@ -53,17 +53,12 @@ FAMILIES = {
     "k3s2_320": (3, 2, 320, [(3, 16)]),          # stem: c_in is the image, fixed at 3
 }
 FIXED_CIN = {"k3s2_320"}
-# extension of 09/11 (B4-R up to the nano, README "Coda dopo la LUT principale"): the last layer of each family
-# above and the odd 3 of w0.09375; resuming measures only the new points, raw.csv is appended
-EXTRA_AXIS = {"k3s1_160": {3}}
-N_CONV = 71328
-REPEATS, SEED = 3, 0
-UNSTABLE_REL, EXTRA_REPEATS = 0.05, 6      # (max-min)/median of the first REPEATS above this: 6 more repeats
-TEMP_MAX_C, TEMP_RESUME_C = 75.0, 65.0         # guard: firmware throttles at 80 C; with the fan at max it never trips
-CHECKPOINT_S = 6 * 3600
-FIELDS = ["family", "kind", "kernel", "stride", "map", "c_in", "c_out", "repeat", "sequence", "ms",
-          "mean_ms", "min_ms", "max_ms", "iters", "temp_c", "freq_khz", "throttled", "governor",
-          "timestamp", "n_cores", "infer_precision", "openvino", "remeasured"]
+
+
+def family_label(f: str, sep: str = " ") -> str:
+    """'k3s2_40' -> '3×3 s2 @40': kernel, stride and side of the output map at 640, as in the family name."""
+    k, s, hw, _ = FAMILIES[f]
+    return f"{k}×{k} s{s}{sep}@{hw}"
 
 
 def axis(m: int, extra=()) -> list[int]:

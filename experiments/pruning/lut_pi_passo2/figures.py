@@ -34,7 +34,10 @@ def _style():
 
 
 def _panel(ax, letter: str, text: str):
-    ax.set_title(f"({letter}) {text}", loc="left", fontsize=8)
+    ax.set_title(f"({letter}) {text}", loc="left", fontsize=9)
+
+
+CIN, COUT = "$c_\\mathrm{in}$", "$c_\\mathrm{out}$"
 
 
 def _lut(f: str):
@@ -47,20 +50,50 @@ def _lut(f: str):
 
 
 def _family_label(f: str) -> str:
-    k, s, hw, _ = run.FAMILIES[f]
-    return f"{k}×{k} s{s} @{hw}"
+    return run.family_label(f)
+
+
+def _edges(v):
+    """Cell edges around grid values (works for a single value too, the stem's c_in = 3)."""
+    v = np.asarray(v, float)
+    if len(v) == 1:
+        return np.array([v[0] - 1, v[0] + 1])
+    mid = (v[1:] + v[:-1]) / 2
+    return np.r_[2 * v[0] - mid[0], mid, 2 * v[-1] - mid[-1]]
 
 
 def _draw(ax, f: str, norm):
-    """Heatmap c_in x c_out; the stem (c_in fixed at 3) has one row: a curve over c_out instead."""
+    """Heatmap c_in x c_out; the stem (c_in fixed at 3) is a one-row strip on the same colour scale."""
+    from matplotlib.ticker import MaxNLocator
     cis, cos, M = _lut(f)
-    if len(cis) == 1:
-        ax.plot(cos, M[0], marker="o", ms=3, lw=1)
-        ax.set_yscale("log")
-        ax.set_ylabel("latenza in ms", fontsize=7)
-        return None
     ax.grid(False)
-    return ax.pcolormesh(cos, cis, M, norm=norm, shading="nearest", cmap="viridis", rasterized=True)
+    im = ax.pcolormesh(_edges(cos), _edges(cis), M, norm=norm, cmap="viridis", rasterized=True)
+    ax.xaxis.set_major_locator(MaxNLocator(3, integer=True))
+    ax.yaxis.set_major_locator(MaxNLocator(3, integer=True) if len(cis) > 1 else plt_fixed(cis))
+    return im
+
+
+def plt_fixed(v):
+    from matplotlib.ticker import FixedLocator
+    return FixedLocator(v)
+
+
+def _plain(axis):
+    """Log axis with plain numbers (0,01 / 0,1 / 1 / 10) instead of powers of ten."""
+    from matplotlib.ticker import FuncFormatter, NullFormatter
+    axis.set_major_formatter(FuncFormatter(lambda t, _: f"{t:g}".replace(".", ",")))
+    axis.set_minor_formatter(NullFormatter())
+
+
+def _ms_colorbar(fig, im, **kw):
+    from matplotlib.ticker import FixedLocator, FuncFormatter
+    cb = fig.colorbar(im, **kw)
+    lo, hi = im.norm.vmin, im.norm.vmax
+    cb.ax.yaxis.set_major_locator(FixedLocator([t for t in (0.01, 0.03, 0.1, 0.3, 1, 3, 10) if lo <= t <= hi]))
+    cb.ax.yaxis.set_major_formatter(FuncFormatter(lambda t, _: f"{t:g}".replace(".", ",")))
+    cb.ax.yaxis.set_minor_formatter(FuncFormatter(lambda *_: ""))
+    cb.set_label("latenza mediana in ms")
+    return cb
 
 
 def lut():
@@ -73,30 +106,31 @@ def lut():
     for f in fams:                                      # one per family, half width
         fig, ax = plt.subplots(figsize=(HALF, 0.85 * HALF))
         im = _draw(ax, f, LogNorm())
-        ax.set_xlabel("c_out")
-        if im is None:
-            ax.set_ylabel("latenza mediana in ms")
-        else:
-            ax.set_ylabel("c_in")
-            fig.colorbar(im, ax=ax).set_label("latenza mediana in ms")
+        ax.set(xlabel=COUT, ylabel=CIN)
+        _ms_colorbar(fig, im, ax=ax)
         save(fig, FIG / f"heatmap_{f}")
-    n, cols = len(fams), 5                              # all families, full width, shared colour scale
-    rows = -(-n // cols)
+    # all families, full width, shared colour scale: rows = kernel/stride, columns = side of the output map
+    kinds = sorted({run.FAMILIES[f][:2] for f in fams})
+    sides = sorted({run.FAMILIES[f][2] for f in fams})
     norm = LogNorm(min(np.nanmin(_lut(f)[2]) for f in fams), max(np.nanmax(_lut(f)[2]) for f in fams))
-    fig, axs = plt.subplots(rows, cols, figsize=(WIDTH, 0.25 * WIDTH * rows), squeeze=False)
+    fig, axs = plt.subplots(len(kinds), len(sides), figsize=(WIDTH, 0.6 * WIDTH), squeeze=False)
     im = None
-    for i, ax in enumerate(axs.flat):
-        if i >= n:
+    for f in fams:
+        k, st, hw, _ = run.FAMILIES[f]
+        r, c = kinds.index((k, st)), sides.index(hw)
+        ax = axs[r, c]
+        im = _draw(ax, f, norm)
+        ax.set_title(f"{hw}×{hw}", fontsize=8)
+    for ax in axs.flat:
+        if not ax.has_data():
             ax.axis("off")
-            continue
-        im = _draw(ax, fams[i], norm) or im
-        ax.tick_params(labelsize=7)
-        ax.set_title(f"({'abcdefghijklmnop'[i]}) {_family_label(fams[i])}", loc="left", fontsize=7)
-        if i % cols == 0:
-            ax.set_ylabel("c_in", fontsize=7)
-        if i >= n - cols:
-            ax.set_xlabel("c_out", fontsize=7)
-    fig.colorbar(im, ax=axs, shrink=0.7).set_label("latenza mediana in ms")
+    for (k, st), ax in zip(kinds, axs[:, 0]):
+        ax.set_ylabel(f"{k}×{k} s{st}\n{CIN}")
+    for c in range(len(sides)):                         # x label on the lowest panel of each column
+        col = [ax for ax in axs[:, c] if ax.has_data()]
+        col[-1].set_xlabel(COUT)
+    axs[0, -1].set_ylabel(CIN)
+    _ms_colorbar(fig, im, ax=axs, shrink=0.8, aspect=30)
     save(fig, FIG / "heatmap_all")
 
 
@@ -107,8 +141,9 @@ def warmup():
     # (a, b) relative latency vs iteration and vs time, measures right after the previous one
     curves = [(k, t, v / steady, steady) for k, m, v, t, steady, _ in W.series()
               if k[0] in W.REPS_NOW and int(m["remeasured"]) == 0]
-    speeds = np.log10([c[3] for c in curves])
-    norm = plt.Normalize(speeds.min(), speeds.max())
+    from matplotlib.colors import LogNorm
+    speeds = np.array([c[3] for c in curves])
+    norm = LogNorm(speeds.min(), speeds.max())
     cmap = plt.get_cmap("viridis")
     fig, axs = plt.subplots(1, 2, figsize=(WIDTH, 0.42 * WIDTH), sharey=True)
     for (k, t, rel, _), s in zip(curves, speeds):
@@ -119,12 +154,16 @@ def warmup():
     for ax, lab, letter, title in zip(axs, ("iterazione", "tempo dalla prima inferenza in ms"), "ab",
                                       ("per iterazione", "per tempo")):
         ax.set_xscale("log")
+        _plain(ax.xaxis)
         ax.axhspan(0.98, 1.02, color=GRAY, alpha=0.25, lw=0)
         ax.set_xlabel(lab)
         _panel(ax, letter, title)
+    axs[0].set_xticks([1, 100, 10000], ["1", "100", "10 000"])
     axs[0].set_ylim(0.8, 3)
     axs[0].set_ylabel("latenza / regime")
-    fig.colorbar(plt.cm.ScalarMappable(cmap=cmap, norm=norm), ax=axs).set_label("log₁₀ del regime in ms")
+    cb = fig.colorbar(plt.cm.ScalarMappable(cmap=cmap, norm=norm), ax=axs)
+    cb.set_label("latenza a regime in ms")
+    _plain(cb.ax.yaxis)
     save(fig, FIG / "warmup")
     # (a) error of the LUT protocol before/after on the 19 nets, (b) pilot points old vs new
     w = json.loads((RES / "warmup.json").read_text())["measures_detail"]
@@ -146,8 +185,9 @@ def warmup():
     ax.scatter([], [], s=10, color=color("x", 1), label="un'inferenza di warmup")
     ax.scatter([], [], s=10, color=color("x", 0), label="warmup di 60 ms")
     ax.scatter([], [], s=10, marker="s", color=GRAY, label="rete identità")
-    ax.axhline(0, color=GRAY, lw=0.6)
+    ax.axhline(0, color=GRAY, lw=1)
     ax.set_xscale("log")
+    _plain(ax.xaxis)
     ax.set_xlabel("latenza a regime in ms")
     ax.set_ylabel("errore della mediana in %")
     ax.legend(loc="upper right")
@@ -158,12 +198,13 @@ def warmup():
         pts = json.loads(pil.read_text())["points_detail"]
         ax.scatter([p["new_ms"] for p in pts], [100 * p["old_over_new"] for p in pts], s=10, color=color("x", 1),
                    alpha=0.7)
-        ax.axhline(0, color=GRAY, lw=0.6)
+        ax.axhline(0, color=GRAY, lw=1)
         ax.set_xscale("log")
+        _plain(ax.xaxis)
         ax.set_yscale("symlog", linthresh=5, linscale=2)
         ax.set_yticks([-5, 0, 5, 20, 100], ["−5", "0", "5", "20", "100"])
         ax.set_xlabel("latenza con il warmup nuovo in ms")
-        ax.set_ylabel("vecchio / nuovo − 1, in %")
+        ax.set_ylabel("scarto del protocollo vecchio in %")
     _panel(ax, "b", "pilota, 97 conv")
     save(fig, FIG / "warmup_gain")
 
@@ -174,19 +215,19 @@ def sezioni():
     plt = _style()
     from tools.plots import GRAY, WIDTH, color, save
     cuts = [("k3s2_40", 64), ("k1s1_40", 128), ("k3s1_20", 64)]
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(WIDTH, 0.42 * WIDTH), gridspec_kw={"width_ratios": [1.6, 1]})
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(WIDTH, 0.42 * WIDTH), gridspec_kw={"width_ratios": [1.7, 1]})
     for i, (f, ci) in enumerate(cuts):
         cis, cos, M = _lut(f)
         y = M[cis.index(ci)]
         y = y / np.nanmax(y)
         c = color("x", i)
-        ax1.plot(cos, y, lw=0.8, color=c, label=f"{_family_label(f)}, c_in = {ci}")
+        ax1.plot(cos, y, lw=1, color=c, label=f"{_family_label(f)}, {CIN} = {ci}")
         m8 = np.array(cos) % 8 == 0
-        ax1.scatter(np.array(cos)[m8], y[m8], s=10, color=c, zorder=3)
-        ax1.scatter(np.array(cos)[~m8], y[~m8], s=4, facecolor="none", edgecolor=c, lw=0.5, zorder=3)
-    ax1.set(xlabel="c_out", ylabel="latenza / massimo della sezione")
-    ax1.legend(fontsize=6)
-    _panel(ax1, "a", "sezioni della LUT (pieni: multipli di 8)")
+        ax1.scatter(np.array(cos)[m8], y[m8], s=12, color=c, zorder=3)
+        ax1.scatter(np.array(cos)[~m8], y[~m8], s=6, facecolor="white", edgecolor=c, lw=0.6, zorder=3)
+    ax1.set(xlabel=COUT, ylabel="latenza / massimo della sezione", ylim=(0, 1.05))
+    ax1.legend(loc="lower right", handlelength=1.2)
+    _panel(ax1, "a", f"sezioni a {CIN} fisso")
     dev = {r: [] for r in (0, 2, 4, 6)}
     for f in run.FAMILIES:
         P = {(int(r["c_in"]), int(r["c_out"])): float(r["median_ms"]) for r in csv.DictReader(open(RES / f"lut_{f}.csv"))}
@@ -194,17 +235,25 @@ def sezioni():
             lo, hi = P.get((ci, co - 2)), P.get((ci, co + 2))
             if lo and hi:
                 dev[co % 8].append(100 * (v / ((lo + hi) / 2) - 1))
-    ax2.boxplot([dev[r] for r in dev], whis=(5, 95), showfliers=False, medianprops={"color": color("x", 1)})
+    ax2.boxplot([dev[r] for r in dev], whis=(5, 95), showfliers=False, widths=0.55, medianprops={"color": color("x", 1), "lw": 1.5},
+                boxprops={"color": GRAY}, whiskerprops={"color": GRAY}, capprops={"color": GRAY})
     ax2.scatter(range(1, 5), [np.mean(dev[r]) for r in dev], marker="D", s=12, color=color("x", 0), zorder=3,
                 label="media")
-    ax2.axhline(0, color=GRAY, lw=0.6)
+    ax2.axhline(0, color=GRAY, lw=1)
     ax2.set_xticks(range(1, 5), [f"{r}" for r in dev])
-    ax2.set(xlabel="c_out modulo 8", ylabel="latenza / media dei vicini − 1, in %")
-    ax2.legend(fontsize=6)
+    ax2.set(xlabel=f"resto di {COUT} diviso 8", ylabel="scarto dai vicini in %")
+    ax2.grid(axis="x", visible=False)
+    ax2.legend(loc="lower right")
     _panel(ax2, "b", "tutte le famiglie")
     save(fig, FIG / "sezioni")
     for r, d in dev.items():
         print(f"c_out mod 8 = {r}: media {np.mean(d):+.2f}%, n = {len(d)}")
+
+
+def _net_label(k: str) -> str:
+    """'k1s1_160_48_64' -> two lines: family, then c_in and c_out."""
+    f, ci, co = k.rsplit("_", 2)
+    return f"{_family_label(f)}\n{ci} → {co}"
 
 
 def bimodal():
@@ -212,7 +261,7 @@ def bimodal():
     from tools.plots import GRAY, WIDTH, color, save
     d = json.loads((RES / "bimodal.json").read_text())["benchmark_app"]
     nets = sorted(d, key=lambda k: np.median([x["median"] for x in d[k]]))
-    fig, ax = plt.subplots(figsize=(WIDTH, 0.33 * WIDTH))
+    fig, ax = plt.subplots(figsize=(WIDTH, 0.4 * WIDTH))
     rng = np.random.default_rng(0)
     for i, k in enumerate(nets):
         m = np.array([x["median"] for x in d[k]])
@@ -220,9 +269,10 @@ def bimodal():
         target = k == "k1s1_160_48_64"
         ax.scatter(i + rng.uniform(-0.15, 0.15, len(m)), 100 * rel, s=12, alpha=0.8,
                    color=color("x", 1) if target else color("x", 0))
-    ax.axhline(0, color=GRAY, lw=0.6)
-    ax.set_xticks(range(len(nets)), [k.replace("_", " ", 1).replace("_", "×") for k in nets], fontsize=7)
-    ax.set_ylabel("misura / mediana − 1, in %")
+    ax.axhline(0, color=GRAY, lw=1)
+    ax.set_xticks(range(len(nets)), [_net_label(k) for k in nets])
+    ax.grid(axis="x", visible=False)
+    ax.set_ylabel("scarto dalla mediana in %")
     save(fig, FIG / "bimodal")
 
 
