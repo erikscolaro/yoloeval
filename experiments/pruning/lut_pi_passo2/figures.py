@@ -1,6 +1,7 @@
 """Figures of the experiment, in the common style (tools/plots.py, thesis.mplstyle): PNG + PDF in figures/.
 
   python figures.py lut        # LUT heatmaps, one per family + all families (results/lut_<family>.csv)
+  python figures.py sezioni    # 1D cuts of the LUT (jumps on multiples of 8) and the jump by c_out mod 8
   python figures.py warmup     # warm-up transient (runs/latencies_warmup.txt) and error before/after the fix
   python figures.py bimodal    # the two regimes of k1s1_160 48x64 against its neighbours (results/bimodal.json)
   python figures.py all
@@ -167,6 +168,45 @@ def warmup():
     save(fig, FIG / "warmup_gain")
 
 
+def sezioni():
+    """1D cuts of the LUT (c_in fixed): sawtooth on multiples of 8, lines = the linear interpolation PIT uses;
+    then the mean jump against the two neighbours by c_out mod 8, every family."""
+    plt = _style()
+    from tools.plots import GRAY, WIDTH, color, save
+    cuts = [("k3s2_40", 64), ("k1s1_40", 128), ("k3s1_20", 64)]
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(WIDTH, 0.42 * WIDTH), gridspec_kw={"width_ratios": [1.6, 1]})
+    for i, (f, ci) in enumerate(cuts):
+        cis, cos, M = _lut(f)
+        y = M[cis.index(ci)]
+        y = y / np.nanmax(y)
+        c = color("x", i)
+        ax1.plot(cos, y, lw=0.8, color=c, label=f"{_family_label(f)}, c_in = {ci}")
+        m8 = np.array(cos) % 8 == 0
+        ax1.scatter(np.array(cos)[m8], y[m8], s=10, color=c, zorder=3)
+        ax1.scatter(np.array(cos)[~m8], y[~m8], s=4, facecolor="none", edgecolor=c, lw=0.5, zorder=3)
+    ax1.set(xlabel="c_out", ylabel="latenza / massimo della sezione")
+    ax1.legend(fontsize=6)
+    _panel(ax1, "a", "sezioni della LUT (pieni: multipli di 8)")
+    dev = {r: [] for r in (0, 2, 4, 6)}
+    for f in run.FAMILIES:
+        P = {(int(r["c_in"]), int(r["c_out"])): float(r["median_ms"]) for r in csv.DictReader(open(RES / f"lut_{f}.csv"))}
+        for (ci, co), v in P.items():
+            lo, hi = P.get((ci, co - 2)), P.get((ci, co + 2))
+            if lo and hi:
+                dev[co % 8].append(100 * (v / ((lo + hi) / 2) - 1))
+    ax2.boxplot([dev[r] for r in dev], whis=(5, 95), showfliers=False, medianprops={"color": color("x", 1)})
+    ax2.scatter(range(1, 5), [np.mean(dev[r]) for r in dev], marker="D", s=12, color=color("x", 0), zorder=3,
+                label="media")
+    ax2.axhline(0, color=GRAY, lw=0.6)
+    ax2.set_xticks(range(1, 5), [f"{r}" for r in dev])
+    ax2.set(xlabel="c_out modulo 8", ylabel="latenza / media dei vicini − 1, in %")
+    ax2.legend(fontsize=6)
+    _panel(ax2, "b", "tutte le famiglie")
+    save(fig, FIG / "sezioni")
+    for r, d in dev.items():
+        print(f"c_out mod 8 = {r}: media {np.mean(d):+.2f}%, n = {len(d)}")
+
+
 def bimodal():
     plt = _style()
     from tools.plots import GRAY, WIDTH, color, save
@@ -188,9 +228,9 @@ def bimodal():
 
 if __name__ == "__main__":
     what = sys.argv[1] if len(sys.argv) > 1 else "all"
-    for name, fn in (("lut", lut), ("warmup", warmup), ("bimodal", bimodal)):
+    for name, fn in (("lut", lut), ("sezioni", sezioni), ("warmup", warmup), ("bimodal", bimodal)):
         if what in (name, "all"):
-            if name == "lut" and what == "all" and not list(RES.glob("lut_*.csv")):
+            if name in ("lut", "sezioni") and what == "all" and not list(RES.glob("lut_*.csv")):
                 print("lut: nessuna LUT ancora, salto")
                 continue
             fn()

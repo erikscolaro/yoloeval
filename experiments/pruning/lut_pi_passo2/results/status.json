@@ -1,0 +1,14 @@
+{
+ "time": "2026-11-09T13:12:20+01:00",
+ "done": 220722,
+ "total": 6738,
+ "s_per_measure_this_session": 1.265,
+ "eta_h": -75.18,
+ "remeasured": 0,
+ "throttled_nonzero": 0,
+ "temp_max_c": 52.35,
+ "freq_khz": [
+  2400000
+ ],
+ "started_this_session_at": 220686
+}

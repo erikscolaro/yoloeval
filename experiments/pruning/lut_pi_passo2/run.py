@@ -40,10 +40,10 @@ RES = OUT / "results"
 FAMILIES = {
     "k1s1_20": (1, 1, 20, [(128, 64), (128, 128), (256, 128), (256, 256), (384, 256), (512, 256)]),
     "k1s1_40": (1, 1, 40, [(64, 32), (64, 64), (128, 128), (192, 128), (384, 128)]),
-    "k1s1_80": (1, 1, 80, [(32, 16), (32, 32), (64, 64), (96, 64), (96, 128), (256, 64)]),
-    "k1s1_160": (1, 1, 160, [(32, 32), (48, 64)]),
+    "k1s1_80": (1, 1, 80, [(32, 16), (32, 32), (64, 64), (96, 64), (96, 128), (256, 64), (128, 128)]),
+    "k1s1_160": (1, 1, 160, [(32, 32), (48, 64), (64, 64)]),
     "k3s1_20": (3, 1, 20, [(64, 64), (64, 128), (128, 64)]),
-    "k3s1_40": (3, 1, 40, [(32, 32)]),
+    "k3s1_40": (3, 1, 40, [(32, 32), (32, 64), (64, 32)]),
     "k3s1_80": (3, 1, 80, [(16, 16), (16, 32), (32, 16)]),
     "k3s1_160": (3, 1, 160, [(8, 16), (16, 8)]),
     "k3s2_20": (3, 2, 20, [(128, 128), (128, 256)]),
@@ -53,7 +53,10 @@ FAMILIES = {
     "k3s2_320": (3, 2, 320, [(3, 16)]),          # stem: c_in is the image, fixed at 3
 }
 FIXED_CIN = {"k3s2_320"}
-N_CONV = 69989
+# extension of 09/11 (B4-R up to the nano, README "Coda dopo la LUT principale"): the last layer of each family
+# above and the odd 3 of w0.09375; resuming measures only the new points, raw.csv is appended
+EXTRA_AXIS = {"k3s1_160": {3}}
+N_CONV = 71328
 REPEATS, SEED = 3, 0
 UNSTABLE_REL, EXTRA_REPEATS = 0.05, 6      # (max-min)/median of the first REPEATS above this: 6 more repeats
 TEMP_MAX_C, TEMP_RESUME_C = 75.0, 65.0         # guard: firmware throttles at 80 C; with the fan at max it never trips
@@ -63,8 +66,8 @@ FIELDS = ["family", "kind", "kernel", "stride", "map", "c_in", "c_out", "repeat"
           "timestamp", "n_cores", "infer_precision", "openvino", "remeasured"]
 
 
-def axis(m: int) -> list[int]:
-    return sorted({1, m, *range(2, m + 1, 2)})       # 1, even values, the max
+def axis(m: int, extra=()) -> list[int]:
+    return sorted({1, m, *range(2, m + 1, 2), *(e for e in extra if e <= m)})   # 1, even values, the max
 
 
 def in_map(f: str) -> int:
@@ -79,7 +82,8 @@ def points() -> list[tuple]:
     for f, (_, _, _, layers) in FAMILIES.items():
         s = set()
         for ci, co in layers:
-            s |= {(a, b) for a in ([ci] if f in FIXED_CIN else axis(ci)) for b in axis(co)}
+            ex = EXTRA_AXIS.get(f, ())
+            s |= {(a, b) for a in ([ci] if f in FIXED_CIN else axis(ci, ex)) for b in axis(co, ex)}
         pts += [(f, "conv", ci, co) for ci, co in sorted(s)]
     assert len(pts) == N_CONV
     return pts

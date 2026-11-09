@@ -76,14 +76,14 @@
     "type": "Convolution",
     "status": "EXECUTED",
     "exec_type": "gemm_acl_f16",
-    "real_us": 35.0
+    "real_us": 33.0
    },
    {
     "name": "output",
     "type": "Subgraph",
     "status": "EXECUTED",
     "exec_type": "jit_f16",
-    "real_us": 35.0
+    "real_us": 34.0
    },
    {
     "name": "output_acdb_abcd_fake",
@@ -178,14 +178,14 @@
     "type": "Convolution",
     "status": "EXECUTED",
     "exec_type": "gemm_acl_f16",
-    "real_us": 242.0
+    "real_us": 236.0
    },
    {
     "name": "output",
     "type": "Subgraph",
     "status": "EXECUTED",
     "exec_type": "jit_f16",
-    "real_us": 1115.0
+    "real_us": 1018.0
    },
    {
     "name": "output_acdb_abcd_fake",
@@ -280,14 +280,14 @@
     "type": "Convolution",
     "status": "EXECUTED",
     "exec_type": "winograd_acl_f16",
-    "real_us": 152.0
+    "real_us": 154.0
    },
    {
     "name": "output",
     "type": "Subgraph",
     "status": "EXECUTED",
     "exec_type": "jit_f16",
-    "real_us": 68.0
+    "real_us": 67.0
    },
    {
     "name": "output_acdb_abcd_fake",
@@ -382,14 +382,14 @@
     "type": "Convolution",
     "status": "EXECUTED",
     "exec_type": "gemm_acl_f16",
-    "real_us": 280.0
+    "real_us": 279.0
    },
    {
     "name": "output",
     "type": "Subgraph",
     "status": "EXECUTED",
     "exec_type": "jit_f16",
-    "real_us": 246.00000000000003
+    "real_us": 247.0
    },
    {
     "name": "output_acdb_abcd_fake",
@@ -484,14 +484,14 @@
     "type": "Convolution",
     "status": "EXECUTED",
     "exec_type": "gemm_acl_f16",
-    "real_us": 428.0
+    "real_us": 431.0
    },
    {
     "name": "output",
     "type": "Subgraph",
     "status": "EXECUTED",
     "exec_type": "jit_f16",
-    "real_us": 125.0
+    "real_us": 126.0
    },
    {
     "name": "output_acdb_abcd_fake",
@@ -586,14 +586,14 @@
     "type": "Convolution",
     "status": "EXECUTED",
     "exec_type": "gemm_acl_f16",
-    "real_us": 1691.0
+    "real_us": 1767.0
    },
    {
     "name": "output",
     "type": "Subgraph",
     "status": "EXECUTED",
     "exec_type": "jit_f16",
-    "real_us": 2004.9999999999998
+    "real_us": 2007.9999999999998
    },
    {
     "name": "output_acdb_abcd_fake",
@@ -688,14 +688,14 @@
     "type": "Convolution",
     "status": "EXECUTED",
     "exec_type": "gemm_acl_f16",
-    "real_us": 323.0
+    "real_us": 324.0
    },
    {
     "name": "output",
     "type": "Subgraph",
     "status": "EXECUTED",
     "exec_type": "jit_f16",
-    "real_us": 67.0
+    "real_us": 68.0
    },
    {
     "name": "output_acdb_abcd_fake",
@@ -825,7 +825,7 @@
     "type": "Convolution",
     "status": "EXECUTED",
     "exec_type": "gemm_acl_f16",
-    "real_us": 20.0
+    "real_us": 21.0
    },
    {
     "name": "output",
@@ -889,7 +889,7 @@
     "type": "Identity",
     "status": "EXECUTED",
     "exec_type": "ref_any_f16",
-    "real_us": 78.0
+    "real_us": 95.0
    },
    {
     "name": "output/sink_port_0",
@@ -932,7 +932,7 @@
     "type": "Identity",
     "status": "EXECUTED",
     "exec_type": "ref_any_f16",
-    "real_us": 14.0
+    "real_us": 15.0
    },
    {
     "name": "output/sink_port_0",
