@@ -67,7 +67,7 @@ def etichette(ax, items, punti, linee):
         for i, (dx, dy, ha, va) in enumerate(DIRS):
             t = ax.annotate(testo, (x, y), xytext=(dx, dy), textcoords="offset points", ha=ha, va=va,
                             color=plt.rcParams["axes.labelcolor"], zorder=6, **stile)
-            bb = t.get_window_extent(r)
+            bb = t.get_window_extent(r).padded(2.1 * pt)  # il riquadro (pad 0,3 · 7 pt) sporge dal testo
             libera = box.containsx(bb.x0) and box.containsx(bb.x1) and box.containsy(bb.y0) and box.containsy(bb.y1)
             if libera and not any(bb.overlaps(o) for o in occ):
                 occ.append(bb)
