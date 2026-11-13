@@ -368,7 +368,9 @@ comandi() {  # una riga per step; con select nella catena, gli step dopo potano 
     printf '%s run.py stage=%s' "$PY" "$s"; ((${#ov[@]})) && printf ' %q' "${ov[@]}"
     [[ -n $guida && $s != provision ]] && printf ' $MS'
     echo
-    if [[ $s == select ]]; then guida=1; echo "MS=\$($PY -m src.selection results/select/${t:-TARGET}.json)"; fi
+    if [[ $s == select && ${STEPS[-1]} != select ]]; then   # solo se dopo select c'e' qualcosa da guidare
+      guida=1; echo "MS=\$($PY -m src.selection results/select/${t:-TARGET}.json)"
+    fi
   done
 }
 
@@ -382,6 +384,7 @@ lancia() {  # lancia NOME COMANDI: in background con nohup, log in runs/ con i c
 
 esito() {  # esito LOG: in corso, ok o errore
   local e
+  [[ -f $1.pid ]] || { echo "· log esterno"; return; }   # non lanciato dal launcher (es. coda systemd)
   if kill -0 "$(cat "$1.pid" 2>/dev/null)" 2>/dev/null; then echo "▶ in corso"; return; fi
   e=$(sed -n 's/^# EXIT //p' "$1" | tail -1)
   case $e in 0) echo "✓ finito" ;; '') echo "? interrotto" ;; *) echo "✗ errore $e" ;; esac
