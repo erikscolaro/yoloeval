@@ -1,0 +1,4 @@
+# Pota con il budget di latenza: select sceglie il modello, poi search, finetune, export e misura sul Pi
+step select search finetune export benchmark
+set strategy=pit_latency
+set target=rpi5_640

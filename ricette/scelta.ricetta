@@ -1,0 +1,3 @@
+# Solo la regola di scelta: quale modello potare con il budget (results/select/<profilo>.json)
+step select
+set target=rpi5_640

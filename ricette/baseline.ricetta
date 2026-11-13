@@ -1,0 +1,4 @@
+# Modello senza potatura: export e misura sul Pi (i pesi devono esistere; aggiungi train se mancano)
+step export benchmark
+set strategy=baseline
+set target=rpi5_640

@@ -1,75 +1,111 @@
 #!/usr/bin/env bash
-# Configuratore e launcher degli esperimenti, menu in bash puro. Costruisce solo la riga di comando di run.py o degli
-# script: opzioni da conf/<gruppo>/, help da docs/config/, nessuno YAML modificato. Ogni run va in runs/ con il comando.
+# Configuratore e launcher degli esperimenti (TUI in bash puro). Costruisce solo righe di comando di run.py o degli
+# script: opzioni da conf/<gruppo>/, help da docs/config/, ricette in ricette/, nessuno YAML modificato.
+# Ogni run va in runs/ con i suoi comandi in testa.
 #   ./lab
 set -uo pipefail
 cd "$(dirname "$(readlink -f "$0")")"
 PY=.venv/bin/python
 RUNS=runs
-mkdir -p "$RUNS"
+RICETTE=ricette
+TMP=$(mktemp -d)
+trap 'rm -rf "$TMP"' EXIT
+mkdir -p "$RUNS" "$RICETTE"
+
 # Step in ordine di esecuzione, con il grafo delle dipendenze (colonna 1: train -> export -> benchmark;
 # colonna 2: il ramo delle strategie pit; colonna 3: board e LUT) e chi serve prima di ognuno.
 STEPS_ALL=(provision lut train select search finetune export benchmark)
 GRAPH_ALL=('    ●──┐' '    ●  │' '●   │  │' '├─●─┤  │' '│ ●─┘  │' '│ ●    │' '●─┘    │' '●──────┘')
 DEPS_ALL=('' 'provision' '' 'train, lut' 'select, lut' 'search' 'train o finetune' 'export, provision')
-GRAPH=()          # colonna del grafo nelle checklist, se impostata
+# Campi che si cambiano quasi sempre: la vista "parametri principali"
+ESSENZIALI=(target.budget_ms strategy.search.pit.latency.estimator strategy.search.epochs finetune.epochs
+            train.epochs seed dry_run force)
+GRAPH=()          # colonna del grafo nei menu, se impostata
+HELPFN=""         # funzione che da' l'help della voce sotto il cursore (tasto ?)
 STEPS=()          # step scelti, nell'ordine di STEPS_ALL
 OV=()             # override Hydra, chiave=valore
+RICETTA=""       # nome dell'ultima ricetta caricata
 T="yoloeval lab"
-trap 'rm -f /tmp/lab_err.$$' EXIT
 
-# Widget in bash puro, con gli argomenti di whiptail (--menu, --checklist, --inputbox, --msgbox, --yesno).
-# Tasti: su/giu' muovono, Invio e freccia destra entrano o scelgono, freccia sinistra, Esc e Backspace tornano indietro,
-# spazio spunta nelle checklist. Disegnano su /dev/tty; la scelta esce su stdout; indietro = exit status 1.
-key() {  # legge un tasto: up down right left enter back space o il carattere
+# Varianti della griglia nel menu dei modelli (model=yolo26 + larghezza e profondita'), con la sigla della tesi
+GRIGLIA=()
+for w in 0.0625:F 0.09375:FP 0.125:P 0.1875:PN 0.25:N 0.375:NS 0.5:S 0.75:SM 1.0:M; do
+  for d in D101:- D126: D170:+; do GRIGLIA+=("${w%%:*}:${d%%:*}" "${w##*:}${d##*:}  (larghezza ${w%%:*}, ${d%%:*})"); done
+done
+
+# ---------------------------------------------------------------- widget
+# Argomenti come whiptail (--menu, --checklist, --inputbox, --msgbox, --yesno); disegnano su /dev/tty, la scelta esce
+# su stdout, indietro = exit status 1. Nei menu: lettere = filtro, ? = help della voce (HELPFN).
+key() {  # un tasto: up down right left pgup pgdn enter space bs esc, o il carattere
   local k r
   IFS= read -rsn1 k </dev/tty
   case $k in
     $'\e') IFS= read -rsn2 -t 0.02 r </dev/tty
            case $r in '[A') echo up ;; '[B') echo down ;; '[C') echo right ;; '[D') echo left ;;
                       '[5') read -rsn1 -t 0.02 </dev/tty; echo pgup ;; '[6') read -rsn1 -t 0.02 </dev/tty; echo pgdn ;;
-                      *) echo back ;; esac ;;
-    '') echo enter ;; ' ') echo space ;; $'\x7f' | $'\b') echo back ;; *) echo "$k" ;;
+                      *) echo esc ;; esac ;;
+    '') echo enter ;; ' ') echo space ;; $'\x7f' | $'\b') echo bs ;; *) printf '%s\n' "$k" ;;
   esac
 }
 
 wt() {
-  local mode=$1 text=$2 tags=() descs=() on=() n i cur=0 top=0 rows k step=2 sel out
+  local mode=$1 text=$2 tags=() descs=() on=() n i j cur=0 top=0 rows k step=2 sel out filt="" vis=() nv cols
   shift 2
   case $mode in
     --menu | --checklist)
       shift 3; [[ $mode == --checklist ]] && step=3
       while (($#)); do tags+=("$1"); descs+=("$2"); [[ $step == 3 ]] && on+=("$3"); shift $step; done
       n=${#tags[@]}
+      local tw=12; for i in "${tags[@]}"; do ((${#i} > tw)) && tw=${#i}; done; ((tw > 40)) && tw=40
       while :; do
-        rows=$(($(tput lines) - $(printf '%b\n' "$text" | wc -l) - 6)); ((rows < 3)) && rows=3
+        vis=()
+        for ((i = 0; i < n; i++)); do
+          if [[ -z ${tags[i]} ]]; then [[ -z $filt ]] && vis+=("$i")
+          elif [[ -z $filt || "${tags[i],,} ${descs[i],,}" == *"${filt,,}"* ]]; then vis+=("$i"); fi
+        done
+        nv=${#vis[@]}; ((cur >= nv)) && cur=$((nv > 0 ? nv - 1 : 0))
+        sep() { [[ -z ${tags[vis[$1]]} ]]; }   # la voce visibile $1 e' un separatore
+        while ((cur < nv - 1)) && sep "$cur"; do ((cur++)); done
+        cols=$(tput cols)
+        rows=$(($(tput lines) - $(printf '%b\n' "$text" | wc -l) - 7)); ((rows < 3)) && rows=3
         ((cur < top)) && top=$cur; ((cur >= top + rows)) && top=$((cur - rows + 1))
         { tput clear; printf '\e[1m%s\e[0m\n\n%b\n\n' "$T" "$text"
-          for ((i = top; i < n && i < top + rows; i++)); do
-            sel="  "; ((i == cur)) && sel="> "
+          for ((j = top; j < nv && j < top + rows; j++)); do
+            i=${vis[j]}
+            [[ -z ${tags[i]} ]] && { printf '\n\e[2m  %s\e[0m\n' "${descs[i]}"; continue; }
+            sel="  "; ((j == cur)) && sel="> "
             [[ $step == 3 ]] && { [[ ${on[i]} == ON ]] && sel+="[x] " || sel+="[ ] "; }
-            ((i == cur)) && printf '\e[7m'
-            printf '%s%s  %-12s %s\e[0m\n' "$sel" "${GRAPH[i]:-}" "${tags[i]}" "${descs[i]:0:$(($(tput cols) - 30))}"
+            ((j == cur)) && printf '\e[7m'
+            printf "%s%s%-${tw}s  %s\e[0m\n" "$sel" "${GRAPH[i]:+${GRAPH[i]}  }" "${tags[i]}" "${descs[i]:0:$((cols - tw - 10))}"
           done
-          printf '\n\e[2m su/giu muovi   Invio/destra %s   sinistra/Esc indietro%s\e[0m' \
-            "$([[ $step == 3 ]] && echo conferma || echo entra)" "$([[ $step == 3 ]] && echo '   spazio spunta')"
+          ((nv == 0)) && printf '  (nessuna voce con "%s")\n' "$filt"
+          printf '\n\e[2m su/giu muovi  Invio/destra %s  sinistra/Esc indietro%s%s  lettere filtrano\e[0m' \
+            "$([[ $step == 3 ]] && echo conferma || echo sceglie)" "$([[ $step == 3 ]] && echo '  spazio spunta')" \
+            "$([[ -n $HELPFN ]] && echo '  ? help')"
+          [[ -n $filt ]] && printf '\n\e[1m filtro: %s\e[0m  (Backspace cancella, Esc azzera)' "$filt"
         } >/dev/tty
         k=$(key)
         case $k in
-          up) ((cur > 0)) && ((cur--)) ;; down) ((cur < n - 1)) && ((cur++)) ;;
-          pgup) cur=$((cur > rows ? cur - rows : 0)) ;; pgdn) cur=$((cur + rows < n ? cur + rows : n - 1)) ;;
-          space) [[ $step == 3 ]] && { [[ ${on[cur]} == ON ]] && on[cur]=OFF || on[cur]=ON; } ;;
-          left | back) return 1 ;;
+          up) j=$cur; while ((j > 0)); do ((j--)); sep "$j" || { cur=$j; break; }; done ;;
+          down) j=$cur; while ((j < nv - 1)); do ((j++)); sep "$j" || { cur=$j; break; }; done ;;
+          pgup) cur=$((cur > rows ? cur - rows : 0)) ;; pgdn) cur=$((cur + rows < nv ? cur + rows : nv - 1)) ;;
+          space) [[ $step == 3 ]] && ((nv)) && { i=${vis[cur]}; [[ ${on[i]} == ON ]] && on[i]=OFF || on[i]=ON; } ;;
+          left) return 1 ;;
+          esc) [[ -n $filt ]] && filt="" || return 1 ;;
+          bs) [[ -n $filt ]] && filt=${filt%?} || return 1 ;;
+          '?') [[ -n $HELPFN ]] && ((nv)) && wt --msgbox "$("$HELPFN" "${tags[vis[cur]]}")" ;;
           enter | right)
             if [[ $step == 3 ]]; then
               out=""; for ((i = 0; i < n; i++)); do [[ ${on[i]} == ON ]] && out+="\"${tags[i]}\" "; done
               echo "$out"
-            else echo "${tags[cur]}"; fi
+            else ((nv)) || continue; echo "${tags[vis[cur]]}"; fi
             return 0 ;;
+          *) [[ ${#k} == 1 && $k == [[:print:]] ]] && { filt+=$k; cur=0; top=0; } ;;
         esac
       done ;;
     --inputbox)
-      { tput clear; printf '\e[1m%s\e[0m\n\n%b\n\n\e[2m Invio conferma   Ctrl-D annulla\e[0m\n' "$T" "$text"; } >/dev/tty
+      { tput clear; printf '\e[1m%s\e[0m\n\n%b\n\n\e[2m Invio conferma   Ctrl-D annulla   frecce e Home/Fine per correggere\e[0m\n' \
+          "$T" "$text"; } >/dev/tty
       IFS= read -re -i "$3" -p "> " out </dev/tty 2>/dev/tty || return 1
       echo "$out" ;;
     --msgbox)
@@ -77,17 +113,20 @@ wt() {
       key >/dev/null ;;
     --yesno)
       { tput clear; printf '\e[1m%s\e[0m\n\n%b\n\n\e[2m Invio/destra si   sinistra/Esc no\e[0m' "$T" "$text"; } >/dev/tty
-      while :; do case $(key) in enter | right) return 0 ;; left | back) return 1 ;; esac; done ;;
+      while :; do case $(key) in enter | right) return 0 ;; left | esc | bs) return 1 ;; esac; done ;;
   esac
 }
-size() { H=0; W=0; L=0; }  # misure di whiptail: i widget sopra si adattano al terminale
 
-set_ov() {  # set_ov chiave valore: sostituisce l'override con la stessa chiave
+# ---------------------------------------------------------------- stato: step e override
+set_ov() {  # set_ov chiave valore: sostituisce l'override con la stessa chiave; valore vuoto lo toglie
   local k=$1 v=$2 i out=()
   for i in "${OV[@]}"; do [[ ${i%%=*} == "$k" ]] || out+=("$i"); done
   [[ -n $v ]] && out+=("$k=$v")
   OV=("${out[@]}")
 }
+ov() { printf '%s\n' "${OV[@]}" | sed -n "s/^$1=//p" | tail -1; }   # valore di un override, vuoto se manca
+modificato() { [[ -n $RICETTA && $RICETTA != *" (modificata)" ]] && RICETTA+=" (modificata)"; }
+ha_step() { [[ " ${STEPS[*]} " == *" $1 "* ]]; }
 
 stage_help() {  # riga di docs/config/stage.yaml: "#   train     -> ..."
   [[ $1 == lut ]] && { echo "scripts/build_lut.sh: LUT e fit dello stimatore di latenza (~40 h sul Pi, riprende)"; return; }
@@ -103,53 +142,7 @@ doc_help() {  # doc_help gruppo chiave: la riga della chiave e i commenti sotto,
     f { exit }
     $0 ~ "^[[:space:]]*" k ":" { f = 1 }' "$f"
 }
-
-menu_steps() {
-  local s args=() on i
-  for i in "${!STEPS_ALL[@]}"; do
-    s=${STEPS_ALL[i]}
-    on=OFF; [[ " ${STEPS[*]} " == *" $s "* ]] && on=ON
-    args+=("$s" "$([[ -n ${DEPS_ALL[i]} ]] && echo "[dopo ${DEPS_ALL[i]}] ")$(stage_help "$s")" "$on")
-  done
-  size
-  local GRAPH=("${GRAPH_ALL[@]}")
-  s=$(wt --checklist "Step da eseguire, dall'alto in basso (spazio per scegliere). La catena si ferma al primo errore;\nogni step riusa dalla cache quello che ha fatto il precedente. La colonna centrale (select, search, finetune)\nserve solo alle strategie pit; con strategy=baseline si va da train a export. A destra board e LUT." $H $W $L "${args[@]}") || return
-  STEPS=()
-  for x in "${STEPS_ALL[@]}"; do [[ $s == *"\"$x\""* ]] && STEPS+=("$x"); done
-}
-
-# Varianti della griglia nel menu dei modelli (model=yolo26 + larghezza e profondita'), con la sigla della tesi
-GRIGLIA=()
-for w in 0.0625:F 0.09375:FP 0.125:P 0.1875:PN 0.25:N 0.375:NS 0.5:S 0.75:SM 1.0:M; do
-  for d in D101:- D126: D170:+; do GRIGLIA+=("${w%%:*}:${d%%:*}" "${w##*:}${d##*:}  (larghezza ${w%%:*}, ${d%%:*})"); done
-done
-
-menu_gruppi() {
-  local g f d args=() o
-  while :; do
-    args=()
-    for d in conf/*/; do
-      g=$(basename "$d"); [[ $g == stage ]] && continue
-      o=$(printf '%s\n' "${OV[@]}" | sed -n "s/^$g=//p")
-      args+=("$g" "${o:-(default)}")
-    done
-    size
-    g=$(wt --menu "Gruppi di configurazione: un file per opzione in conf/<gruppo>/." $H $W $L "${args[@]}") || return
-    args=("-" "(default di conf/config.yaml)")
-    for f in conf/"$g"/*.yaml; do
-      o=$(basename "$f" .yaml)
-      args+=("$o" "$(grep -m1 -E '^#' "$f" | grep -v '@package' | sed 's/^# *//' | cut -c1-70)")
-    done
-    [[ $g == model ]] && args+=("${GRIGLIA[@]}")
-    o=$(wt --menu "conf/$g/: scegli un'opzione." $H $W $L "${args[@]}") || continue
-    [[ $o == - ]] && o=""
-    set_ov model.width ""; set_ov model.depth ""
-    if [[ $g == model && $o == *:* ]]; then   # variante della griglia: model=yolo26 con larghezza e profondita'
-      set_ov model yolo26; set_ov model.width "${o%%:*}"; set_ov model.depth "${o##*:}"
-    elif [[ $o =~ ^[0-9]+$ ]]; then set_ov "$g" "'$o'"
-    else set_ov "$g" "$o"; fi
-  done
-}
+help_campo() { local h; h=$(doc_help "${1%%.*}" "$1"); echo "$1"; echo; echo "${h:-(nessun help in docs/config/)}"; }
 
 flat() {  # flat STAGE: chiave<TAB>valore della config composta; se non si compone, l'errore di Hydra su stderr
   local y
@@ -163,40 +156,209 @@ def w(n, p=""):
     else:
         yield p[:-1], n
 for k, v in w(yaml.safe_load(sys.stdin)):
-    print(f"{k}\t{"null" if v is None else v}")' <<<"$y"
+    print(f"{k}\t{"null" if v is None else " ".join(str(v).split())}")' <<<"$y"
 }
 
-menu_parametri() {  # prima lo step (ognuno compone la sua config), poi la sezione, poi il campo
-  local st cfg sez k v args h err
+modello() {  # etichetta del modello scelto
+  local w d i
+  w=$(ov model.width); d=$(ov model.depth)
+  if [[ -n $w ]]; then
+    for ((i = 0; i < ${#GRIGLIA[@]}; i += 2)); do
+      [[ ${GRIGLIA[i]} == "$w:${d:-D126}" ]] && { echo "${GRIGLIA[i+1]}"; return; }
+    done
+    echo "yolo26 larghezza $w ${d:-D126}"
+  else echo "$(ov model)"; fi
+}
+dflt() { [[ -n $1 ]] && echo "$1" || printf '\e[2m%s\e[0m' "$2"; }   # valore, o il suo default attenuato
+
+STATO_SIG=""; STATO=""; PRONTO=0
+controlla() {  # compone la config di ogni step scelto (in parallelo) e cerca i problemi noti; solo se qualcosa e' cambiato
+  local sig="${STEPS[*]}|${OV[*]}" s msg=""
+  [[ $sig == "$STATO_SIG" ]] && return
+  STATO_SIG=$sig; PRONTO=0
+  ((${#STEPS[@]})) || { STATO="\e[33m○ scegli gli step o una ricetta\e[0m"; return; }
+  printf '\e[2m controllo la configurazione...\e[0m' >/dev/tty
+  for s in "${STEPS[@]}"; do
+    [[ $s == lut ]] || flat "$s" >"$TMP/$s.cfg" 2>"$TMP/$s.err" &
+  done
+  wait
+  for s in "${STEPS[@]}"; do
+    [[ $s == lut ]] && continue
+    if [[ ! -s $TMP/$s.cfg ]]; then msg+="  ✗ $s: $(tail -1 "$TMP/$s.err")\n"; continue; fi
+    if [[ $s == select ]] || { [[ $s == search ]] && grep -q $'^strategy.name\tpit_latency' "$TMP/$s.cfg"; }; then
+      grep -q '^target\.' "$TMP/$s.cfg" || { msg+="  ✗ $s: manca il profilo (target)\n"; continue; }
+      grep -q $'^target.budget_ms\tnull' "$TMP/$s.cfg" && msg+="  ✗ $s: manca il budget (target.budget_ms)\n"
+    fi
+    if [[ $s == search ]] && grep -q $'^strategy.method\tultralytics' "$TMP/$s.cfg"; then
+      msg+="  ! search con strategy=baseline non fa niente\n"
+    fi
+  done
+  if [[ -z $msg ]]; then STATO="\e[32m✓ pronto\e[0m"; PRONTO=1; else STATO="\e[31m✗ da sistemare\e[0m\n$msg"; fi
+}
+
+# ---------------------------------------------------------------- schermate
+menu_steps() {
+  local s args=() on i
+  for i in "${!STEPS_ALL[@]}"; do
+    s=${STEPS_ALL[i]}
+    on=OFF; ha_step "$s" && on=ON
+    args+=("$s" "$([[ -n ${DEPS_ALL[i]} ]] && echo "[dopo ${DEPS_ALL[i]}] ")$(stage_help "$s")" "$on")
+  done
+  local GRAPH=("${GRAPH_ALL[@]}") HELPFN=stage_help
+  s=$(wt --checklist "Step da eseguire, dall'alto in basso; la catena si ferma al primo errore e ogni step riusa
+dalla cache il lavoro del precedente. Colonna centrale: solo strategie pit (con baseline si va da train a export).
+A destra board e LUT. Con select nella catena, gli step dopo usano il modello scelto da select." 0 0 0 "${args[@]}") || return
+  STEPS=()
+  for x in "${STEPS_ALL[@]}"; do [[ $s == *"\"$x\""* ]] && STEPS+=("$x"); done
+  modificato
+}
+
+help_opzione() {  # help di un'opzione di gruppo: i commenti in testa al suo file
+  local f=conf/$GRUPPO/$1.yaml
+  [[ -f $f ]] || { echo "$1"; return; }
+  echo "conf/$GRUPPO/$1.yaml"; echo; grep -E '^#' "$f" | grep -v '@package' | sed 's/^# \?//' | head -20
+}
+
+scegli_gruppo() {  # scegli_gruppo GRUPPO: un file di conf/<gruppo>/ (per model anche le varianti della griglia)
+  local g=$1 f o args=("-" "(default di conf/config.yaml)")
+  for f in conf/"$g"/*.yaml; do
+    o=$(basename "$f" .yaml)
+    args+=("$o" "$(grep -E '^#' "$f" | grep -v '@package' | head -1 | sed 's/^# *//')")
+  done
+  [[ $g == model ]] && args+=("${GRIGLIA[@]}")
+  local GRUPPO=$g HELPFN=help_opzione
+  o=$(wt --menu "conf/$g/: scegli un'opzione (attuale: $(ov "$g"))." 0 0 0 "${args[@]}") || return 1
+  [[ $o == - ]] && o=""
+  if [[ $g == model ]]; then set_ov model.width ""; set_ov model.depth ""; fi
+  if [[ $g == model && $o == *:* ]]; then   # variante della griglia: model=yolo26 con larghezza e profondita'
+    set_ov model yolo26; set_ov model.width "${o%%:*}"; set_ov model.depth "${o##*:}"
+  elif [[ $o =~ ^[0-9]+$ ]]; then set_ov "$g" "'$o'"   # nome numerico (deploy 640): Hydra lo leggerebbe come intero
+  else set_ov "$g" "$o"; fi
+  modificato
+}
+
+menu_gruppi() {
+  local g d args=()
   while :; do
     args=()
-    for st in "${STEPS_ALL[@]}"; do
-      [[ $st == lut ]] && continue
-      args+=("$st" "$([[ " ${STEPS[*]} " == *" $st "* ]] && echo "scelto")")
+    for d in conf/*/; do
+      g=$(basename "$d"); [[ $g == stage ]] && continue
+      args+=("$g" "$(ov "$g" || true)")
     done
+    for ((d = 1; d < ${#args[@]}; d += 2)); do [[ -z ${args[d]} ]] && args[d]="(default)"; done
+    g=$(wt --menu "Gruppi di configurazione: un file per opzione in conf/<gruppo>/." 0 0 0 "${args[@]}") || return
+    scegli_gruppo "$g"
+  done
+}
+
+step_per_config() {  # lo step di cui mostrare la config: search se c'e', se no il primo scelto, se no train
+  local s
+  for s in search "${STEPS[@]}" train; do [[ $s != lut ]] && { ha_step "$s" || [[ $s == train ]]; } && { echo "$s"; return; }; done
+}
+
+modifica_campo() {  # modifica_campo STEP CHIAVE VALORE: inputbox con l'help; aggiorna l'override e ricontrolla
+  local st=$1 k=$2 v=$3
+  [[ $v == null ]] && v=""
+  v=$(wt --inputbox "stage=$st\n\n$(help_campo "$k" | head -16)\n\nValore (vuoto = torna al default):" 0 0 "$v") || return 1
+  set_ov "$k" "$v"; modificato
+  flat "$st" >/dev/null 2>"$TMP/err" || { wt --msgbox "Con $k=$v la config non si compone:\n\n$(cat "$TMP/err")\n\nTolgo l'override."; set_ov "$k" ""; }
+}
+
+menu_principali() {  # i campi di ESSENZIALI presenti nella config dello step piu' rappresentativo
+  local st cfg k v args
+  st=$(step_per_config)
+  while :; do
+    cfg=$(flat "$st" 2>"$TMP/err") || { wt --msgbox "La config di stage=$st non si compone:\n\n$(cat "$TMP/err")"; return; }
+    args=()
+    for k in "${ESSENZIALI[@]}"; do
+      v=$(grep -P "^\Q$k\E\t" <<<"$cfg" | cut -f2-) && args+=("$k" "$v$([[ -n $(ov "$k") ]] && echo '   ← cambiato')")
+    done
+    local HELPFN=help_campo
+    k=$(wt --menu "Parametri principali (config di stage=$st). Per tutti gli altri: \"tutti i parametri\"." 0 0 0 "${args[@]}") || return
+    modifica_campo "$st" "$k" "$(grep -P "^\Q$k\E\t" <<<"$cfg" | cut -f2-)"
+  done
+}
+
+menu_parametri() {  # tutti i campi: prima lo step (ognuno compone la sua config), poi la sezione, poi il campo
+  local st cfg sez k args
+  while :; do
+    args=()
+    for st in "${STEPS_ALL[@]}"; do [[ $st == lut ]] || args+=("$st" "$(ha_step "$st" && echo scelto)"); done
+    local HELPFN=stage_help
     st=$(wt --menu "Parametri di quale step? Ogni step compone la sua config; gli override valgono per tutti." 0 0 0 "${args[@]}") || return
-    cfg=$(flat "$st" 2>/tmp/lab_err.$$) || { err=$(cat /tmp/lab_err.$$); wt --msgbox "La config di stage=$st non si compone:\n\n$err\n\nOverride: ${OV[*]}"; continue; }
     while :; do
-      args=()
-      while read -r sez; do args+=("$sez" ""); done < <(cut -f1 <<<"$cfg" | cut -d. -f1 | awk '!s[$0]++')
-      sez=$(wt --menu "stage=$st: sezioni della config composta." 0 0 0 "${args[@]}") || break
+      cfg=$(flat "$st" 2>"$TMP/err") || { wt --msgbox "La config di stage=$st non si compone:\n\n$(cat "$TMP/err")"; break; }
+      args=(generali "$(cut -f1 <<<"$cfg" | grep -vc '\.') campi senza sezione (seed, force, dry_run, ...)")
+      while read -r sez; do
+        args+=("$sez" "$(grep -c "^$sez\." <<<"$cfg") campi")
+      done < <(cut -f1 <<<"$cfg" | grep '\.' | cut -d. -f1 | awk '!s[$0]++')
+      HELPFN=""
+      sez=$(wt --menu "stage=$st: sezioni (scrivi per filtrare)." 0 0 0 "${args[@]}") || break
       while :; do
+        cfg=$(flat "$st" 2>/dev/null) || break
         args=()
-        while IFS=$'\t' read -r k v; do args+=("$k" "${v:0:60}"); done < <(grep -E "^$sez(\.|$(printf '\t'))" <<<"$cfg")
-        k=$(wt --menu "stage=$st, $sez: scegli il campo da cambiare." 0 0 0 "${args[@]}") || break
-        v=$(grep -P "^\Q$k\E\t" <<<"$cfg" | cut -f2-)
-        h=$(doc_help "$sez" "$k" | head -15)
-        v=$(wt --inputbox "$k\n\n${h:-(nessun help in docs/config/)}\n\nValore (vuoto = togli l'override):" 0 0 "$v") || continue
-        set_ov "$k" "$v"
-        cfg=$(flat "$st" 2>/tmp/lab_err.$$) || { wt --msgbox "Con $k=$v la config non si compone:\n\n$(cat /tmp/lab_err.$$)"; set_ov "$k" ""; cfg=$(flat "$st"); }
+        while IFS=$'\t' read -r k v; do
+          args+=("$k" "$v$([[ -n $(ov "$k") ]] && echo '   ← cambiato')")
+        done < <(if [[ $sez == generali ]]; then grep -vP '^[^\t]*\.' <<<"$cfg"; else grep "^$sez\." <<<"$cfg"; fi)
+        HELPFN=help_campo
+        k=$(wt --menu "stage=$st, $sez: scegli il campo (? per l'help, lettere filtrano)." 0 0 0 "${args[@]}") || break
+        modifica_campo "$st" "$k" "$(grep -P "^\Q$k\E\t" <<<"$cfg" | cut -f2-)"
       done
     done
   done
 }
 
+menu_override() {  # gli override attivi: Invio ne toglie uno
+  local o args
+  while :; do
+    ((${#OV[@]})) || { wt --msgbox "Nessun override: tutto ai default di conf/."; return; }
+    args=(); for o in "${OV[@]}"; do args+=("${o%%=*}" "${o#*=}"); done
+    o=$(wt --menu "Override attivi (passati a run.py). Invio toglie quello sotto il cursore." 0 0 0 "${args[@]}") || return
+    set_ov "$o" ""; [[ $o == model ]] && { set_ov model.width ""; set_ov model.depth ""; }
+    modificato
+  done
+}
+
+# ---------------------------------------------------------------- ricette
+# File ricette/<nome>.ricetta: prima riga "# descrizione", poi "step a b c" e una riga "set chiave=valore" per override.
+help_ricetta() { echo "ricette/$1.ricetta"; echo; cat "$RICETTE/$1.ricetta"; }
+
+carica_ricetta() {
+  local f=$RICETTE/$1.ricetta l
+  STEPS=(); OV=()
+  while IFS= read -r l; do
+    case $l in step\ *) read -ra STEPS <<<"${l#step }" ;; set\ *) OV+=("${l#set }") ;; esac
+  done <"$f"
+  RICETTA=$1
+}
+
+menu_ricette() {
+  local f args=() r
+  for f in "$RICETTE"/*.ricetta; do
+    [[ -f $f ]] && args+=("$(basename "$f" .ricetta)" "$(head -1 "$f" | sed 's/^# *//')")
+  done
+  ((${#args[@]})) || { wt --msgbox "Nessuna ricetta in $RICETTE/."; return; }
+  local HELPFN=help_ricetta
+  r=$(wt --menu "Ricette pronte: caricano step e override, poi si possono cambiare. ? mostra il contenuto." 0 0 0 "${args[@]}") || return
+  carica_ricetta "$r"
+}
+
+salva_ricetta() {
+  local n d o
+  ((${#STEPS[@]})) || { wt --msgbox "Scegli prima gli step."; return; }
+  n=$(wt --inputbox "Nome della ricetta (file ricette/<nome>.ricetta):" 0 0 "${RICETTA%% *}") || return
+  n=${n// /_}; [[ -n $n ]] || return
+  [[ -f $RICETTE/$n.ricetta ]] && ! wt --yesno "ricette/$n.ricetta esiste: la sovrascrivo?" && return
+  d=$(wt --inputbox "Descrizione in una riga:" 0 0 "$([[ -f $RICETTE/$n.ricetta ]] && head -1 "$RICETTE/$n.ricetta" | sed 's/^# *//')") || return
+  { echo "# $d"; echo "step ${STEPS[*]}"; for o in "${OV[@]}"; do echo "set $o"; done; } >"$RICETTE/$n.ricetta"
+  RICETTA=$n
+  wt --msgbox "Salvata: ricette/$n.ricetta"
+}
+
+# ---------------------------------------------------------------- avvio e run
 comandi() {  # una riga per step; con select nella catena, gli step dopo potano il modello scelto da select
-  local s guida="" t ov=()
-  t=$(printf '%s\n' "${OV[@]}" | sed -n 's/^target=//p')
+  local s guida="" t ov=() i
+  t=$(ov target)
   for s in "${STEPS[@]}"; do
     if [[ $s == lut ]]; then echo "scripts/build_lut.sh"; continue; fi   # parametri propri (src/lut/pi.py)
     ov=("${OV[@]}")
@@ -210,12 +372,19 @@ comandi() {  # una riga per step; con select nella catena, gli step dopo potano 
   done
 }
 
-lancia() {  # lancia NOME COMANDI: in background con nohup, log in runs/, poi lo segue
+lancia() {  # lancia NOME COMANDI: in background con nohup, log in runs/ con i comandi e l'esito, poi lo segue
   local log="$RUNS/$(date +%Y-%m-%d_%H-%M-%S)_$1.log"
   { echo "# $(date -Is)"; sed 's/^/# CMD /' <<<"$2"; } >"$log"
-  nohup bash -c "set -e; $(sed 's/$/;/' <<<"$2")" >>"$log" 2>&1 &
+  nohup bash -c "( set -e; $(sed 's/$/;/' <<<"$2") ); echo \"# EXIT \$?\"" >>"$log" 2>&1 &
   echo "$!" >"$log.pid"
   segui "$log"
+}
+
+esito() {  # esito LOG: in corso, ok o errore
+  local e
+  if kill -0 "$(cat "$1.pid" 2>/dev/null)" 2>/dev/null; then echo "▶ in corso"; return; fi
+  e=$(sed -n 's/^# EXIT //p' "$1" | tail -1)
+  case $e in 0) echo "✓ finito" ;; '') echo "? interrotto" ;; *) echo "✗ errore $e" ;; esac
 }
 
 segui() {
@@ -224,77 +393,129 @@ segui() {
   trap 'true' INT
   tail -n 200 -f "$1" --pid "$(cat "$1.pid" 2>/dev/null || echo 1)" || true
   trap - INT
+  echo; echo "== $(esito "$1")"
   read -rp "Invio per tornare al menu... " _
 }
 
 avvio() {
-  [[ ${#STEPS[@]} -gt 0 ]] || { wt --msgbox "Nessuno step scelto." 8 40; return; }
-  local c; c=$(comandi)
-  size
-  wt --yesno "Comandi:\n\n$c\n\nAvvio?" $H $W || return
-  lancia "$(IFS=-; echo "${STEPS[*]}")" "$c"
+  controlla
+  ((${#STEPS[@]})) || { wt --msgbox "Nessuno step scelto: scegli una ricetta o gli step."; return; }
+  ((PRONTO)) || wt --yesno "La configurazione ha problemi:\n\n$STATO\n\nAvvio lo stesso?" || return
+  wt --yesno "Comandi che partono, in quest'ordine:\n\n$(comandi)\n\nAvvio?" || return
+  lancia "$(IFS=-; echo "${STEPS[*]}")" "$(comandi)"
 }
+
+help_script() { sed -n '1,25p' "$1" | grep -E '^#' | grep -v '^#!' | sed 's/^# \?//'; }
 
 strumenti() {
   local f args=() a
-  for f in scripts/*.sh tools/*.py; do
-    args+=("$f" "$(sed -n '2,6p' "$f" | grep -m1 -E '^#' | sed 's/^# *//' | cut -c1-70)")
+  for f in scripts/*.sh tools/*.py experiments/*/*/rifai.sh experiments/*/*/*/rifai.sh; do
+    [[ -f $f ]] && args+=("$f" "$(help_script "$f" | head -1 | cut -c1-90)")
   done
-  size
-  f=$(wt --menu "Script e strumenti (help: commento in testa al file)." $H $W $L "${args[@]}") || return
-  a=$(wt --inputbox "$(sed -n '1,12p' "$f" | grep -E '^#' | sed 's/^# *//')\n\nArgomenti:" $H $W "") || return
+  local HELPFN=help_script
+  f=$(wt --menu "Script, figure ed esperimenti (rifai.sh). ? mostra l'help in testa al file." 0 0 0 "${args[@]}") || return
+  a=$(wt --inputbox "$f\n\n$(help_script "$f" | head -20)\n\nArgomenti (anche nessuno):" 0 0 "") || return
   [[ $f == *.py ]] && f="$PY $f"
-  lancia "$(basename "${f##* }" | cut -d. -f1)" "$f $a"
+  lancia "$(basename "$(dirname "${f##* }")")_$(basename "${f##* }" | cut -d. -f1)" "$f $a"
 }
+
+help_run() { cat "$1" | grep '^# ' | head -20; echo; echo "Esito: $(esito "$1")"; echo; tail -5 "$1"; }
 
 storico() {
   local args=() l a c
-  for l in $(ls -t "$RUNS"/*.log 2>/dev/null | head -40); do
-    args+=("$l" "$(grep -m1 '^# CMD' "$l" | cut -c7-70)")
+  for l in $(ls -t "$RUNS"/*.log 2>/dev/null | head -60); do
+    args+=("$l" "$(esito "$l")  $(grep -m1 '^# CMD' "$l" | cut -c7-80)")
   done
-  [[ ${#args[@]} -gt 0 ]] || { wt --msgbox "Nessun run in $RUNS/." 8 40; return; }
-  size
-  l=$(wt --menu "Run, dal piu' recente." $H $W $L "${args[@]}") || return
-  a=$(wt --menu "$l" 12 60 3 log "segui il log" rilancia "ripeti gli stessi comandi" ferma "termina il run") || return
+  ((${#args[@]})) || { wt --msgbox "Nessun run in $RUNS/."; return; }
+  local HELPFN=help_run
+  l=$(wt --menu "Run, dal piu' recente. ? mostra comandi ed esito." 0 0 0 "${args[@]}") || return
+  HELPFN=""
+  a=$(wt --menu "$l\n$(esito "$l")" 0 0 0 log "segui il log" rilancia "ripeti gli stessi comandi" \
+      carica "carica step e override di questo run" ferma "termina il run") || return
   case $a in
     log) segui "$l" ;;
     rilancia) c=$(sed -n 's/^# CMD //p' "$l"); lancia "$(basename "$l" .log | cut -d_ -f3-)" "$c" ;;
-    ferma) kill "$(cat "$l.pid")" 2>/dev/null && wt --msgbox "Fermato." 8 30 ;;
+    carica)   # dai comandi run.py del log: gli step e gli override del primo
+      c=$(sed -n 's/^# CMD //p' "$l" | grep 'run.py stage=')
+      [[ -n $c ]] || { wt --msgbox "Nel run non ci sono comandi run.py."; return; }
+      STEPS=(); while read -r a; do STEPS+=("$(sed -E 's/.*stage=([a-z]+).*/\1/' <<<"$a")"); done <<<"$c"
+      eval "OV=($(head -1 <<<"$c" | sed -E 's/.*stage=[a-z]+ ?//; s/ \$MS//'))"
+      RICETTA="(da $(basename "$l" .log))" ;;
+    ferma) kill "$(cat "$l.pid")" 2>/dev/null && wt --msgbox "Fermato." ;;
   esac
 }
 
-HELP='\e[1mCome si usa\e[0m
-Si sceglie cosa fare (step), con quale configurazione (gruppi, parametri), poi si avvia. Il launcher scrive solo
-la riga di comando di run.py: gli YAML in conf/ non cambiano mai, le modifiche sono override Hydra.
+HELP='\e[1mIn tre passi\e[0m
+  1. ricette      carica una ricetta pronta (step + override): e'"'"' il modo piu'"'"' veloce.
+  2. controlla    la pagina principale mostra cosa partira'"'"' e se la configurazione e'"'"' a posto (✓ o ✗).
+  3. avvia        mostra i comandi esatti e li lancia in background; il log scorre qui.
 
-\e[1mSezioni\e[0m
-  step        gli stadi della pipeline, in ordine di esecuzione, con il grafo delle dipendenze. Se ne sceglie
-              uno, una parte o la catena intera; la catena si ferma al primo errore.
-  gruppi      per ogni gruppo di conf/ (target, model, strategy, train, ...) quale file usare. target e\x27 il
-              profilo di deploy: fissa dispositivo, risoluzione, backend, precisione, budget e LUT insieme.
-  parametri   la config composta, sezione per sezione: si cambia un campo e si legge il suo help
-              (da docs/config/). Valore vuoto = torna al default.
-  avvio       mostra i comandi esatti e li lancia in background; il log scorre qui, Ctrl-C torna al menu
-              e il run continua.
-  strumenti   script di scripts/ e tools/ (LUT, figure, ...), con l\x27help del commento in testa al file.
-  storico     i run in runs/: seguire il log, rilanciare gli stessi comandi, fermare un run.
+\e[1mControllo granulare\e[0m
+  step                  gli stadi, in ordine di esecuzione, con il grafo delle dipendenze. Con select nella
+                        catena, gli step dopo usano il modello scelto da select.
+  modello, profilo      scorciatoie per i gruppi model e target (profilo di deploy: dispositivo, risoluzione,
+                        backend, precisione, budget e LUT insieme).
+  parametri principali  i campi che si cambiano quasi sempre (budget, pendenza, epoche, seed, dry_run).
+  tutti i parametri     la config composta di uno step, sezione per sezione, ogni campo con il suo help.
+  gruppi                quale file usare per ogni gruppo di conf/.
+  override attivi       cosa e'"'"' cambiato rispetto ai default; Invio toglie un override.
+  salva ricetta         salva step e override in ricette/<nome>.ricetta, da ricaricare o versionare.
+  storico               i run in runs/ con l'"'"'esito: log, rilancio, ricarica della configurazione, stop.
+  strumenti             script, figure e rifai.sh degli esperimenti.
 
 \e[1mTasti\e[0m
-  su/giu muovono, Invio o destra entrano o scelgono, sinistra, Esc o Backspace tornano indietro,
-  spazio spunta gli step, Ctrl-D annulla la scrittura di un valore. Indietro dalla pagina principale esce.'
+  su/giu muovono, Invio o destra scelgono, sinistra o Esc tornano indietro, spazio spunta gli step.
+  Nei menu: scrivi per filtrare (Backspace cancella, Esc azzera), ? mostra l'"'"'help della voce.
+  Mentre scrivi un valore: Ctrl-D annulla. Il launcher non modifica mai gli YAML: tutto e'"'"' un override Hydra.'
 
+help_home() {
+  case $1 in
+    avvia) echo "Mostra i comandi esatti e li lancia in background (nohup): il run sopravvive se chiudi il launcher." ;;
+    ricette) echo "Carica una ricetta da ricette/: step e override in un colpo. Si possono cambiare dopo." ;;
+    step) echo "Quali stadi eseguire. Ordine fisso, quello della pipeline; la catena si ferma al primo errore." ;;
+    modello) echo "Il modello da allenare, potare o misurare: le taglie di conf/model/ o una variante della griglia." ;;
+    profilo) echo "Il profilo di deploy (conf/target/): fissa dispositivo, risoluzione, backend, precisione, budget e LUT." ;;
+    principali) echo "I parametri che si cambiano quasi sempre, ognuno con il suo help (? o all'apertura)." ;;
+    tutti) echo "Tutta la config composta di uno step: sezione, poi campo. Lettere filtrano, ? mostra l'help." ;;
+    *) printf '%b' "$HELP" ;;
+  esac
+}
+
+# ---------------------------------------------------------------- pagina principale
 while :; do
-  size
-  s=$(wt --menu "Step: ${STEPS[*]:-nessuno}\nOverride: ${OV[*]:-nessuno}" $H $W $L \
-      step "scegli gli step (catena completa o parte)" \
-      gruppi "profilo, modello, strategia, ..." \
-      parametri "cambia un campo, con il suo help" \
-      avvio "anteprima dei comandi e avvio" \
-      strumenti "script e figure fuori da run.py" \
-      storico "run passati: log, rilancio, stop" \
-      help "cosa fanno le sezioni e i tasti") || { clear; exit 0; }
+  controlla
+  D=$'\e[2m' N=$'\e[0m'
+  testa="  ${D}ricetta  ${N}  ${RICETTA:-—}
+  ${D}step     ${N}  $( ((${#STEPS[@]})) && echo "${STEPS[*]}" | sed 's/ / → /g' || echo —)
+  ${D}modello  ${N}  $(dflt "$(modello)" "default (yolo26n)")$(ha_step select && ha_step search && echo '   (per gli step dopo select: lo sceglie select)')
+  ${D}profilo  ${N}  $(dflt "$(ov target)" "nessuno")$([[ -n $(ov target.budget_ms) ]] && echo "   budget $(ov target.budget_ms) ms")
+  ${D}strategia${N}  $(dflt "$(ov strategy)" "default (baseline)")
+  ${D}override ${N}  ${#OV[@]}$( ((${#OV[@]})) && echo ": ${OV[*]}" | cut -c1-110)
+  ${D}stato    ${N}  $STATO"
+  HELPFN=help_home
+  s=$(wt --menu "$testa" 0 0 0 \
+      "" "per partire" \
+      avvia "anteprima dei comandi e avvio" \
+      ricette "parti da una ricetta pronta" \
+      "" "configurazione" \
+      step "quali stadi eseguire (grafo delle dipendenze)" \
+      modello "taglia o variante della griglia" \
+      profilo "profilo di deploy (target)" \
+      principali "parametri principali: budget, pendenza, epoche, ..." \
+      tutti "tutti i parametri, step per step" \
+      gruppi "tutti i gruppi di conf/" \
+      override "override attivi (togli)" \
+      salva "salva come ricetta" \
+      "" "run e strumenti" \
+      storico "run passati: esito, log, rilancio" \
+      strumenti "script, figure, rifai.sh degli esperimenti" \
+      help "guida") || { clear; exit 0; }
+  HELPFN=""
   case $s in
-    step) menu_steps ;; gruppi) menu_gruppi ;; parametri) menu_parametri ;;
-    avvio) avvio ;; strumenti) strumenti ;; storico) storico ;; help) wt --msgbox "$HELP" ;;
+    avvia) avvio ;; ricette) menu_ricette ;; step) menu_steps ;;
+    modello) scegli_gruppo model ;; profilo) scegli_gruppo target ;;
+    principali) menu_principali ;; tutti) menu_parametri ;; gruppi) menu_gruppi ;;
+    override) menu_override ;; salva) salva_ricetta ;; storico) storico ;; strumenti) strumenti ;;
+    help) wt --msgbox "$HELP" ;;
   esac
 done
