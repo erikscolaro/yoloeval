@@ -3,15 +3,15 @@
 # 28 ms (budget del modello), 10 epoche, per le 4 pendenze e 2 ottimizzatori delle maschere:
 #   adamw: quello di pit_latency (AdamW lr 0.01): normalizza la spinta, le pendenze contano poco (livello 0)
 #   sgd:   SGD lr 1.0 con il momento 0.9 di yolopit (passo effettivo ~10, quello del livello 0): conta la forza
-# Una ricerca alla volta (4 in parallelo dividevano la GPU: piu' di 17 min per epoca ciascuna). Idempotente: le ricerche
+# Una ricerca alla volta (batch 64, conf/strategy; 4 in parallelo dividevano la GPU: piu' di 17 min per epoca ciascuna). Idempotente: le ricerche
 # in cache si saltano; una interrotta riparte da capo nella stessa cartella.
 #   experiments/pruning/pendenze/livello1/rifai.sh
 set -uo pipefail
 cd "$(dirname "$0")/../../../.."
 D=experiments/pruning/pendenze/livello1
 C="stage=search model=yolo26n strategy=pit_latency target=rpi5_640 target.model_budget_ms=28 logging=local
-   strategy.search.epochs=10"
-for opt in adamw sgd; do
+   strategy.search.epochs=30"
+for opt in ${OPTS:-adamw}; do   # OPTS="adamw sgd" per anche SGD
   O=""; [[ $opt == sgd ]] && O="strategy.search.nas.optimizer=SGD strategy.search.nas.lr0=1.0"
   for e in lut smooth secant best; do
     .venv/bin/python run.py $C $O strategy.search.pit.latency.estimator=$e > $D/runs/${e}_$opt.log 2>&1
