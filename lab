@@ -194,11 +194,19 @@ menu_parametri() {  # prima lo step (ognuno compone la sua config), poi la sezio
   done
 }
 
-comandi() {  # una riga per step
-  local s
+comandi() {  # una riga per step; con select nella catena, gli step dopo potano il modello scelto da select
+  local s guida="" t ov=()
+  t=$(printf '%s\n' "${OV[@]}" | sed -n 's/^target=//p')
   for s in "${STEPS[@]}"; do
-    if [[ $s == lut ]]; then echo "scripts/build_lut.sh"   # parametri propri (src/lut/pi.py), non gli override
-    else printf '%s run.py stage=%s' "$PY" "$s"; ((${#OV[@]})) && printf ' %q' "${OV[@]}"; echo; fi
+    if [[ $s == lut ]]; then echo "scripts/build_lut.sh"; continue; fi   # parametri propri (src/lut/pi.py)
+    ov=("${OV[@]}")
+    if [[ -n $guida && $s != provision ]]; then   # il modello lo decide select: via gli override del modello
+      ov=(); for i in "${OV[@]}"; do [[ ${i%%=*} == model* ]] || ov+=("$i"); done
+    fi
+    printf '%s run.py stage=%s' "$PY" "$s"; ((${#ov[@]})) && printf ' %q' "${ov[@]}"
+    [[ -n $guida && $s != provision ]] && printf ' $MS'
+    echo
+    if [[ $s == select ]]; then guida=1; echo "MS=\$($PY -m src.selection results/select/${t:-TARGET}.json)"; fi
   done
 }
 

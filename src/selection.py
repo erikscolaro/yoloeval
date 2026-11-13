@@ -137,3 +137,13 @@ def scegli(lat, mAP, floor, budget, floor_ratio, tie, seed_noise, start_model=No
     passano = [a for a in floor if floor[a][0] <= limite]
     return out | {"caso": "stretto", "partenza": migliore(passano, lambda a: floor[a][0], seed_noise),
                   "avviso": None if passano else "nessun modello passa il test del pavimento"}
+
+
+if __name__ == "__main__":
+    # python -m src.selection results/select/<profilo>.json -> override del modello di partenza, per la catena guidata
+    import sys
+    r = json.load(open(sys.argv[1]))
+    if not r["partenza"]:
+        sys.exit(f"select, caso {r['caso']}: nessun modello da potare (ottimo {r['ottimo']}); {r.get('avviso') or ''}")
+    w, d = re.fullmatch(r"w([\d.]+)_(D\d+)", r["partenza"]).groups()
+    print(f"model=yolo26 model.width={w} model.depth={d}")
