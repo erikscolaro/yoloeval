@@ -33,6 +33,19 @@ def finetune_args(cfg) -> dict:
     return conf
 
 
+def reinit_weights(net) -> None:
+    """Pesi da zero come un modello nuovo di Ultralytics: reset_parameters di ogni layer, poi
+    initialize_weights (BN eps/momentum) e bias_init della testa."""
+    from ultralytics.utils.torch_utils import initialize_weights
+    for m in net.modules():
+        if m is not net and hasattr(m, "reset_parameters"):
+            m.reset_parameters()
+    initialize_weights(net)
+    for m in net.modules():
+        if hasattr(m, "bias_init") and getattr(m, "stride", None) is not None:
+            m.bias_init()
+
+
 def run_finetune(cfg) -> Path | None:
     if is_baseline(cfg):
         log.info("strategy=%s: nessun fine-tuning da fare", strategy_name(cfg))
@@ -60,7 +73,10 @@ def run_finetune(cfg) -> Path | None:
 
     with timer.phase("setup"):
         args = finetune_args(cfg)
+        reinit = bool(args.pop("reinit", False))
         model = YOLO(str(search / "pruned.pt"))
+        if reinit:      # finetune=scratch: stessa architettura, pesi da zero
+            reinit_weights(model.model)
 
     with timer.phase("compute"):
         results = model.train(data=str(cfg.pretrain_dataset.yaml), project=str(out_dir), name="run",

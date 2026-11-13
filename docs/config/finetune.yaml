@@ -65,3 +65,6 @@ degrees: 0.0
   # Rotazione casuale massima, in gradi.
 fliplr: 0.5
   # Probabilita' di specchiatura orizzontale.
+reinit: false
+  # true: reinizializza i pesi della rete potata prima di allenarla (train from scratch dell'architettura
+  # trovata). Lo legge lo stage, non va a Ultralytics. Preset: finetune=scratch (ricetta di train/default).

@@ -1,0 +1,7 @@
+# Train from scratch dell'architettura potata: pesi reinizializzati, stessa ricetta di train/default (300 epoche).
+# Confronto con il fine-tuning (finetune=default): quanto vale ereditare i pesi della ricerca.
+#   python run.py stage=finetune ... finetune=scratch
+defaults:
+  - /train/default@_here_
+  - _self_
+reinit: true            # letto dallo stage, non passato a Ultralytics

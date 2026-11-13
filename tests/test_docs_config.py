@@ -54,7 +54,7 @@ def test_ogni_campo_usato_e_documentato(gruppo):
     riferimento = chiavi(carica(DOCS / f"{gruppo}.yaml"))
     usate: set[str] = set()
     for f in sorted((CONF / gruppo).glob("*.yaml")):
-        usate |= chiavi(carica(f))
+        usate |= chiavi(carica(f)) - {"defaults"}   # lista di Hydra, non un campo
     mancanti = usate - riferimento
     assert not mancanti, (
         f"campi usati in conf/{gruppo}/ ma assenti da docs/config/{gruppo}.yaml: "
