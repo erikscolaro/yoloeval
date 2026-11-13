@@ -1,0 +1,16 @@
+net,mode,opt,variant,target_ms,est_ms,reached,first_step_le_target,min_ms,window_steps,inversions,changes,range_ms,channels_out,channels_out0,layers,above_step_out,above_step_any,seconds
+lut_adamw_final,lut,adamw,final,28.0,27.8142,1,185,27.8142,600,0,0,0.0,2472,4952,74,0,0,157
+lut_adamw_first,lut,adamw,first,28.0,27.8142,1,185,27.8142,600,0,0,0.0,2472,4952,74,0,0,161
+smooth_adamw_final,smooth,adamw,final,28.0,22.0786,1,50,22.0786,600,0,0,0.0,1350,4952,74,0,1,163
+smooth_adamw_first,smooth,adamw,first,28.0,22.0786,1,50,22.0786,600,0,0,0.0,1350,4952,74,0,1,168
+secant_adamw_final,secant,adamw,final,28.0,22.2218,1,50,22.2218,600,0,0,0.0,1412,4952,74,0,1,235
+secant_adamw_first,secant,adamw,first,28.0,22.2218,1,50,22.2218,600,0,0,0.0,1412,4952,74,0,1,240
+best_adamw_final,best,adamw,final,28.0,22.0786,1,50,22.0786,600,0,0,0.0,1350,4952,74,0,1,251
+best_adamw_first,best,adamw,first,28.0,22.0786,1,50,22.0786,600,0,0,0.0,1350,4952,74,0,1,256
+lut_sgd_final,lut,sgd,final,28.0,28.5054,0,,28.1704,600,0,484,1.0893,2978,4952,74,0,0,174
+smooth_sgd_final,smooth,sgd,final,28.0,27.9355,1,546,27.9355,600,0,0,0.0,3438,4952,74,0,1,181
+smooth_sgd_first,smooth,sgd,first,28.0,27.9355,1,546,27.9355,600,0,0,0.0,3438,4952,74,0,1,186
+secant_sgd_final,secant,sgd,final,28.0,27.4638,1,708,27.4638,600,0,0,0.0,3442,4952,74,0,1,258
+secant_sgd_first,secant,sgd,first,28.0,27.4638,1,708,27.4638,600,0,0,0.0,3442,4952,74,0,1,263
+best_sgd_final,best,sgd,final,28.0,27.6727,1,477,27.6727,600,0,0,0.0,3496,4952,74,0,1,276
+best_sgd_first,best,sgd,first,28.0,27.6727,1,477,27.6727,600,0,0,0.0,3496,4952,74,0,1,282
