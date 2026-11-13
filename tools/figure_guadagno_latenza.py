@@ -18,12 +18,11 @@ import numpy as np
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-from tools.figura_pareto import DIRS, etichette, fronte  # noqa: E402
+from tools.figura_pareto import fronte  # noqa: E402
 from tools.figure_griglia import LETTERA  # noqa: E402
-from tools.plots import STYLE, color, save  # noqa: E402
+from tools.plots import GRAY, STYLE, color, save  # noqa: E402
 
 COLUMN = 3.5
-DIRS += [(dx * r / 5, dy * r / 5, ha, va) for r in (12,) for dx, dy, ha, va in DIRS[:8]]  # un anello in più per i punti vicini
 EXP = ROOT / "experiments/pruning"
 LUT = ROOT / "artifacts/lut/rpi5"
 SEGNO = {"D101": "-", "D126": "", "D170": "+"}
@@ -137,75 +136,90 @@ def main():
 
     plt.style.use(STYLE)
     ink = plt.rcParams["axes.edgecolor"]
-    fig, axs = plt.subplots(4, 1, figsize=(COLUMN, 8.2), sharex=True, height_ratios=[1, 1, 0.8, 3.2])
-    c50, c5095 = "#eb6834", "#2a78d6"  # due colori fissi per le due metriche, uguali in tutti i pannelli
-    gains = []
-    for ax, m, c, nome in zip(axs[:2], (0, 1), (c50, c5095), ("mAP50", "mAP50-95")):
-        pts = [(lat[a], mAP[a][m], a) for a in arch]
-        fr = fronte(pts)
-        ax.plot([p[0] for p in fr], [p[1] for p in fr], color=c, lw=1.4,
-                drawstyle="steps-post", zorder=2)
-        ax.plot([p[0] for p in pts if p not in fr], [p[1] for p in pts if p not in fr], "o", mfc="white", mec=c, ms=4,
-                alpha=0.7, zorder=3)
-        ax.plot([p[0] for p in fr], [p[1] for p in fr], "o", color=c, mec="white", mew=0.6, ms=5, zorder=4)
-        ax.set_ylabel(nome)
-        if m:
-            etichette(ax, [(t, y, sigla(a), c) for t, y, a in fr], [(t, y, 3.5) for t, y, _ in pts], [])
-        gains.append((nome, c, guadagno([(t, y) for t, y, _ in fr])))
-    ax = axs[2]
-    for nome, c, g in gains:
-        for t0, t1, v in g:
-            ax.plot([t0, t1], [v, v], color=c, lw=4 if nome == "mAP50" else 2, solid_capstyle="butt",
-                    label=nome if t0 == g[0][0] else None)
+    fig, axs = plt.subplots(2, 1, figsize=(COLUMN, 8.2), sharex=True, height_ratios=[1.7, 2.6])
+    c50, c5095 = color("map50", 1), color("map50_95", 0)  # una tinta per metrica
+
+    # (a) guadagno marginale fra punti consecutivi del fronte; la sigla sopra la barra e' il modello che si raggiunge
+    # (fronte della mAP50-95; quello della mAP50 ha gli stessi estremi meno qualche passo)
+    ax = axs[0]
+    fr95 = fronte([(lat[a], mAP[a][1], a) for a in arch])
+    for m, c, nome, lw in ((0, c50, "mAP50", 4), (1, c5095, "mAP50-95", 2)):
+        fr = fronte([(lat[a], mAP[a][m]) for a in arch])
+        for k, (t0, t1, v) in enumerate(guadagno(fr)):
+            ax.plot([t0, t1], [v, v], color=c, lw=lw, solid_capstyle="butt", label=nome if k == 0 else None)
             print(f"{nome}: {t0:.1f}-{t1:.1f} ms  {v:+.2f} punti / 10 ms")
     ax.set_ylabel("punti / 10 ms")
+    ax.set_ylim(0, 14)
+    ax.legend(loc="upper right")
 
-    ax = axs[3]
+    # (b) spazio di potatura: una riga per architettura, in ordine di mAP50-95; la mAP e' scritta a fine riga
+    ax = axs[1]
     B = args.budget
-    cats = {"dentro": (color("fp16"), "intera già nel budget"), "potabile": (color("calib"), "arriva al budget potando"),
-            "fuori": ("#9e9e9e", "non arriva al budget")}
-    items, punti, segs = [], [], []
-    for a in arch:
-        if a not in floor:
-            continue
+    cats = {"dentro": (color("fp16"), "verde: già nel budget senza potare"), "potabile": (color("calib"), "arancione: ci arriva con la potatura"),
+            "fuori": (GRAY, "grigio: non adatto (anche potato supera il limite)")}
+    rows = sorted((a for a in arch if a in floor), key=lambda a: mAP[a][1])
+    for r, a in enumerate(rows):
         f, tipo = floor[a]
         k = "fuori" if B is None else "dentro" if lat[a] <= B else "potabile" if f <= SOGLIA * B else "fuori"
         col = cats[k][0] if B else color("rpi5")
-        y = mAP[a][1]
-        ax.plot([f, lat[a]], [y, y], color=col, lw=2, solid_capstyle="butt", zorder=3)
-        ax.plot(lat[a], y, "o", color=col, mec="white", mew=0.5, ms=5, zorder=4)
-        ax.plot(f, y, "D" if tipo == "misurato" else "o", mfc=col if tipo == "misurato" else "white", mec=col, ms=4.5 if tipo == "misurato" else 4, zorder=4)
-        items.append((lat[a], y, sigla(a), col))
-        segs.append(([f, lat[a]], [y, y]))
-        punti += [(lat[a], y, 3.5), (f, y, 3.5)]
-        print(f"{sigla(a):3s} {a:13s} pavimento {f:5.1f} ms ({tipo}) intera {lat[a]:5.1f} ms mAP50-95 {y:.3f} {k if B else ''}")
-    h = [plt.Line2D([], [], color=ink, marker="D", ls="", ms=4.5, label="pavimento misurato"),
-         plt.Line2D([], [], color=ink, marker="o", mfc="white", ls="", ms=4, label="pavimento stimato"),
-         plt.Line2D([], [], color=ink, marker="o", ls="", ms=5, label="rete intera")]
+        ax.plot([f, lat[a]], [r, r], color=col, lw=2, solid_capstyle="butt", zorder=3)
+        ax.plot(lat[a], r, "o", color=col, mec="white", mew=0.5, ms=5, zorder=4)
+        ax.plot(f, r, "D" if tipo == "misurato" else "o", mfc=col if tipo == "misurato" else "white", mec=col,
+                ms=4.5 if tipo == "misurato" else 4, zorder=4)
+        ax.annotate(f"{mAP[a][1]:.3f}".replace(".", ","), (lat[a], r), xytext=(5, 0), textcoords="offset points",
+                    va="center")
+        print(f"{sigla(a):3s} {a:13s} pavimento {f:5.1f} ms ({tipo}) intera {lat[a]:5.1f} ms mAP50-95 {mAP[a][1]:.3f} {k if B else ''}")
+    ax.set_yticks(range(len(rows)), [sigla(a) for a in rows])
+    ax.set_ylim(-0.7, len(rows) - 0.3)
+    ax.set_ylabel("modello, per mAP50-95 crescente")
+    blank = lambda t: plt.Line2D([], [], ls="", label=t)  # titolo di gruppo
+    h = [blank("Latenza del modello"),
+         plt.Line2D([], [], color=ink, marker="o", ls="", ms=5, label="rete intera (cifra: mAP50-95)"),
+         plt.Line2D([], [], color=ink, marker="o", mfc="white", ls="", ms=4, label="potata al massimo (stima da LUT)"),
+         plt.Line2D([], [], color=ink, marker="D", ls="", ms=4.5, label="potata al massimo (misurata)")]
     if B:
         for x, ls in ((B, "--"), (SOGLIA * B, ":")):
             for a_ in axs:
                 a_.axvline(x, color=ink, lw=0.9, ls=ls, zorder=1)
+        for x, ha, txt in ((SOGLIA * B, "right", "limite"), (B, "left", "budget")):  # etichette dirette
+            axs[0].annotate(txt, (x, 1), xycoords=("data", "axes fraction"), xytext=(-1 if ha == "right" else 1, 1.5),
+                            textcoords="offset points", ha=ha, va="bottom")
         ex = " (esempio)" if args.esempio else ""
-        h += [plt.Line2D([], [], color=ink, ls="--", lw=0.9, label=f"budget {B:g} ms{ex}"),
-              plt.Line2D([], [], color=ink, ls=":", lw=0.9, label=f"{SOGLIA:.0%} del budget".replace("%", " %"))]
-        h += [plt.Line2D([], [], color=c, lw=2, label=l) for c, l in cats.values()]
-    ax.set_ylabel("mAP50-95")
+        h += [blank("Linee"),
+              plt.Line2D([], [], color=ink, ls="--", lw=0.9, label=f"budget {B:g} ms{ex}"),
+              plt.Line2D([], [], color=ink, ls=":", lw=0.9,
+                         label=f"limite per il potato al massimo ({SOGLIA:.0%} del budget)".replace("%", " %")),
+              blank("Colore"), *[plt.Line2D([], [], color=c, lw=2, label=l) for c, l in cats.values()]]
     ax.set_xscale("log")
     ticks = [20, 30, 50, 100]
     ax.set_xticks(ticks, [str(t) for t in ticks])
     ax.minorticks_off()
-    ax.set_xlim(10, 175)
-    ax.set_ylim(0.526, 0.614)
+    ax.set_xlim(10, 230)
     ax.set_xlabel("latenza in ms (Raspberry Pi 5, 640)")
-    for a_, l in zip(axs, "abcd"):
-        a_.set_title(f"({l})", loc="left", fontsize=8, pad=2)
+    for a_, l in zip(axs, "ab"):
+        a_.set_title(f"({l})", loc="left", pad=2)
         a_.grid(axis="x", visible=False)
-    axs[2].legend(loc="upper right", ncol=1)
-    fig.legend(handles=h, loc="outside lower center", ncol=2, columnspacing=1.2, fontsize=7.5)
-    etichette(ax, items, punti, segs)
+    leg = fig.legend(handles=h, loc="outside lower center", ncol=1, handlelength=1.6, labelspacing=0.3)
+    for t, hd in zip(leg.get_texts(), h):  # i titoli di gruppo non hanno simbolo
+        if not hd.get_marker() or hd.get_marker() == "None":
+            if not hd.get_linestyle() or hd.get_linestyle() == "None":
+                t.set_fontweight("bold")
+    fig.canvas.draw()  # posizioni definitive degli assi, per i livelli delle etichette di (a)
+    fs = plt.rcParams["font.size"]
+    placed = []  # rettangoli (punti) delle etichette gia' messe: ognuna sale finche' non ne tocca un'altra
+    for (t0, y0, _), (t1, y1, a) in zip(fr95, fr95[1:]):
+        v, xm = 100 * (y1 - y0) / (t1 - t0) * 10, np.sqrt(t0 * t1)
+        X, Y = axs[0].transData.transform((xm, v)) / (fig.dpi / 72)
+        w, h = 0.75 * fs * (len(sigla(a)) + 1), 1.3 * fs
+        for lev in range(12):
+            dy = 8 + 0.8 * fs * lev
+            box = (X - w / 2, Y + dy, X + w / 2, Y + dy + h)
+            if not any(box[0] < o[2] and o[0] < box[2] and box[1] < o[3] and o[1] < box[3] for o in placed):
+                break
+        placed.append(box)
+        axs[0].annotate("\u2192" + sigla(a), (xm, v), xytext=(0, dy), textcoords="offset points", ha="center",
+                        arrowprops=dict(arrowstyle="-", color=ink, lw=0.4, shrinkA=0, shrinkB=1) if lev else None)
     print(save(fig, Path(args.out) / "guadagno_latenza_640"))
-
 
 if __name__ == "__main__":
     main()
