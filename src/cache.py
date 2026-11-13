@@ -15,6 +15,7 @@ dataset di pretraining:
 
 * `search_key` = training_key + gruppo `strategy` + versione di yolopit + risoluzione dei
   costi. Niente hardware: la stessa ricerca vale per ogni board.
+  Con `pit.latency` entra anche l'hash dei file di LUT e fit.
 * `finetune_key` = search_key + gruppo `finetune`.
 * `weights_key` e' la chiave dei pesi che arrivano all'export: il training_key per la
   baseline, il finetune_key per le strategie.
@@ -194,7 +195,39 @@ def search_key(cfg: DictConfig) -> str:
         # entra il VALORE di N misurato, non la board: due board con lo stesso N
         # condividono la ricerca
         payload["n_resolved"] = resolve_n(cfg)
+    lat = latency_conf(cfg)
+    if lat:
+        # il contenuto di LUT e fit, non i path: una LUT rimisurata nella stessa cartella cambia la ricerca
+        payload["latency_files"] = {f.name: sha256_file(f) for f in latency_files(lat)}
     return _sha(payload)[:8]
+
+
+def latency_conf(cfg: DictConfig) -> dict | None:
+    """`pit.latency` della strategia per yolopit: lut_dir e fit relativi alla root del progetto, arch
+    ricavata dal modello (w<larghezza>_<profondita'>, le chiavi di C_ms nel fit) se manca. None senza."""
+    pit = ((cfg.get("strategy") or {}).get("search") or {}).get("pit") or {}
+    if not pit.get("latency"):
+        return None
+    lat = OmegaConf.to_container(pit.latency, resolve=True)
+    for k in ("lut_dir", "fit"):
+        if lat.get(k) is not None:
+            lat[k] = str(Path(cfg.project_root) / lat[k])      # un path assoluto resta com'e'
+    if not lat.get("arch"):
+        lat["arch"] = f"w{cfg.model.width}_{cfg.model.depth}"
+    return lat
+
+
+def latency_files(lat: dict) -> list[Path]:
+    """lut_<famiglia>.csv e fit.json che yolopit leggera': i suoi dati (yolopit/data/rpi5) per i path non dati."""
+    if lat.get("lut_dir") is None or lat.get("fit") is None:
+        from yolopit.latency import DATA
+    lut_dir = Path(lat.get("lut_dir") or DATA)
+    fit = Path(lat.get("fit") or DATA / "fit.json")
+    luts = sorted(lut_dir.glob("lut_*.csv"))
+    if not luts or not fit.is_file():
+        raise FileNotFoundError(f"pit.latency: LUT o fit mancanti ({lut_dir}, {fit}): scripts/build_lut.sh "
+                                f"li produce, o copiarli da experiments/pruning (README di lut_pi_passo2)")
+    return [*luts, fit]
 
 
 def auto_n(cfg: DictConfig) -> bool:

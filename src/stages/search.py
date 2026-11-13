@@ -16,7 +16,7 @@ from pathlib import Path
 
 from omegaconf import OmegaConf
 
-from ..cache import (find_weights, is_baseline, read_dataset_hash, resolve_n, search_dir,
+from ..cache import (find_weights, is_baseline, latency_conf, read_dataset_hash, resolve_n, search_dir,
                      search_key, strategy_name, training_key, update_index, yolopit_version)
 from ..env import collect_versions
 from ..errors import MissingWeights
@@ -34,7 +34,9 @@ def search_args(cfg) -> dict:
     - `data` arriva sempre da pretrain_dataset.yaml (se la strategia lo mette, errore);
     - `imgsz` del training della ricerca: quello della strategia, altrimenti train.imgsz;
     - `pit.trace_imgsz` (risoluzione dei costi e dei target): deploy.imgsz, la risoluzione di
-      deploy, se la strategia non dice altro.
+      deploy, se la strategia non dice altro;
+    - `pit.latency`: lut_dir e fit relativi alla root del progetto, arch dal modello se manca
+      (`cache.latency_conf`).
     """
     conf = OmegaConf.to_container(cfg.strategy.search, resolve=True) or {}
     for vietata in ("data", "project", "name"):
@@ -56,6 +58,8 @@ def search_args(cfg) -> dict:
         log.info("pit.n: auto -> N=%d dal probe (board %s, compute %s, %s, %s)", pit["n"],
                  cfg.hardware.board, cfg.strategy.get("n_source") or cfg.compute_target,
                  cfg.quantization.name, probe_backend(cfg))
+    if pit.get("latency"):
+        pit["latency"] = latency_conf(cfg)
     conf["pit"] = pit
     return conf
 

@@ -83,6 +83,19 @@ search:
       # quello soft: con il costo soft e N piccolo la rete resta sopra il target.
     trace_imgsz: 640
       # Facoltativo. Risoluzione dei costi; se manca, model.imgsz.
+    latency:
+      # Facoltativo. Aggiunge il costo `latency` (ms sul Raspberry Pi 5, yolopit.latency): C_arch +
+      # somma per famiglia di a_f * LUT_f. Con questo n va messo a 2, il passo della LUT. Nella
+      # search_key entra l'hash dei file di LUT e fit.
+      arch: null
+        # Chiave di C_ms nel fit, w<larghezza>_<profondita'>. null: ricavata dal modello.
+      estimator: smooth
+        # lut | smooth | secant | best: la pendenza per il gradiente (il valore e' sempre la LUT).
+      lut_dir: artifacts/lut/rpi5
+        # Cartella dei lut_<famiglia>.csv (scripts/build_lut.sh), relativa alla root del progetto.
+        # null: quella dentro yolopit (yolopit/data/rpi5).
+      fit: artifacts/lut/rpi5/fit.json
+        # fit.json (C_ms, a), relativo alla root del progetto. null: quello dentro yolopit.
   nas:
     # Optimizer e scheduler delle maschere, separati da quelli dei pesi.
     optimizer: AdamW
@@ -105,3 +118,5 @@ search:
       # di partenza. Sotto il minimo raggiungibile la ricerca si ferma con un errore.
       ops: 50%
       params: 1.5M
+      latency: 40
+        # ms, solo con pit.latency.

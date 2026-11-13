@@ -188,3 +188,41 @@ def test_final_weights(tmp_path, strategy):
                    else ("finetune", "finetune_key"))
     pesi = _meta(tmp_path, kind, "a", **{field: weights_key(cfg)})
     assert final_weights(cfg) == (pesi, weights_key(cfg))
+
+
+# --- strategia pit_latency: LUT e fit del Pi ---------------------------------------------
+
+from src.cache import latency_conf  # noqa: E402
+from src.stages.search import search_args  # noqa: E402
+
+
+def _lut(d, fit="{}"):
+    d.mkdir(parents=True, exist_ok=True)
+    (d / "lut_k1s1_20.csv").write_text("c_in,c_out,median_ms\n1,1,0.01\n")
+    (d / "fit.json").write_text(fit)
+    return d
+
+
+def test_latency_path_relativi_alla_root_e_arch_dal_modello(tmp_path):
+    lat = latency_conf(make_cfg("strategy=pit_latency", "model=yolo26", "model.width=0.09375",
+                                "model.depth=D101", project_root=str(tmp_path)))
+    assert lat == {"arch": "w0.09375_D101", "estimator": "smooth",
+                   "lut_dir": str(tmp_path / "artifacts/lut/rpi5"),
+                   "fit": str(tmp_path / "artifacts/lut/rpi5/fit.json")}
+    cfg = make_cfg("strategy=pit_latency", "strategy.search.pit.latency.arch=w0.25_D170",
+                   "strategy.search.pit.latency.lut_dir=/abs/lut", project_root=str(tmp_path))
+    assert latency_conf(cfg)["arch"] == "w0.25_D170" and latency_conf(cfg)["lut_dir"] == "/abs/lut"
+    assert search_args(cfg)["pit"]["latency"] == latency_conf(cfg)
+    assert latency_conf(make_cfg("strategy=pit_duccio")) is None
+
+
+def test_search_key_cambia_con_il_contenuto_di_lut_e_fit(tmp_path):
+    d = _lut(tmp_path / "artifacts/lut/rpi5")
+    cfg = make_cfg("strategy=pit_latency", project_root=str(tmp_path))
+    k = search_key(cfg)
+    assert search_key(cfg) == k
+    (d / "fit.json").write_text('{"C_ms": {}}')
+    assert search_key(cfg) != k
+    (d / "fit.json").unlink()
+    with pytest.raises(FileNotFoundError):
+        search_key(cfg)

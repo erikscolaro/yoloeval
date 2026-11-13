@@ -1,0 +1,36 @@
+# Ricerca PIT (yolopit) con DUCCIO sulla latenza del Raspberry Pi 5 stimata da LUT e fit (yolopit.latency:
+# C_arch + somma per famiglia di a_f * LUT_f). n = 2, il passo della LUT. Target in ms sul modello intero:
+#   python run.py stage=search strategy=pit_latency strategy.search.regularizer.target.latency=30
+# La LUT e il fit cambiano la chiave della ricerca (hash dei file, src/cache.py).
+name: pit_latency
+method: pit
+
+search:
+  epochs: 30
+  batch: 16
+  workers: 12
+  optimizer: SGD
+  lr0: 0.001
+  lrf: 0.01
+  warmup_epochs: 0
+  seed: 42
+  pit:
+    n: 2                    # passo della LUT: ogni scelta di PIT cade su un punto misurato
+    remainder: true
+    warmup_epochs: 0
+    ema: false
+    discrete_cost: true     # DUCCIO sul costo delle maschere binarizzate (come l'export): con il costo soft e n piccolo la rete resta sopra il target
+    latency:
+      arch: null            # null: dal modello, w<larghezza>_<profondita'> (deve avere un C in fit.json)
+      estimator: smooth
+      lut_dir: artifacts/lut/rpi5           # relativi alla root del progetto; scripts/build_lut.sh li produce
+      fit: artifacts/lut/rpi5/fit.json
+  nas:
+    optimizer: AdamW
+    lr0: 0.01
+    lrf: 1.0
+    cos_lr: false
+    weight_decay: 0.0
+  regularizer:
+    mode: duccio
+    target: {latency: 40}   # ms sul Pi 5, OpenVINO fp16, 4 core; il nano intero misura 56 ms (B4-R)
