@@ -775,6 +775,8 @@ la soglia dell'85% sono parametri per dispositivo. \<esempio>Sul PI `B` = 28 ms,
   nemmeno potata al massimo, quindi l'estensione della LUT a S/SM non serve per il PI.
 - Se il tetto non passa il test, si parte dal modello più preciso fra quelli che passano. A parità (differenza sotto
   il rumore tra seed) si prende quello con il pavimento più basso.
+- **Scelta manuale.** Il modello di partenza della regola si può forzare con un parametro per dispositivo; la
+  scelta forzata va scritta con il motivo, e il test del pavimento resta come avviso.
 
 Latenze a 640×640 sul PI (ms). Il pavimento è la stima con lo schema esatto della rete al minimo
 (`tools/figure_guadagno_latenza.py`; figura della tesi, cap. 8 "Decisione per dispositivo", `fig:ch8-guadagno-latenza`),
