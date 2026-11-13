@@ -704,9 +704,9 @@ intermedie, con canali multipli di 3)\</esempio>.
 **Criterio di scelta, valido in tutta la tesi** (ottimo, candidate, modello da potare): conta la **mAP50-95
 complessiva** (media sulle 4 classi, oggetti ≥ 8 px, sul set di val della risoluzione di deploy). A pari merito,
 cioè con una differenza **sotto 1 punto di mAP50-95** (soglia fissa, la stessa in tutta la tesi), vince il modello
-migliore **sui droni** (AP della classe drone). Metriche
+migliore **sulla classe di interesse** (parametro del dataset; per questo dataset: AP della classe drone). Metriche
 di una sola classe come criterio principale cambierebbero la domanda della tesi da "il detector migliore" a "il
-miglior rilevatore di droni".
+miglior rilevatore della classe di interesse".
 
 **Passo 4 — Verifica.** Si allena l'ottimo predetto con 3 seed. Gli ottimi sono uno per dispositivo e risoluzione di
 deploy (fino a 9), ma il training non dipende dalla risoluzione: **si allenano solo le architetture `(w, d)`
@@ -747,34 +747,43 @@ modello senza allenarlo.
 
 Per ogni dispositivo (figura C, sezione 13) si confronta l'ottimo nel budget (2c) con il **tetto**, cioè il modello
 più preciso della griglia senza vincoli di latenza, alla stessa risoluzione di deploy. Il dato è la differenza di mAP
-predetta fra i due (criterio di scelta della 2c: mAP50-95 complessiva, a pari merito i droni):
+predetta fra i due (criterio di scelta della 2c: mAP50-95 complessiva, a pari merito la mAP della classe di interesse; è un parametro, per questo dataset: drone):
 
 | caso | cosa vuol dire | cosa si fa |
 |---|---|---|
 | **stretto** | il tetto non sta nel budget, e l'ottimo nel budget perde più di 1 punto di mAP50-95 | fase 4: si pota partendo dal tetto (o dal modello più piccolo che lo eguaglia), se passa il test del pavimento (sotto) |
 | **libero** | il tetto sta nel budget, oppure la differenza è sotto 1 punto | l'ottimo è il modello finale; il dispositivo diventa un risultato descrittivo |
 
-**Test del pavimento.** Un modello è candidato alla potatura solo se il suo **pavimento** sta sotto il **70% del
-budget `B`**. Il pavimento è la latenza con tutti gli strati potabili al minimo (2 canali): resta solo la parte fissa
-C (C2PSA, PSABlock, Detect, nodi non conv) più il costo minimo di ogni conv. Vicino al pavimento la rete perde troppa
-accuratezza; un modello il cui pavimento supera `B` non può proprio arrivarci. Sul PI `B` = 28 ms, quindi il
-pavimento deve stare sotto 19,6 ms.
+**Test del pavimento.** Un modello è candidato alla potatura solo se il suo **pavimento** sta sotto l'**85% del
+budget `B`**. Il pavimento è la latenza con gli strati potabili al minimo (2 canali). Fanno eccezione 7 conv che non
+scendono: sono le uscite congelate che alimentano C2PSA, PSABlock e Detect (`layers.8.cv2`, `9.cv2`, `16.cv2`,
+`19.cv2`, `22.cv1b`, `22.m.0.0.cv2`, `22.cv2`), e restano a larghezza piena. Il pavimento è quindi la parte fissa C
+(C2PSA, PSABlock, Detect, nodi non conv) più il costo di quelle 7 conv e il costo minimo delle altre. Vicino al
+pavimento la rete perde troppa accuratezza; un modello il cui pavimento supera `B` non può proprio arrivarci. `B` e
+la soglia dell'85% sono parametri per dispositivo. \<esempio>Sul PI `B` = 28 ms, quindi il pavimento deve stare sotto
+23,8 ms (soglia scelta perché il nano deve rientrare).\</esempio>
 
 - Per le architetture coperte dallo stimatore (F…N+, larghezze 0,0625–0,25, D101/D126/D170) il pavimento si calcola
-  con LUT + fit: C + Σ a_f·LUT_f al minimo.
-- Per quelle fuori (NS, S, SM, M) si misura sul Pi **una sola rete** al minimo.
+  con LUT + fit, con i 7 strati a larghezza piena.
+- Per quelle fuori (NS, S, SM, M) si misura sul Pi **una sola rete** al minimo. S non può arrivare al budget
+  nemmeno potata al massimo, quindi l'estensione della LUT a S/SM non serve per il PI.
+- Se il tetto non passa il test, si parte dal modello più preciso fra quelli che passano. A parità (differenza sotto
+  il rumore tra seed) si prende quello con il pavimento più basso.
 
-\<esempio>Stime a 640×640 (LUT + fit; la latenza intera è misurata):
+Latenze a 640×640 sul PI (ms). L'intera è misurata; il pavimento è da LUT + fit, salvo dove indicato "misurato"
+(`experiments/pruning/pavimento_s`):
 
-| arch | intera (ms) | pavimento (ms) | C (ms) | passa su PI |
-|---|---|---|---|---|
-| P (w0,125 D126) | 28,0 | 14,4 | 5,5 | sì |
-| N- (w0,25 D101) | 53,2 | 18,7 | 11,6 | sì |
-| N (w0,25 D126) | 56,1 | 19,5 | 10,5 | sì, di poco (19,5 < 19,6) |
-| N+ (w0,25 D170) | 70,5 | 23,5 | 10,4 | no |
+| arch | intera | pavimento | passa su PI |
+|---|---|---|---|
+| P (w0,125 D126) | 28,0 | 15,7 | sì |
+| PN (w0,1875 D126) | 44,6 | 18,9 | sì |
+| N- (w0,25 D101) | 53,2 | 22,2 | sì |
+| N (w0,25 D126) | 56,1 | 22,9 (misurato 22,3) | sì |
+| N+ (w0,25 D170) | 70,5 | 27,3 | no |
+| S (w0,5 D126) | 142,7 | 41,0 (misurato) | no |
 
-S: pavimento stimato 29–30 ms (C estrapolata a circa 20 ms), quindi no; da misurare. Osservazione: P intero fa già
-28,0 ms, cioè sta esattamente nel budget a 640: è un candidato come baseline da battere.\</esempio>
+Osservazione: P intero fa già 28,0 ms, cioè sta esattamente nel budget a 640: è un candidato come baseline da
+battere.
 
 Si sceglie sempre il modello con la mAP migliore fra quelli che rispettano la latenza: la distanza di rilevamento non
 entra nelle scelte, si considera solo alla fine. \<esempio>Previsione: **PI stretto** (a 480p il pico ci sta, il nano
@@ -1096,7 +1105,7 @@ dopo ogni misura, non durante; le prove preliminari del 05–06/11 sono senza ve
 **Come si pota**:
 
 - Si parte dal modello indicato dalla decisione 2d (il tetto, o il più piccolo che lo eguaglia), già allenato con 3
-  seed in 2e. Deve passare il test del pavimento della 2d (pavimento sotto il 70% di `B`). \<esempio>Su PI è previsto il **nano**: per portarlo alla latenza del pico va tolto circa il 70% dei calcoli
+  seed in 2e. Deve passare il test del pavimento della 2d (pavimento sotto l'85% di `B`). \<esempio>Su PI è previsto il **nano**: per portarlo alla latenza del pico va tolto circa il 70% dei calcoli
   (stima dalla retta 16,6 ms + 15,2 ms/GMAC).\</esempio>
 - **La potatura lavora sulla leva che rende di più (tasso di cambio, 2c)**, alla risoluzione di deploy a cui il
   dispositivo è stretto.
