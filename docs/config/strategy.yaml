@@ -49,7 +49,7 @@ search:
   # e `name` (li decide la cache). `imgsz`, se manca, e' train.imgsz. Le MAC e i target sono
   # calcolati a model.imgsz (la risoluzione di deploy).
   epochs: 30
-  batch: 16
+  batch: 64
   workers: 12
     # Intero. Processi del dataloader. Con `cache` (ram | disk | false) resta fuori dalla
     # search_key: cambiano solo come si caricano i dati.

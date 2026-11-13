@@ -7,7 +7,7 @@ method: pit
 # regularizer di yolopit. `data` arriva da dataset.yaml; imgsz, se manca, da train.imgsz.
 search:
   epochs: 30
-  batch: 16
+  batch: 64
   workers: 12
   optimizer: SGD
   lr0: 0.001
