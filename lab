@@ -14,10 +14,10 @@ mkdir -p "$RUNS" "$RICETTE"
 
 # Step in ordine di esecuzione, con il grafo delle dipendenze (colonna 1: train -> export -> benchmark;
 # colonna 2: il ramo delle strategie pit; colonna 3: board e LUT) e chi serve prima di ognuno.
-STEPS_ALL=(provision lut train select search finetune export benchmark)
-GRAPH_ALL=('    ●──┐' '    ●  │' '●   │  │' '├─●─┤  │' '│ ●─┘  │' '│ ●    │' '●─┘    │' '●──────┘')
-GRAPHC_ALL=('    │  │' '    │  │' '│   │  │' '│ │ │  │' '│ │    │' '│ │    │' '│      │')   # linee fra una voce e la successiva
-DEPS_ALL=('' 'provision' '' 'train, lut' 'select, lut' 'search' 'train o finetune' 'export, provision')
+STEPS_ALL=(train provision lut select search finetune export benchmark)
+GRAPH_ALL=('●       ' '│   ●──┐' '│   ●  │' '├─●─┤  │' '│ ●─┘  │' '│ ●    │' '●─┘    │' '●──────┘')
+GRAPHC_ALL=('│       ' '│   │  │' '│   │  │' '│ │ │  │' '│ │    │' '│ │    │' '│      │')   # linee fra una voce e la successiva
+DEPS_ALL=('' '' 'provision' 'train, lut' 'select, lut' 'search' 'train o finetune' 'export, provision')
 # Campi che si cambiano quasi sempre: la vista "parametri principali"
 ESSENZIALI=(target.fps target.pre_ms target.post_ms strategy.search.pit.latency.estimator strategy.search.epochs finetune.epochs
             train.epochs seed dry_run force)
