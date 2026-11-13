@@ -7,8 +7,11 @@ cd "$(dirname "$(readlink -f "$0")")"
 PY=.venv/bin/python
 RUNS=runs
 mkdir -p "$RUNS"
-STEPS_ALL=(train select search finetune export benchmark)   # ordine di esecuzione
-GRAPH_ALL=('●  ' '├─●' '│ ●' '│ ●' '●─┘' '●  ')             # dipendenze: il ramo e' solo delle strategie pit
+# Step in ordine di esecuzione, con il grafo delle dipendenze (colonna 1: train -> export -> benchmark;
+# colonna 2: il ramo delle strategie pit; colonna 3: board e LUT) e chi serve prima di ognuno.
+STEPS_ALL=(provision lut train select search finetune export benchmark)
+GRAPH_ALL=('    ●──┐' '    ●  │' '●   │  │' '├─●─┤  │' '│ ●─┘  │' '│ ●    │' '●─┘    │' '●──────┘')
+DEPS_ALL=('' 'provision' '' 'train, lut' 'select, lut' 'search' 'train o finetune' 'export, provision')
 GRAPH=()          # colonna del grafo nelle checklist, se impostata
 STEPS=()          # step scelti, nell'ordine di STEPS_ALL
 OV=()             # override Hydra, chiave=valore
@@ -86,6 +89,7 @@ set_ov() {  # set_ov chiave valore: sostituisce l'override con la stessa chiave
 }
 
 stage_help() {  # riga di docs/config/stage.yaml: "#   train     -> ..."
+  [[ $1 == lut ]] && { echo "scripts/build_lut.sh: LUT e fit dello stimatore di latenza (~40 h sul Pi, riprende)"; return; }
   grep -E "^  #   $1 +->" docs/config/stage.yaml | sed -E 's/^  #   [a-z]+ +-> //' | head -1
 }
 
@@ -100,14 +104,15 @@ doc_help() {  # doc_help gruppo chiave: la riga della chiave e i commenti sotto,
 }
 
 menu_steps() {
-  local s args=() on
-  for s in "${STEPS_ALL[@]}"; do
+  local s args=() on i
+  for i in "${!STEPS_ALL[@]}"; do
+    s=${STEPS_ALL[i]}
     on=OFF; [[ " ${STEPS[*]} " == *" $s "* ]] && on=ON
-    args+=("$s" "$(stage_help "$s" | cut -c1-70)" "$on")
+    args+=("$s" "$([[ -n ${DEPS_ALL[i]} ]] && echo "[dopo ${DEPS_ALL[i]}] ")$(stage_help "$s")" "$on")
   done
   size
   local GRAPH=("${GRAPH_ALL[@]}")
-  s=$(wt --checklist "Step da eseguire, dall'alto in basso (spazio per scegliere). La catena si ferma al primo errore;\nogni step riusa dalla cache quello che ha fatto il precedente. Il ramo a destra (select, search, finetune)\nserve solo alle strategie pit; con strategy=baseline si va da train a export." $H $W $L "${args[@]}") || return
+  s=$(wt --checklist "Step da eseguire, dall'alto in basso (spazio per scegliere). La catena si ferma al primo errore;\nogni step riusa dalla cache quello che ha fatto il precedente. La colonna centrale (select, search, finetune)\nserve solo alle strategie pit; con strategy=baseline si va da train a export. A destra board e LUT." $H $W $L "${args[@]}") || return
   STEPS=()
   for x in "${STEPS_ALL[@]}"; do [[ $s == *"\"$x\""* ]] && STEPS+=("$x"); done
 }
@@ -171,7 +176,10 @@ menu_parametri() {
 
 comandi() {  # una riga per step
   local s
-  for s in "${STEPS[@]}"; do printf '%s run.py stage=%s %s\n' "$PY" "$s" "${OV[*]}"; done
+  for s in "${STEPS[@]}"; do
+    if [[ $s == lut ]]; then echo "scripts/build_lut.sh"   # parametri propri (src/lut/pi.py), non gli override
+    else printf '%s run.py stage=%s %s\n' "$PY" "$s" "${OV[*]}"; fi
+  done
 }
 
 lancia() {  # lancia NOME COMANDI: in background con nohup, log in runs/, poi lo segue
