@@ -28,15 +28,18 @@ from pathlib import Path
 import numpy as np
 
 OUT = Path(__file__).resolve().parent
-sys.path.insert(0, str(OUT))
-import run  # noqa: E402
+sys.path.insert(0, str(OUT.parents[1]))   # experiments/: _lib puts the repo root in sys.path
+from _lib import ROOT  # noqa: E402,F401
+from src.lut import pi as run  # noqa: E402  (the LUT procedure, once run.py here)
+
+RES = OUT / "results"
 
 DURATION_S, PAUSE_S, WIN, WIN_MS = 2, 10, 20, 10
 REPS_NOW, REPS_PAUSED = (0, 1, 2), (3, 4)
 TARGETS_MS = (0.03, 0.05, 0.1, 0.2, 0.3, 0.5, 1.0, 2.0, 3.0)
 WARMUPS_MS = (0, 25, 50, 100, 200, 500)
 KEEP_ITERS = (100, 200, 500)
-CSV = run.RES / "warmup.csv"
+CSV = RES / "warmup.csv"
 LAT = OUT / "runs" / "latencies_warmup.txt"
 
 
@@ -50,7 +53,7 @@ def nets() -> list[tuple]:
         lo = c if hw == 640 else 2                      # the stem reads a fixed 3-channel image
         out |= {(f"id{hw}", "identity", lo, lo), (f"id{hw}", "identity", c, c)}
     pilot = [r for p in ("pilot_0511.csv", "transient.csv")          # transient.csv reaches 0.05 and 3 ms
-             for r in csv.DictReader(open(run.RES / p)) if r["kind"] == "conv"]
+             for r in csv.DictReader(open(RES / p)) if r["kind"] == "conv"]
     for t in TARGETS_MS:
         r = min(pilot, key=lambda r: abs(np.log(float(r["ms"]) / t)))
         out.add((r["family"], "conv", int(r["c_in"]), int(r["c_out"])))
@@ -90,12 +93,12 @@ def check():
         p = nets()
         rng.shuffle(p)
         order += [(rep, *x) for x in p]
-    path = run.RES / "warmup_check.csv"
+    path = RES / "warmup_check.csv"
     path.unlink(missing_ok=True)
-    os.environ["ITERS"] = "200"                   # as launch.sh
+    os.environ["ITERS"] = "200"                   # as the LUT (src.lut.pi.ITERS_LUT)
     run.run(order, path, run.make_cfg())
     steady = {}
-    for r in json.loads((run.RES / "warmup.json").read_text())["measures_detail"]:
+    for r in json.loads((RES / "warmup.json").read_text())["measures_detail"]:
         steady.setdefault((r["family"], r["c_in"], r["c_out"]), []).append(r["steady_ms"])
     err = {}
     for r in csv.DictReader(open(path)):
@@ -106,15 +109,15 @@ def check():
     a = np.abs([e for v in err.values() for e in v])
     summ = {"iters": int(next(csv.DictReader(open(path)))["iters"]), "abs_err_median": float(np.median(a)),
             "abs_err_p90": float(np.percentile(a, 90)), "abs_err_max": float(a.max()), "per_net": out}
-    (run.RES / "warmup_check.json").write_text(json.dumps(summ, indent=1), encoding="utf-8")
+    (RES / "warmup_check.json").write_text(json.dumps(summ, indent=1), encoding="utf-8")
     print(json.dumps(summ, indent=1))
 
 
 def pilot():
-    path = run.RES / "warmup_pilot.csv"
+    path = RES / "warmup_pilot.csv"
     if len(sys.argv) < 3 or sys.argv[2] != "analyze":
         pts = [(r["family"], "conv", int(r["c_in"]), int(r["c_out"]))
-               for r in csv.DictReader(open(run.RES / "pilot_0511.csv")) if r["kind"] == "conv"]
+               for r in csv.DictReader(open(RES / "pilot_0511.csv")) if r["kind"] == "conv"]
         rng = random.Random(5)
         order = []
         for rep in (0, 1):
@@ -124,7 +127,7 @@ def pilot():
         path.unlink(missing_ok=True)
         run.run(order, path, run.make_cfg())
     old = {(r["family"], int(r["c_in"]), int(r["c_out"])): float(r["ms"])
-           for r in csv.DictReader(open(run.RES / "pilot_0511.csv")) if r["kind"] == "conv"}
+           for r in csv.DictReader(open(RES / "pilot_0511.csv")) if r["kind"] == "conv"}
     new = {}
     for r in csv.DictReader(open(path)):
         new.setdefault((r["family"], int(r["c_in"]), int(r["c_out"])), []).append(float(r["ms"]))
@@ -149,7 +152,7 @@ def pilot():
                          "max": float(noise.max())},
             "sum_ms_old_over_new": float(sum(r["old_ms"] for r in rows) / ms.sum() - 1), "bins": bins,
             "points_detail": rows}
-    (run.RES / "warmup_pilot.json").write_text(json.dumps(summ, indent=1), encoding="utf-8")
+    (RES / "warmup_pilot.json").write_text(json.dumps(summ, indent=1), encoding="utf-8")
     print(json.dumps({k: v for k, v in summ.items() if k != "points_detail"}, indent=1))
 
 
@@ -223,7 +226,7 @@ def analyze():
         n.setdefault("err_niter200", []).append(round(r["err_niter200"], 4))
         n.setdefault("jitter_p90", []).append(round(r["steady_jitter_p90"], 4))
         n.setdefault("paused", []).append(r["paused"])
-    (run.RES / "warmup.json").write_text(json.dumps({**summary, "measures_detail": rows}, indent=1),
+    (RES / "warmup.json").write_text(json.dumps({**summary, "measures_detail": rows}, indent=1),
                                          encoding="utf-8")
 
     print(json.dumps({k: v for k, v in summary.items() if k != "per_net"}, indent=1))
@@ -233,23 +236,23 @@ def analyze():
 
 def log():
     import wandb
-    s = json.loads((run.RES / "warmup.json").read_text())
+    s = json.loads((RES / "warmup.json").read_text())
     r = wandb.init(entity="yolo-bench", project="yolo-bench", job_type="lut_pi_warmup",
                    name="lut_pi_warmup_rpi5_openvino_fp16_cpu4_max", tags=["lut", "warmup", "rpi5", "openvino"],
                    config={"board": "rpi5", "backend": "openvino", "infer_precision": "f16", "compute_target": "cpu_4",
                            "freq_target": "max", "duration_s": DURATION_S, "pause_s": PAUSE_S, "fan": False,
-                           **json.loads((run.RES / "env.json").read_text())})
+                           **json.loads((RES / "env.json").read_text())})
     r.summary.update({f"transient/{k}/{m}": x for k, v in s["transient"].items() if v for m, x in v.items()})
     r.summary.update({f"abs_err/{k}/{m}": x for k, v in s["abs_err"].items() for m, x in v.items()})
     for png in sorted((OUT / "figures").glob("warmup*.png")):
         r.log({png.stem: wandb.Image(str(png))})
     art = wandb.Artifact("lut_pi_warmup_rpi5", type="dataset")
-    chk = run.RES / "warmup_check.json"
+    chk = RES / "warmup_check.json"
     if chk.exists():
         r.summary.update({f"check/{k}": v for k, v in json.loads(chk.read_text()).items() if k != "per_net"})
-    for f in (CSV, run.RES / "warmup.json", LAT, OUT / "warmup.py", OUT / "bench_dump.py",
-              *(OUT / "figures").glob("warmup*.p*"), run.RES / "warmup_check.csv", chk,
-              run.RES / "warmup_pilot.csv", run.RES / "warmup_pilot.json"):
+    for f in (CSV, RES / "warmup.json", LAT, OUT / "warmup.py", ROOT / "src" / "lut" / "bench_dump.py",
+              *(OUT / "figures").glob("warmup*.p*"), RES / "warmup_check.csv", chk,
+              RES / "warmup_pilot.csv", RES / "warmup_pilot.json"):
         if f.exists():
             art.add_file(str(f), name=f.name)
     r.log_artifact(art)

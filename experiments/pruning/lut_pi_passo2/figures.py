@@ -6,7 +6,7 @@
   python figures.py bimodal    # the two regimes of k1s1_160 48x64 against its neighbours (results/bimodal.json)
   python figures.py all
 
-Computation stays in run.py / analyze.py / warmup.py / bimodal.py: here only reading and drawing.
+Computation stays in src/lut (pi.py, analyze.py) / warmup.py / bimodal.py: here only reading and drawing.
 """
 from __future__ import annotations
 
@@ -18,10 +18,12 @@ from pathlib import Path
 import numpy as np
 
 OUT = Path(__file__).resolve().parent
-sys.path.insert(0, str(OUT))
-import run  # noqa: E402  (adds the repo root to sys.path)
+sys.path.insert(0, str(OUT.parents[1]))   # experiments/: _lib puts the repo root in sys.path
+from _lib import ROOT  # noqa: E402,F401
+from src.lut import pi as run  # noqa: E402  (the LUT procedure, once run.py here)
 
-RES, FIG = run.RES, OUT / "figures"
+RES = OUT / "results"
+FIG = OUT / "figures"
 
 
 def _style():

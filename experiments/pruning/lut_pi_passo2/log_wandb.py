@@ -21,7 +21,7 @@ for png in sorted((OUT / "figures").glob("*.png")):
 art = wandb.Artifact("lut_pi_passo2_rpi5", type="dataset")
 art.add_dir(str(OUT / "results"), name="results")
 art.add_dir(str(OUT / "figures"), name="figures")
-for f in (*OUT.glob("*.py"), OUT / "launch.sh", OUT / "README.md"):
+for f in (*OUT.glob("*.py"), *OUT.parents[2].joinpath("src", "lut").glob("*.py"), OUT / "rifai.sh", OUT / "README.md"):
     if f.exists():
         art.add_file(str(f), name=f"scripts/{f.name}")
 run.log_artifact(art)

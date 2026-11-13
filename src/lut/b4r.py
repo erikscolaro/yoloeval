@@ -1,11 +1,11 @@
 """B4-R: random pruned YOLO26 of every architecture up to the nano (widths 0.0625-0.25 x D101/D126/D170,
 4 classes) with yolopit's constraints, exported for the Pi as in the pipeline (OpenVINO IR fp16, 640, one-to-one).
 
-  python generate.py [N]      # per architecture: N random nets (default 50) + the unpruned one (<arch>_full):
-                              # runs/nets/<net>/ (IR and .pt, ignored by git), results/nets.csv (one row per net:
-                              # MACs, parameters, output elements of Concat/Add/Interpolate/MaxPool),
-                              # results/layers.csv (one row per conv)
-
+  python -m src.lut.b4r <dir> [N]  # per architecture: N random nets (default N_NETS) + the unpruned one
+                                   # (<arch>_full): <dir>/runs/nets/<net>/ (IR and .pt), <dir>/results/nets.csv
+                                   # (one row per net: MACs, parameters, output elements of
+                                   # Concat/Add/Interpolate/MaxPool), <dir>/results/layers.csv (one row per conv)
+Measure: python -m src.lut.pi b4r <dir>; fit: python -m src.lut.fit. Parameters (ARCHS, N_NETS, LEVEL, ...) in src.lut.pi.
 Each net is built with yolopit (build_pit_model, n = 2 = LUT step): its block masks already encode the
 constraints (residual/concat masks shared, outputs feeding C2PSA/PSABlock/Detect frozen, C3k2 split in cv1a
 and cv1b, one block always kept). Every prunable mask gets a random number of blocks: a level g ~ U(0.1, 1)
@@ -25,17 +25,10 @@ from pathlib import Path
 
 import numpy as np
 
-OUT = Path(__file__).resolve().parent
-LUT_DIR = OUT.parent / "lut_pi_passo2"
-sys.path.insert(0, str(LUT_DIR))
-import run as lut  # noqa: E402  (adds the repo root to sys.path)
+from . import pi as lut
+from .pi import ARCHS, LEVEL, N_NETS, N_STEP, NC, SIGMA
 
-RES, NETS = OUT / "results", OUT / "runs" / "nets"
-# every architecture up to the nano: the LUT covers only the nano's channels (0.375, S and up need a wider LUT)
-ARCHS = [(w, d) for w in (0.0625, 0.09375, 0.125, 0.1875, 0.25) for d in ("D101", "D126", "D170")]
-NC, N_STEP = 4, 2
 NONCONV = ("Concat", "Add", "Interpolate", "MaxPool")   # data-movement nodes that pruning shrinks, in C
-LEVEL, SIGMA = (0.1, 1.0), 0.5
 
 
 def pit_model(width: float, depth: str):
@@ -105,16 +98,16 @@ def nonconv_elems(xml: Path) -> int:
                if op.get_type_name() in NONCONV)
 
 
-def main():
+def main(d: Path, n: int = N_NETS):
     from src.backends import get_backend
     from src.remote.connection import LocalConnection
     from yolopit.search import PITYOLO
-    n = int(sys.argv[1]) if len(sys.argv) > 1 else 50   # random nets per architecture
     cfg = lut.make_cfg()                             # rpi5, openvino, fp16, deploy 640: as the LUT
     backend = get_backend("openvino", cfg)
     grid = {(f, ci, co) for f, _, ci, co in lut.points()}
-    RES.mkdir(exist_ok=True)
-    NETS.mkdir(parents=True, exist_ok=True)
+    res, nets = d / "results", d / "runs" / "nets"
+    res.mkdir(parents=True, exist_ok=True)
+    nets.mkdir(parents=True, exist_ok=True)
     nets_rows, layer_rows = [], []
     for a, (width, depth) in enumerate(ARCHS):
         for j in [-1, *range(n)]:                    # -1: the unpruned architecture, calibrates its C
@@ -131,7 +124,7 @@ def main():
             off = [(f, ci, co) for _, f, ci, co in layers if (f, ci, co) not in grid]
             if off:                                  # D101/D170 and w0.09375 have shapes the nano LUT lacks
                 print(name, "fuori dalla griglia della LUT:", off, flush=True)
-            dst = NETS / name
+            dst = nets / name
             shutil.rmtree(dst, ignore_errors=True)
             ir = backend.export(LocalConnection(), cfg, tmp / f"{name}.pt", tmp / "ov")
             shutil.copytree(ir, dst)
@@ -145,7 +138,7 @@ def main():
             layer_rows += [{"net": name, "order": i, "layer": ln, "family": f, "c_in": ci, "c_out": co}
                            for i, (ln, f, ci, co) in enumerate(layers)]
             print(name, f"g={g:.2f}", len(layers), "strati", {m: f"{v:.3g}" for m, v in costs.items()}, flush=True)
-    for path, rows in ((RES / "nets.csv", nets_rows), (RES / "layers.csv", layer_rows)):
+    for path, rows in ((res / "nets.csv", nets_rows), (res / "layers.csv", layer_rows)):
         with open(path, "w", newline="") as fh:
             w = csv.DictWriter(fh, list(rows[0]))
             w.writeheader()
@@ -153,4 +146,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    main(Path(sys.argv[1]), *map(int, sys.argv[2:3]))

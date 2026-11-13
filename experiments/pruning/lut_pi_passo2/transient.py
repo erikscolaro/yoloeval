@@ -18,8 +18,11 @@ from pathlib import Path
 import numpy as np
 
 OUT = Path(__file__).resolve().parent
-sys.path.insert(0, str(OUT))
-import run  # noqa: E402
+sys.path.insert(0, str(OUT.parents[1]))   # experiments/: _lib puts the repo root in sys.path
+from _lib import ROOT  # noqa: E402,F401
+from src.lut import pi as run  # noqa: E402  (the LUT procedure, once run.py here)
+
+RES = OUT / "results"
 
 ITERS, REPEATS, TOL, WIN = 2000, 2, 0.02, 20
 WARMUPS = (0, 10, 20, 50, 100, 200)
@@ -46,7 +49,7 @@ def measure():
         p = nets()
         rng.shuffle(p)
         order += [(rep, *x) for x in p]
-    csv_path = run.RES / "transient.csv"
+    csv_path = RES / "transient.csv"
     csv_path.unlink(missing_ok=True)
     run.run(order, csv_path, run.make_cfg())
 
@@ -99,7 +102,7 @@ def analyze():
         "p90_abs_err": {f"W{w}_N{n}": float(np.percentile(e, 90)) for (w, n), e in err.items()},
         "measures_detail": rows,
     }
-    (run.RES / "transient.json").write_text(json.dumps(summary, indent=1), encoding="utf-8")
+    (RES / "transient.json").write_text(json.dumps(summary, indent=1), encoding="utf-8")
 
     fig, axes = plt.subplots(1, 2, figsize=(WIDTH, 0.39 * WIDTH), constrained_layout=True)
     for i, (k, v) in enumerate(sorted(lat.items())):
@@ -123,7 +126,7 @@ def analyze():
     axes[1].set_yscale("log")
     axes[1].set_title("median of it[W:W+N] vs steady state", fontsize=8)
     axes[1].legend(fontsize=7)
-    run.RES.parent.joinpath("figures").mkdir(exist_ok=True)
+    RES.parent.joinpath("figures").mkdir(exist_ok=True)
     fig.savefig(OUT / "figures" / "transient.png", dpi=200)
     plt.close(fig)
     print(json.dumps({k: v for k, v in summary.items() if k not in ("measures_detail", "p90_abs_err")}, indent=1))

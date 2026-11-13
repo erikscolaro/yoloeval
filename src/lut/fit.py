@@ -1,7 +1,8 @@
 """B4-R: fit of the composition latency = C_arch + sum_f a_f * sum_{layers in f} LUT_f(c_in, c_out), and its check.
 
-  python fit.py     # needs results/raw.csv (measure.py), results/nets.csv, results/layers.csv (generate.py) and the LUT
-                    # (../lut_pi_passo2/results/lut_<family>.csv) -> results/fit.json, results/predictions.csv
+  python -m src.lut.fit <b4r_dir> <lut_res>
+      # needs <b4r_dir>/results/raw.csv (src.lut.pi b4r), nets.csv, layers.csv (src.lut.b4r) and the LUT
+      # (<lut_res>/lut_<family>.csv) -> <b4r_dir>/results/fit.json, predictions.csv
 
 - y_j = median of the repeats of net j; x_jf = sum of the LUT medians of its layers in family f.
 - One C per architecture (width x depth): C2PSA, PSABlock, Detect and the non-conv nodes are not pruned, so what the
@@ -23,9 +24,6 @@ from pathlib import Path
 
 import numpy as np
 
-OUT = Path(__file__).resolve().parent
-LUT_RES = OUT.parent / "lut_pi_passo2" / "results"
-RES = OUT / "results"
 SEED, MERGE_R, FOLDS = 0, 0.98, 5
 LAMBDAS = (0.0, 1e-4, 1e-3, 1e-2, 1e-1, 1.0, 10.0)
 
@@ -88,15 +86,15 @@ def errors(pred: np.ndarray, y: np.ndarray) -> dict:
             "bias": float(np.mean(e)), "n": int(len(y))}
 
 
-def load():
+def load(res: Path, lut_res: Path):
     meas = {}
-    for r in csv.DictReader(open(RES / "raw.csv")):
+    for r in csv.DictReader(open(res / "raw.csv")):
         meas.setdefault(r["net"], []).append(float(r["ms"]))
-    nets = {r["net"]: r for r in csv.DictReader(open(RES / "nets.csv"))}
-    layers = list(csv.DictReader(open(RES / "layers.csv")))
+    nets = {r["net"]: r for r in csv.DictReader(open(res / "nets.csv"))}
+    layers = list(csv.DictReader(open(res / "layers.csv")))
     fams = sorted({r["family"] for r in layers})
     luts = {f: {(int(r["c_in"]), int(r["c_out"])): float(r["median_ms"])
-                for r in csv.DictReader(open(LUT_RES / f"lut_{f}.csv"))} for f in fams}
+                for r in csv.DictReader(open(lut_res / f"lut_{f}.csv"))} for f in fams}
     names = sorted(n for n in nets if n in meas)
     X = np.zeros((len(names), len(fams)))
     pos = {n: i for i, n in enumerate(names)}
@@ -124,8 +122,8 @@ def predict_held_out(G, X, y, macs, arch, full, h):
             "macs": y[k] - beta[0] * macs[k] + beta[0] * macs}
 
 
-def main():
-    names, fams, X, y, macs, arch, spread = load()
+def main(res: Path, lut_res: Path):
+    names, fams, X, y, macs, arch, spread = load(res, lut_res)
     levels = sorted(set(arch))
     full = {a: names.index(f"{a}_full") for a in levels if f"{a}_full" in names}
     groups = merge_groups(X, fams)
@@ -151,8 +149,8 @@ def main():
                                    for h in full for s in [np.array([x == h for x in arch]) & ok] if s.any()},
            "repeat_spread": {"median": float(np.median(list(spread.values()))),
                              "max": float(max(spread.values()))}}
-    (RES / "fit.json").write_text(json.dumps(out, indent=1), encoding="utf-8")
-    with open(RES / "predictions.csv", "w", newline="") as fh:
+    (res / "fit.json").write_text(json.dumps(out, indent=1), encoding="utf-8")
+    with open(res / "predictions.csv", "w", newline="") as fh:
         w = csv.writer(fh)
         w.writerow(["net", "arch", "split", "measured_ms", "composition_ms", "lut_sum_ms", "macs_ms", "lut_total_ms",
                     "gmacs", "repeat_spread"])
@@ -165,4 +163,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    main(Path(sys.argv[1]) / "results", Path(sys.argv[2]))

@@ -8,8 +8,11 @@ import json
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-from run import RES, build, make_cfg, to_ir  # noqa: E402
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))   # experiments/
+from _lib import ROOT  # noqa: E402,F401
+from src.lut.pi import build, make_cfg, to_ir  # noqa: E402
+
+RES = Path(__file__).resolve().parent / "results"
 
 NETS = [("k1s1_20", "conv", 64, 64), ("k1s1_160", "conv", 32, 32), ("k3s1_20", "conv", 64, 128),
         ("k3s1_80", "conv", 16, 32), ("k3s2_40", "conv", 64, 64), ("k3s2_320", "conv", 3, 16),
@@ -46,7 +49,7 @@ def main():
         conn.run(f"mkdir -p {d}", hide=True)
         paths = []
         for f, kind, ci, co in NETS:
-            p = f"{d}/{f}_{ci}_{co}.xml"              # same IR as run.py: fp16, NHWC input/output
+            p = f"{d}/{f}_{ci}_{co}.xml"              # same IR as src/lut/pi.py: fp16, NHWC input/output
             xml, bin_ = to_ir(build(f, kind, ci, co), nhwc=kind == "conv")
             conn.put(io.BytesIO(xml), p)
             conn.put(io.BytesIO(bin_), p[:-4] + ".bin")

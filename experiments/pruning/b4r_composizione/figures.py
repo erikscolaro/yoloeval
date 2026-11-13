@@ -16,8 +16,9 @@ from pathlib import Path
 import numpy as np
 
 OUT = Path(__file__).resolve().parent
-sys.path.insert(0, str(OUT.parent / "lut_pi_passo2"))
-import run as lut  # noqa: E402  (adds the repo root to sys.path)
+sys.path.insert(0, str(OUT.parents[1]))   # experiments/
+from _lib import ROOT  # noqa: E402,F401
+from src.lut import pi as lut  # noqa: E402
 
 RES, FIG = OUT / "results", OUT / "figures"
 
@@ -163,7 +164,7 @@ def fit(dummy: bool = False):
     _panel(ax, "c", "correzione per famiglia")
     if dummy:
         fig.text(0.5, 0.5, "DATI FITTIZI", ha="center", va="center", fontsize=28, color=GRAY, alpha=0.25, rotation=20)
-    save(fig, lut.REPO / "reports" / "stimatore_latenza" / "fit_fittizio" if dummy else FIG / "fit")
+    save(fig, ROOT / "reports" / "stimatore_latenza" / "fit_fittizio" if dummy else FIG / "fit")
 
 
 if __name__ == "__main__":

@@ -1,12 +1,19 @@
 """LUT progress: overall % and, per family, measurements done vs planned (results/raw.csv vs points()).
-    watch -n 30 ../../../.venv/bin/python progress.py
+    watch -n 30 ../../../.venv/bin/python progress.py   (during ./rifai.sh)
 """
 import csv
 import subprocess
 from collections import Counter
 from datetime import datetime
 
-from run import OUT, REPEATS, RES, points
+import sys
+from pathlib import Path
+
+OUT = Path(__file__).resolve().parent
+RES = OUT / "results"
+sys.path.insert(0, str(OUT.parents[1]))   # experiments/
+from _lib import ROOT  # noqa: E402,F401
+from src.lut.pi import REPEATS, points  # noqa: E402
 
 plan = Counter(f for f, *_ in points())
 rows = [r for r in csv.DictReader(open(RES / "raw.csv")) if r["remeasured"] == "0" and int(r["repeat"]) < REPEATS]   # extra repeats of unstable points not counted

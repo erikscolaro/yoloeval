@@ -21,14 +21,17 @@ from pathlib import Path
 import numpy as np
 
 OUT = Path(__file__).resolve().parent
-sys.path.insert(0, str(OUT))
-import run  # noqa: E402
+sys.path.insert(0, str(OUT.parents[1]))   # experiments/: _lib puts the repo root in sys.path
+from _lib import ROOT  # noqa: E402,F401
+from src.lut import pi as run  # noqa: E402  (the LUT procedure, once run.py here)
+
+RES = OUT / "results"
 
 TARGET = ("k1s1_160", "conv", 48, 64)
 NEIGHBOURS = [("k1s1_160", "conv", 32, 32), ("k1s1_160", "conv", 48, 62), ("k3s1_160", "conv", 8, 16),
               ("k1s1_80", "conv", 58, 126)]
-CSV = run.RES / "bimodal.csv"
-COMPILE = run.RES / "bimodal_compile.json"   # renamed after each run: *_v1_hintlatency.json, *_v2_hintnone.json
+CSV = RES / "bimodal.csv"
+COMPILE = RES / "bimodal_compile.json"   # renamed after each run: *_v1_hintlatency.json, *_v2_hintnone.json
 PROCS, COMPILES = 3, 8
 
 REMOTE = """
@@ -72,7 +75,7 @@ def measure():
     rng = random.Random(4)
     order = [(r, *TARGET) for r in range(20)] + [(r, *n) for n in NEIGHBOURS for r in range(10)]
     rng.shuffle(order)
-    os.environ["ITERS"] = "200"                   # as launch.sh
+    os.environ["ITERS"] = "200"                   # as the LUT (src.lut.pi.ITERS_LUT)
     CSV.unlink(missing_ok=True)
     run.run(order, CSV, run.make_cfg())
 
@@ -137,7 +140,7 @@ def analyze():
                                                 "addr_mod4096": x.get("addr_mod4096"),
                                                 "all_primitives": sorted(set(x["primitive"].values()))})
         out["compile"] = by
-    (run.RES / "bimodal.json").write_text(json.dumps(out, indent=1), encoding="utf-8")
+    (RES / "bimodal.json").write_text(json.dumps(out, indent=1), encoding="utf-8")
     for k, v in lat.items():
         m = np.array([x["median"] for x in v])
         print(k, "benchmark_app medians:", np.round(np.sort(m), 3).tolist())

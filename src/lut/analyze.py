@@ -1,6 +1,7 @@
-"""Analysis of results/raw.csv (run.py): one LUT per family and a summary. Figures: figures.py lut.
+"""Analysis of the LUT measures (src.lut.pi lut): one LUT per family and a summary.
+Figures: experiments/pruning/lut_pi_passo2/figures.py lut.
 
-  python analyze.py [raw.csv]   -> results/lut_<family>.csv, results/summary.json
+  python -m src.lut.analyze <dir>   # <dir>/results/raw.csv -> <dir>/results/lut_<family>.csv, summary.json
 """
 from __future__ import annotations
 
@@ -12,16 +13,13 @@ from pathlib import Path
 
 import numpy as np
 
-OUT = Path(__file__).resolve().parent
-RES = OUT / "results"
-sys.path.insert(0, str(OUT))
-from run import REPEATS  # noqa: E402
+from .pi import REPEATS
 
 ANOMALY = 5            # a point is anomalous if its spread is > ANOMALY x the family noise (and > 10%)
 
 
-def main():
-    raw = Path(sys.argv[1]) if len(sys.argv) > 1 else RES / "raw.csv"
+def main(res: Path):
+    raw = res / "raw.csv"
     rows = list(csv.DictReader(open(raw)))
     by = {}
     for r in rows:
@@ -31,7 +29,6 @@ def main():
         med = float(np.median(v))
         pts[k] = dict(ms=med, min=min(v), max=max(v), spread=(max(v) - min(v)) / med, n=len(v))
 
-    RES.mkdir(exist_ok=True)
     fams = sorted({k[0] for k in pts})
     ts = [datetime.fromisoformat(r["timestamp"]) for r in rows]
     summary = {"measures": len(rows), "points": len(pts),
@@ -52,12 +49,12 @@ def main():
                                   "ms_min": min(p["ms"] for p in P.values()),
                                   "ms_max": max(p["ms"] for p in P.values()),
                                   "n_anomalous": len(anom), "anomalous": anom[:50]}
-        with open(RES / f"lut_{f}.csv", "w", newline="") as fh:
+        with open(res / f"lut_{f}.csv", "w", newline="") as fh:
             w = csv.writer(fh)
             w.writerow(["c_in", "c_out", "median_ms", "min_ms", "max_ms", "spread_rel", "n"])
             for (ci, co), p in sorted(P.items()):
                 w.writerow([ci, co, p["ms"], p["min"], p["max"], round(p["spread"], 5), p["n"]])
-    (RES / "summary.json").write_text(json.dumps(summary, indent=1), encoding="utf-8")
+    (res / "summary.json").write_text(json.dumps(summary, indent=1), encoding="utf-8")
     print(json.dumps({k: v for k, v in summary.items() if k != "families"}, indent=1))
     for f, d in summary["families"].items():
         print(f, d["points"], f"rumore {100 * d['noise_rel']:.1f}%", f"{d['ms_min']:.3f}-{d['ms_max']:.3f} ms",
@@ -65,4 +62,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    main(Path(sys.argv[1]) / "results")
