@@ -194,11 +194,24 @@ def main():
     ax2.spines["right"].set_visible(False)
     axb.grid(axis="y", visible=False)
     axb.tick_params(axis="y", length=0)
-    axb.set_xscale("log")
-    ticks = [10, 20, 30, 50, 100, 150]
+    # asse lineare; se fra due valori c'e' un vuoto > 40 ms lo si taglia (asse spezzato)
+    xs = sorted(v for a in rows for v in (floor[a][0], lat[a]))
+    x0 = int(10 * (xs[0] // 10))
+    ticks = list(range(x0, int(xs[-1]) + 1, 10))
+    lo, hi = max(zip(xs, xs[1:]), key=lambda p: p[1] - p[0])
+    if hi - lo > 40:
+        G0, G1, W = int(10 * np.ceil(lo / 10)), int(10 * np.floor(hi / 10)), 8  # il vuoto occupa W ms
+        k = W / (G1 - G0)
+        fw = lambda x: np.where(x <= G0, x, np.where(x <= G1, G0 + (x - G0) * k, x - (G1 - G0) + W))
+        iv = lambda y: np.where(y <= G0, y, np.where(y <= G0 + W, G0 + (y - G0) / k, y + (G1 - G0) - W))
+        axb.set_xscale("function", functions=(fw, iv))
+        axb.axvspan(G0, G1, color=plt.rcParams["axes.facecolor"], lw=0, zorder=3.5)
+        axb.plot([G0, G1], [0, 0], ls="", marker=[(-1, -2), (1, 2)], ms=7, mew=0.9, color=ink,
+                 transform=axb.get_xaxis_transform(), clip_on=False, zorder=5)
+        ticks = [t for t in ticks if t < G0 or t >= G1]
     axb.set_xticks(ticks, [str(t) for t in ticks])
     axb.minorticks_off()
-    axb.set_xlim(9, 260)
+    axb.set_xlim(x0, xs[-1] + 3)
     axb.set_xlabel("latenza sul Raspberry Pi 5 a 640 (ms)")
     if B:
         for x, ls in ((B, "--"), (SOGLIA * B, ":")):
