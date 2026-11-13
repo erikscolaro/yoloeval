@@ -4,7 +4,7 @@ defaults:
   - stage: benchmark
   - model: yolo26n
   - deploy: "640"
-  - train: short
+  - train: default                    # ricetta della tesi (300 epoche); short per i test
   - dataset: vedetta                   # destinazione: export, misure
   - dataset@pretrain_dataset: vedetta # train, search, finetune: lo stesso dataset unico
   - quantization: fp32

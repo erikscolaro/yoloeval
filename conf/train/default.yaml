@@ -2,7 +2,7 @@
 # Dal 28/10/2026 le augmentation di yolo26n piu' cutmix e degrado camera (pico 59d8534a, mAP50 0.842 contro 0.819 con
 # degrees 5 e scale 0.25): i run prima non sono confrontabili.
 # I nomi delle chiavi coincidono 1:1 con gli argomenti di model.train() di Ultralytics.
-epochs: 1000
+epochs: 300             # la ricetta dei modelli della griglia (_e300_); 1000 solo per i primi F (_e1000_)
 patience: 200           # early stopping: rete di sicurezza per i modelli in overfitting
 close_mosaic: 10        # i run fermati prima dall'early stopping non ci arrivano (limite dichiarato)
 batch: 64               # secondo la GPU, lo stesso per tutti; fino a 64 (nbs) l'aggiornamento e' equivalente

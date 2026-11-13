@@ -14,7 +14,7 @@ W=${W:-0.0625,0.09375,0.125,0.1875,0.25,0.375,0.5,0.75,1.0}
 DEPLOY=${DEPLOY:-640}
 I=$PWD/data/air-detection/all/images/calib   # train=random: il dataset serve solo alla forma, basta la calib
 A="train=random model=yolo26 model.width=$W model.depth=D101,D126,D170 logging=local dataset.local_path=$I"
-M="deploy=$DEPLOY quantization=fp16 backend=openvino hardware=rpi5 freq_target=max compute_target=cpu_4"
+M="deploy=$(sed "s/[^,]*/'&'/g" <<<"$DEPLOY") quantization=fp16 backend=openvino hardware=rpi5 freq_target=max compute_target=cpu_4"
 mkdir -p $D/runs
 .venv/bin/python run.py -m stage=train $A 2>&1 | tee $D/runs/train.log
 .venv/bin/python run.py -m stage=export $A $M 2>&1 | tee $D/runs/export.log

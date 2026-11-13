@@ -16,6 +16,7 @@ GRAPH=()          # colonna del grafo nelle checklist, se impostata
 STEPS=()          # step scelti, nell'ordine di STEPS_ALL
 OV=()             # override Hydra, chiave=valore
 T="yoloeval lab"
+trap 'rm -f /tmp/lab_err.$$' EXIT
 
 # Widget in bash puro, con gli argomenti di whiptail (--menu, --checklist, --inputbox, --msgbox, --yesno).
 # Tasti: su/giu' muovono, Invio e freccia destra entrano o scelgono, freccia sinistra, Esc e Backspace tornano indietro,
@@ -145,12 +146,15 @@ menu_gruppi() {
     set_ov model.width ""; set_ov model.depth ""
     if [[ $g == model && $o == *:* ]]; then   # variante della griglia: model=yolo26 con larghezza e profondita'
       set_ov model yolo26; set_ov model.width "${o%%:*}"; set_ov model.depth "${o##*:}"
+    elif [[ $o =~ ^[0-9]+$ ]]; then set_ov "$g" "'$o'"
     else set_ov "$g" "$o"; fi
   done
 }
 
-flat() {  # chiave<TAB>valore della config composta per il primo step scelto
-  "$PY" run.py "stage=${STEPS[0]:-train}" "${OV[@]}" --cfg job 2>/dev/null | "$PY" -c '
+flat() {  # flat STAGE: chiave<TAB>valore della config composta; se non si compone, l'errore di Hydra su stderr
+  local y
+  y=$("$PY" run.py "stage=$1" "${OV[@]}" --cfg job 2>&1) || { grep -v '^ \|^Traceback\|^$' <<<"$y" | tail -2 >&2; return 1; }
+  "$PY" -c '
 import sys, yaml
 def w(n, p=""):
     if isinstance(n, dict) and n:
@@ -159,27 +163,33 @@ def w(n, p=""):
     else:
         yield p[:-1], n
 for k, v in w(yaml.safe_load(sys.stdin)):
-    print(f"{k}\t{"null" if v is None else v}")'
+    print(f"{k}\t{"null" if v is None else v}")' <<<"$y"
 }
 
-menu_parametri() {
-  local cfg sez k v args h
-  cfg=$(flat) || true
-  [[ -z $cfg ]] && { wt --msgbox "La config non si compone: controlla gruppi e override.\n\n${OV[*]}" 12 70; return; }
+menu_parametri() {  # prima lo step (ognuno compone la sua config), poi la sezione, poi il campo
+  local st cfg sez k v args h err
   while :; do
     args=()
-    while read -r sez; do args+=("$sez" ""); done < <(cut -f1 <<<"$cfg" | cut -d. -f1 | awk '!s[$0]++')
-    size
-    sez=$(wt --menu "Sezioni della config composta (stage=${STEPS[0]:-train})." $H $W $L "${args[@]}") || return
+    for st in "${STEPS_ALL[@]}"; do
+      [[ $st == lut ]] && continue
+      args+=("$st" "$([[ " ${STEPS[*]} " == *" $st "* ]] && echo "scelto")")
+    done
+    st=$(wt --menu "Parametri di quale step? Ogni step compone la sua config; gli override valgono per tutti." 0 0 0 "${args[@]}") || return
+    cfg=$(flat "$st" 2>/tmp/lab_err.$$) || { err=$(cat /tmp/lab_err.$$); wt --msgbox "La config di stage=$st non si compone:\n\n$err\n\nOverride: ${OV[*]}"; continue; }
     while :; do
       args=()
-      while IFS=$'\t' read -r k v; do args+=("$k" "${v:0:60}"); done < <(grep -E "^$sez(\.|$(printf '\t'))" <<<"$cfg")
-      k=$(wt --menu "$sez: scegli il campo da cambiare." $H $W $L "${args[@]}") || break
-      v=$(grep -P "^\Q$k\E\t" <<<"$cfg" | cut -f2-)
-      h=$(doc_help "$sez" "$k" | head -15)
-      v=$(wt --inputbox "$k\n\n${h:-(nessun help in docs/config/)}\n\nValore (vuoto = togli l'override):" $H $W "$v") || continue
-      set_ov "$k" "$v"
-      cfg=$(flat) || true
+      while read -r sez; do args+=("$sez" ""); done < <(cut -f1 <<<"$cfg" | cut -d. -f1 | awk '!s[$0]++')
+      sez=$(wt --menu "stage=$st: sezioni della config composta." 0 0 0 "${args[@]}") || break
+      while :; do
+        args=()
+        while IFS=$'\t' read -r k v; do args+=("$k" "${v:0:60}"); done < <(grep -E "^$sez(\.|$(printf '\t'))" <<<"$cfg")
+        k=$(wt --menu "stage=$st, $sez: scegli il campo da cambiare." 0 0 0 "${args[@]}") || break
+        v=$(grep -P "^\Q$k\E\t" <<<"$cfg" | cut -f2-)
+        h=$(doc_help "$sez" "$k" | head -15)
+        v=$(wt --inputbox "$k\n\n${h:-(nessun help in docs/config/)}\n\nValore (vuoto = togli l'override):" 0 0 "$v") || continue
+        set_ov "$k" "$v"
+        cfg=$(flat "$st" 2>/tmp/lab_err.$$) || { wt --msgbox "Con $k=$v la config non si compone:\n\n$(cat /tmp/lab_err.$$)"; set_ov "$k" ""; cfg=$(flat "$st"); }
+      done
     done
   done
 }
@@ -188,7 +198,7 @@ comandi() {  # una riga per step
   local s
   for s in "${STEPS[@]}"; do
     if [[ $s == lut ]]; then echo "scripts/build_lut.sh"   # parametri propri (src/lut/pi.py), non gli override
-    else printf '%s run.py stage=%s %s\n' "$PY" "$s" "${OV[*]}"; fi
+    else printf '%s run.py stage=%s' "$PY" "$s"; ((${#OV[@]})) && printf ' %q' "${OV[@]}"; echo; fi
   done
 }
 
