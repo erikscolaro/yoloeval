@@ -153,7 +153,7 @@ def main():
         axa.barh(y[k] - h / 2, g50, h, color=c50, label="mAP50" if k == 0 else None)
         for g, dy, c in ((g95, h / 2, c5095), (g50, -h / 2, c50)):
             axa.annotate(f"{g:.1f}".replace(".", ","), (max(g, 0), y[k] + dy), xytext=(3, 0),
-                         textcoords="offset points", va="center", color=c)
+                         textcoords="offset points", va="center", color=c, fontsize="small")
         print(f"{sigla(a0)}->{sigla(a1)} {t0:.1f}->{t1:.1f} ms  mAP50-95 {g95:+.2f}  mAP50 {g50:+.2f} punti / 10 ms")
     axa.set_yticks(y, [f"{sigla(a0)} \u2192 {sigla(a1)}" for (_, _, a0), (_, _, a1) in passi])
     axa.set_ylim(-0.6, len(passi) - 0.4)

@@ -31,8 +31,9 @@ from tools.plots import STYLE, WIDTH, save  # noqa: E402
 
 # --- valori ammessi (sezione 4 del masterplan) --------------------------------------------------------------------
 WL = np.array([0.0625, 0.09375, 0.125, 0.1875, 0.25, 0.375, 0.5, 0.75, 1.0])
-RL = ["crop128", "crop256", "crop512", "480p", "720p", "1080p"]  # in ordine di pixel
+RL = ["crop128", "crop256", "crop512", "640", "480p", "720p", "1080p"]  # in ordine di pixel
 RPIX = {"crop128": (128, 128), "crop256": (256, 256), "crop512": (512, 512),  # ritagli quadrati del tracking
+        "640": (640, 640),  # scala del training
         "480p": (864, 480), "720p": (1280, 736), "1080p": (1920, 1088)}  # ingresso del modello, multipli di 32
 RLAB = {"crop128": "128²", "crop256": "256²", "crop512": "512²"}  # etichetta sull'asse, se diversa dal nome
 DEPTHS = ["D101", "D126", "D170"]  # profondità = numero di conv (masterplan, sezione 4)
