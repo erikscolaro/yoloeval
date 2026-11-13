@@ -4,18 +4,20 @@
 inventati: non è ancora verificato. Tutto il resto è una **decisione presa** o un **fatto misurato**; per i numeri
 misurati è indicato dove (per esempio "sul Pi", "sulla RTX 6000"). Le stime di tempo sono sempre indicate come tali.
 
+**Perimetro.** Si lavora solo sul **Raspberry Pi 5 (PI)**. AGX e DX non fanno parte del percorso principale: quello che le riguarda sta nella sezione 16, «Se abbiamo tempo», e dove resta una menzione è marcata *(se abbiamo tempo)*.
+
 ## 1. L'idea in breve
 
-Abbiamo tre dispositivi edge molto diversi fra loro:
+Abbiamo tre dispositivi edge molto diversi fra loro; la tesi si fa sul primo, gli altri due sono *se abbiamo tempo*:
 
 - un **Raspberry Pi 5**, che calcola con la sua CPU;
-- una **Jetson AGX Orin**, che calcola con una GPU;
-- un **Raspberry Pi 5 con l'acceleratore DX-M1**, che calcola con un NPU collegato via PCIe.
+- una **Jetson AGX Orin**, che calcola con una GPU (se abbiamo tempo);
+- un **Raspberry Pi 5 con l'acceleratore DX-M1**, che calcola con un NPU collegato via PCIe (se abbiamo tempo).
 
-Su ciascuno vogliamo far girare un detector per quattro classi (**drone, aereo, elicottero, uccello**) che regga
+Sul PI (e, se abbiamo tempo, sugli altri due) vogliamo far girare un detector per quattro classi (**drone, aereo, elicottero, uccello**) che regga
 **30 fotogrammi al secondo**. La tesi risponde a due domande:
 
-1. **Su ogni dispositivo, qual è il detector più preciso che sta nei 30 fps?**
+1. **Sul PI, qual è il detector più preciso che sta nei 30 fps?**
 2. **Dove il budget è stretto, conviene prendere un modello grande e potarlo, oppure basta usare fin dall'inizio un
    modello più piccolo?**
 
@@ -26,6 +28,8 @@ canali\</esempio>. Il messaggio atteso della tesi è quindi:
 
 > \<esempio>*"Su ogni dispositivo edge conta una cosa diversa: ecco quale, e quando la potatura conviene davvero."*\</esempio>
 
+Con il solo PI il messaggio si restringe a quello che si vede sul PI; il confronto fra dispositivi è in «Se abbiamo tempo» (sezione 16).
+
 ---
 
 ### Struttura: due blocchi
@@ -34,7 +38,7 @@ La tesi è divisa in due blocchi, per non rischiare di finire il tempo prima di 
 
 - **Blocco 1 — il nucleo (circa 7 settimane)**: fasi 0, 1 (versione di base), 2 e 3, con le due incognite X1 e X2
   risolte subito prima della fase che ne ha bisogno. Risponde alla
-  domanda 1: *su ogni dispositivo e a ogni risoluzione di deploy, qual è la ricetta migliore (larghezza, profondità,
+  domanda 1: *sul PI e a ogni risoluzione di deploy, qual è la ricetta migliore (larghezza, profondità,
   precisione) e perché*. **Da solo è già una tesi completa.**
 - **Blocco 2 — la potatura (circa 4 settimane, se c'è tempo)**: fase 4, con lo **stimatore di latenza** e la potatura
   guidata sia dai calcoli sia dallo stimatore. Risponde alla domanda 2.
@@ -49,7 +53,7 @@ blocco 2 si fa sono pronti, se non si fa restano punti confermati del fronte.
 | fase | cosa testiamo | conoscenza che produciamo | come la usiamo dopo |
 |---|---|---|---|
 | 0 | se i dati sono adatti | dataset custom a 640×512 (VEDETTA, repo vedetta) con **box corretti** e bilanciato su classe e grandezza, split per gruppi di sessioni; set di val alle risoluzioni di deploy | il dataset e la ricetta valgono per tutta la tesi; i set di val di deploy danno la mAP usata nella scelta dell'ottimo (2c) |
-| X1 (prima della fase 1) | se le nostre varianti girano sulla DX-M1 | operatori supportati; tempo di compilazione | decide se DX resta nel piano e quanto costano le misure sulla DX |
+| X1 (prima della fase 1, **se abbiamo tempo**) | se le nostre varianti girano sulla DX-M1 | operatori supportati; tempo di compilazione | decide se DX resta nel piano e quanto costano le misure sulla DX |
 | 1 (base) | quanto sono ripetibili le misure; quanto dei 33 ms resta al modello; come si comporta ogni dispositivo | la **soglia di rumore** della latenza; il **budget del modello**; i tratti di base di ogni dispositivo (gradini, costo per strato, granularità N) | la soglia dice quando una differenza di latenza è vera; il budget è il vincolo dell'ottimo (2c) e della decisione (2d); i tratti spiegano i trend della fase 2 e sono il punto di partenza dello stimatore (4a) |
 | X2 (prima della fase 2, **risolta**) | se l'int8 funziona sulla testa one-to-one, e come va sul PI | causa della mAP 0 (coda della testa quantizzata); ricetta int8; prova preliminare: sul PI l'int8 non è più veloce dell'fp16 | sul PI: quali nodi quantizzare nella 2a e nella fase 3, quale software usare per l'int8 sul PI; l'attesa da verificare in 2a e fase 3 |
 | 2 (2a–2b) | quanto sono precisi e veloci i modelli normali | i **trend**: mAP e latenza in funzione di larghezza e profondità, a ogni risoluzione di deploy, per dispositivo | materia prima della fase 2c |
@@ -82,7 +86,7 @@ Queste regole valgono per tutta la tesi. Servono a rendere i confronti onesti e 
 - Il budget è **30 fps, cioè 33 ms end-to-end**, uguale per tutti i dispositivi.
 - **End-to-end** vuol dire: dal fotogramma uint8 **già alla risoluzione di deploy** fino ai box finali. Comprende:
   - il pre-processing (uint8 → float, divisione per 255, cambio di layout);
-  - i trasferimenti verso l'acceleratore (verso la GPU sulla Jetson, sul PCIe per la DX-M1);
+  - i trasferimenti verso l'acceleratore (nessuno sul PI; verso la GPU sulla Jetson e sul PCIe per la DX-M1, se abbiamo tempo);
   - l'inferenza;
   - il post-processing (decodifica della testa, soglia di confidenza, box in coordinate dell'immagine).
 - **Restano fuori** l'acquisizione dalla camera e il ridimensionamento: si assume che la camera lavori già alla
@@ -160,7 +164,7 @@ Queste regole valgono per tutta la tesi. Servono a rendere i confronti onesti e 
 ### Dispositivi
 
 - **Una sola configurazione per dispositivo, quella di deploy**: tutti i core, frequenza massima, profilo di potenza
-  massimo sulla Jetson. Core e frequenze non si variano: la tesi studia il modello, non il dispositivo.
+  massimo sulla Jetson (se abbiamo tempo). Core e frequenze non si variano: la tesi studia il modello, non il dispositivo.
 - Alla fine (fase 5) un solo controllo di robustezza: i modelli scelti rimisurati a bassa potenza.
 
 ### Misure
@@ -171,8 +175,8 @@ Queste regole valgono per tutta la tesi. Servono a rendere i confronti onesti e 
 
 ### Precisioni
 
-- In fase 2a si misura la latenza in **tutte le precisioni supportate** da ogni dispositivo (PI e AGX: fp32, fp16,
-  int8; DX: solo int8). Da lì in poi il **deploy considera solo fp16 e int8**: \<esempio>l'fp32 non conviene mai rispetto
+- In fase 2a si misura la latenza in **tutte le precisioni supportate** da ogni dispositivo (PI: fp32, fp16,
+  int8; AGX e DX, se abbiamo tempo: sezione 16). Da lì in poi il **deploy considera solo fp16 e int8**: \<esempio>l'fp32 non conviene mai rispetto
   all'fp16 (stessa precisione del modello, latenza uguale o peggiore)\</esempio>, e la fase 2a lo documenta una volta per tutte.
 - **fp16 contro int8 è un risultato, non una premessa.** Su ogni dispositivo si misurano latenza (2a) e mAP (fase 3)
   in entrambe le precisioni, e la scelta fra le due esce dai dati. \<esempio>Sul PI ci aspettiamo che l'int8 venga
@@ -190,7 +194,7 @@ Queste regole valgono per tutta la tesi. Servono a rendere i confronti onesti e 
   - il post-processing ha un costo fisso (un numero fisso di box, `export_max_det` = 64), mentre l'NMS costa in base ai box che passano la
     soglia, cioè dipende dai pesi e dall'immagine: con la one-to-one la latenza misurata con pesi casuali (fasi 1 e 2a)
     è quella vera;
-  - nel budget end-to-end l'NMS andrebbe implementata e misurata su ogni dispositivo (sulla DX girerebbe sulla CPU
+  - nel budget end-to-end l'NMS andrebbe implementata e misurata su ogni dispositivo (sulla DX, se abbiamo tempo, girerebbe sulla CPU
     del Pi);
   - si valuta lo stesso modello che si esporta;
   - in precisione le due teste sono pari (progetto vecchio, mAP50-95 one-to-many / one-to-one: pico 0,492 / 0,491,
@@ -245,20 +249,13 @@ Queste regole valgono per tutta la tesi. Servono a rendere i confronti onesti e 
 | sigla | dispositivo | dove calcola | software di inferenza | precisioni | configurazione |
 |---|---|---|---|---|---|
 | **PI** | Raspberry Pi 5 | CPU Cortex-A76, 4 core | OpenVINO (fp16), onnxruntime (int8, X2) | fp16, int8 | 4 core, 2.4 GHz |
-| **AGX** | Jetson AGX Orin | GPU Ampere | TensorRT | fp16, int8 | profilo MAXN, clock fissati |
-| **DX** | Raspberry Pi 5 + DX-M1 | NPU, collegato via PCIe | DX-COM (compilatore) e DX-RT (runtime) | solo int8 | host come PI |
 
 Cosa ci aspettiamo da ciascuno, in base alle prove già fatte:
 
 - **PI**: la latenza cresce quasi in proporzione ai calcoli, più un costo fisso interno al modello. Dalle misure
   attuali (OpenVINO fp16, 4 core): circa 16,6 ms + 15,2 ms per ogni GMAC. Il pico sta a ~28 ms, il nano a ~57 ms.
   L'allineamento dei canali non conta.
-- **AGX**: \<esempio>per modelli piccoli la GPU è quasi vuota e la latenza dipende soprattutto dal **numero di
-  strati** (ogni strato ha un costo minimo di qualche µs), e i canali "tondi" (multipli di 8 o 16) contano\</esempio>.
-  È quello che succede sulla RTX 6000 della workstation, misurato: il probe dà N=16 e un gradino netto a 64 canali, e
-  il pico potato canale per canale è più lento del pico intero. Sulla AGX va verificato.
-- **DX**: un NPU elabora i canali a blocchi fissi; \<esempio>ci aspettiamo una latenza a gradini, con la dimensione dei blocchi
-  da scoprire. Il trasferimento dell'immagine sul PCIe potrebbe pesare quanto l'inferenza per i modelli piccoli.\</esempio>
+AGX e DX (se abbiamo tempo): sezione 16.
 
 ---
 
@@ -284,7 +281,7 @@ P 0.125, PN 0.1875, N 0.25, NS 0.375, S 0.5, SM 0.75, M 1.0 (le intermedie prend
 | **N** | **nano** | **0.25** | **D126** | **centro della griglia**; \<esempio>previsto come modello da potare su PI (lo decide la 2d)\</esempio> |
 | N+ | nano profondo | 0.25 | D170 | prova della profondità |
 | S- | small corto | 0.5 | D101 | prova della profondità |
-| S | small | 0.5 | D126 | candidato per AGX e DX; secondo centro |
+| S | small | 0.5 | D126 | secondo centro; candidato per AGX e DX (se abbiamo tempo) |
 | M | medium | 1.0 | D126 | il più grande; solo latenza (fuori budget sul PI, 2b) |
 
 ### Profondità: definizione operativa
@@ -315,7 +312,7 @@ variazione della sola larghezza.
 
 Perché il **nano** è il centro: le larghezze 0.0625 / 0.125 / 0.25 / 0.5 / 1.0 raddoppiano ogni volta, e il nano è
 proprio quella in mezzo. Le prove di profondità si ripetono anche su **S**, perché S è il modello di
-riferimento per AGX e DX, mentre il nano lo è per PI.
+riferimento per AGX e DX (se abbiamo tempo), mentre il nano lo è per PI.
 
 Nota sulle larghezze piccole: Ultralytics arrotonda i canali in uscita di ogni modulo a multipli di 8 con un minimo
 di 8, mentre i canali interni dei blocchi possono scendere a 1–4. Sotto il pico la riduzione quindi non è uniforme
@@ -421,12 +418,12 @@ questo i set si costruiscono a parte.
 - **Correzioni del codice di misura (fatte il 13/10/2026, da verificare sui dispositivi)**: TensorRT ora misura i
   trasferimenti (tolto `--noDataTransfers=false`, che trtexec leggeva come `--noDataTransfers`; il parser segnala un
   errore se H2D vale 0); OpenVINO int8 usa `infer_precision` f16 su aarch64 (con f32 sul PI cadeva nei kernel di
-  riferimento, 2 s per inferenza) e f32 su x86. Prima di B1-2: una run su AGX per controllare che H2D e D2H non
+  riferimento, 2 s per inferenza) e f32 su x86. Se abbiamo tempo, prima di B1-2 sull'AGX: una run per controllare che H2D e D2H non
   siano 0 (con la memoria unificata potrebbero esserlo davvero, e allora il controllo del parser va rivisto).
 - **Ricetta di training** fissata una volta per tutte (regole fisse): MuSGD, `lr0` 0.01, `lrf` 0.01, batch secondo la
   GPU, augmentation di `yolo26n.pt` con cutmix e degrado della camera (regole fisse), 300 epoche con patience 200. Il controllo sulla lunghezza è gratis: è la curva del nano
   della mappatura (T2-14).
-- **Misura end-to-end** sui tre dispositivi, secondo la definizione delle regole fisse, con il controllo automatico
+- **Misura end-to-end** sul PI (AGX e DX: sezione 16), secondo la definizione delle regole fisse, con il controllo automatico
   delle condizioni (frequenze, temperatura, clock).
 
 ### Run
@@ -441,7 +438,9 @@ i set di val (e di test) alle risoluzioni di deploy, la ricetta di training.
 
 ---
 
-## 6. Incognita X1 — La DX-M1 riesce a eseguire i nostri modelli? (prima della fase 1)
+## 6. Incognita X1 — La DX-M1 riesce a eseguire i nostri modelli? (prima della fase 1; se abbiamo tempo)
+
+**Se abbiamo tempo.** Riguarda solo la DX, fuori dal percorso principale: si fa solo se si decide di usarla.
 
 > **Cosa testiamo**: se le nostre varianti di YOLO26 girano interamente sulla DX-M1.
 >
@@ -488,7 +487,7 @@ latenza crolla.
 >
 > **Come la usiamo**: la soglia dice in tutte le fasi dopo se una differenza di latenza è vera o rumore; il budget è
 > il vincolo della ricerca dell'ottimo (2c) e della decisione (2d); i tratti di base
-> servono a **spiegare** i trend della fase 2 (per esempio perché sull'AGX la larghezza costa poco); se si fa il
+> servono a **spiegare** i trend della fase 2 (per esempio perché sul PI la latenza segue i calcoli); se si fa il
 > blocco 2, sono il punto di partenza dello stimatore di latenza (4a).
 
 **Domanda**: quanto sono affidabili le misure, quanto tempo resta al modello su ogni dispositivo, e come si comporta
@@ -501,11 +500,11 @@ uscite diversi, reti potate a caso) serve solo alla potatura, e si fa nel blocco
 
 | run | cosa misura | dove | cosa si varia |
 |---|---|---|---|
-| B1-0 | ripetibilità: lo stesso modello (N, pesi casuali) misurato 5 volte | PI fp16, AGX fp16, DX int8 | niente: è sempre la stessa misura |
-| B1-2 | pre-processing, post-processing e trasferimenti | PI, AGX, DX | risoluzione di deploy: 480p, 720p, 1080p |
-| B1-1 | costo minimo di uno strato: catene di strati identici e piccoli (conv 3×3, 16 canali, 54×30) | PI, AGX, DX | numero di strati: 1, 2, 4, 8, 16, 32 |
-| P1-1 | probe ridotto: 8 conv 3×3 uguali, canali da 1 a 64 a passo 1 e da 72 a 128 a passo 8, mappe del deploy a passo 8 e 16 del 480p e del 1080p (108×60, 54×30, 240×136, 120×68), 3 passate | PI fp16, AGX fp16, DX int8 | numero di canali |
-| B1-3 | prestazioni massime reali: picco di calcolo e banda di memoria (roofline) | PI, AGX, DX | precisioni del dispositivo |
+| B1-0 | ripetibilità: lo stesso modello (N, pesi casuali) misurato 5 volte | PI fp16 | niente: è sempre la stessa misura |
+| B1-2 | pre-processing, post-processing e trasferimenti | PI | risoluzione di deploy: 480p, 720p, 1080p |
+| B1-1 | costo minimo di uno strato: catene di strati identici e piccoli (conv 3×3, 16 canali, 54×30) | PI | numero di strati: 1, 2, 4, 8, 16, 32 |
+| P1-1 | probe ridotto: 8 conv 3×3 uguali, canali da 1 a 64 a passo 1 e da 72 a 128 a passo 8, mappe del deploy a passo 8 e 16 del 480p e del 1080p (108×60, 54×30, 240×136, 120×68), 3 passate | PI fp16 | numero di canali |
+| B1-3 | prestazioni massime reali: picco di calcolo e banda di memoria (roofline) | PI | precisioni del dispositivo |
 
 **A cosa serve B1-0.** Misura lo stesso modello 5 volte su ogni dispositivo. La variazione fra le passate è la
 **soglia di rumore** della latenza: sotto quella soglia una differenza fra due modelli non si distingue dal caso. Per
@@ -514,19 +513,14 @@ esempio, se le passate dello stesso modello variano dell'1%, una differenza del 
 candidate entro la soglia sono equivalenti) e nei confronti della potatura. Si fa per prima, perché dice anche se
 il dispositivo è pronto per misurare (frequenze, temperatura, processi in background).
 
-Il probe ridotto sono 288 reti per dispositivo (72 canali × 4 mappe): \<esempio>circa 1 ora sul Pi, 4–6 ore di build
-sull'AGX\</esempio>, da verificare
-sulla DX (dipende dal compilatore, si scopre con X1).
+Il probe ridotto sono 288 reti (72 canali × 4 mappe): \<esempio>circa 1 ora sul Pi\</esempio>.
 
 ### Cosa ci aspettiamo
 
 \<esempio>
 
-- Variazione fra le passate dello stesso modello sotto il 2% su ogni dispositivo.
+- Variazione fra le passate dello stesso modello sotto il 2% sul PI.
 - **PI**: nessun gradino; latenza quasi proporzionale ai calcoli.
-- **AGX**: gradini (attorno ai 64 canali), costo per strato di qualche µs che pesa molto sui modelli piccoli; N = 8–16
-  (sulla RTX 6000 viene 16).
-- **DX**: gradini alla granularità dell'NPU; trasferimento PCIe importante per i modelli piccoli.
 
 \</esempio>
 
@@ -549,7 +543,7 @@ sulla DX (dipende dal compilatore, si scopre con X1).
 > **Conoscenza che produciamo**: la causa della mAP 0; una ricetta int8 che funziona; se l'int8 conviene sul PI.
 >
 > **Come la usiamo**: sul PI la ricetta decide quali nodi sono quantizzati nella latenza int8 della 2a e nella fase 3
-> (AGX e DX usano la quantizzazione del loro strumento), e dice quale software usare per l'int8 (onnxruntime) e cosa aspettarsi. La conclusione
+> (AGX e DX, se abbiamo tempo, usano la quantizzazione del loro strumento), e dice quale software usare per l'int8 (onnxruntime) e cosa aspettarsi. La conclusione
 > sull'int8 del PI si trae dai modelli nuovi, in 2a e fase 3.
 
 **Esito.**
@@ -585,7 +579,7 @@ Perché, dal profilo per strato:
 
 - **ricetta int8 del PI**: onnxruntime (con OpenVINO l'int8 su ARM è più lento: 41,1 ms contro 29,4 sul pico), con
   testa, ramo di classe e attention in float (il compromesso migliore fra latenza e mAP);
-- **AGX e DX** usano la quantizzazione del loro strumento: la ricetta standard di Ultralytics per TensorRT, la
+- **AGX e DX** (se abbiamo tempo) usano la quantizzazione del loro strumento: la ricetta standard di Ultralytics per TensorRT, la
   conversione di DX-COM. Il controllo è la mAP int8 misurata sul dispositivo in fase 3 (una mAP vicina a 0 vorrebbe
   dire che anche lì la coda della testa è quantizzata);
 - **attesa da verificare**: sul PI l'int8 ha latenza simile all'fp16 e mAP più bassa, quindi verrà scartato. Non si
@@ -631,10 +625,8 @@ la latenza non si limita ai modelli che alleniamo: si misura la **griglia discre
 **162 configurazioni** per dispositivo, in fp16
 e in int8. L'fp32 si misura solo sui modelli della mappatura, quanto basta per mostrare che non conviene. La griglia
 comprende tutti i modelli della mappatura e tutte le candidate all'ottimo: è una **mappa della latenza misurata**,
-senza bisogno di interpolare. \<esempio>Costo indicativo: sul Pi qualche ora per precisione; sull'AGX la build di ogni engine
-richiede minuti, quindi circa un giorno di macchina senza presidio\</esempio>; sulla DX dipende dal tempo di compilazione (X1). Per l'int8 i modelli si quantizzano con
-**la ricetta del dispositivo**: sul PI quella di X2 (onnxruntime, testa, ramo di classe e attention in float); sull'AGX
-la ricetta standard di Ultralytics per TensorRT (`format=engine`, `int8=True`); sulla DX la conversione di DX-COM.
+senza bisogno di interpolare. \<esempio>Costo indicativo: sul Pi qualche ora per precisione\</esempio>. Per l'int8 i modelli si quantizzano con
+**la ricetta del dispositivo**: sul PI quella di X2 (onnxruntime, testa, ramo di classe e attention in float) (AGX e DX: sezione 16).
 Calibrazione su pesi casuali: per la latenza conta solo quali nodi sono quantizzati, non i valori. Già da qui si sa quali modelli stanno nel budget su ogni dispositivo, in ogni precisione e a ogni
 risoluzione di deploy (figura A, sezione 13). \<esempio>Sul Pi probabilmente solo a 480p: a 720p il fotogramma ha circa 2,3
 volte i pixel di un 640×640, a 1080p circa 5 volte, e la latenza sul Pi segue i calcoli.\</esempio>
@@ -642,8 +634,6 @@ volte i pixel di un 640×640, a 1080p circa 5 volte, e la latenza sul Pi segue i
 | run | modelli | dove | precisioni |
 |---|---|---|---|
 | B2-1 | griglia discreta di latenza | PI | fp16 (OpenVINO), int8 ricetta X2 (onnxruntime) (fp32 sui modelli della mappatura) |
-| B2-2 | griglia discreta di latenza | AGX | fp16, int8 Ultralytics (fp32 sui modelli della mappatura) |
-| B2-3 | griglia discreta di latenza | DX | int8 DX-COM |
 
 **Due risultati che escono da qui:**
 
@@ -692,8 +682,7 @@ trasforma in una scelta, in quattro passi, **per ogni dispositivo e per ogni ris
 **Passo 1 — Il tasso di cambio di ogni leva.** Per ogni dispositivo, risoluzione di deploy e leva (larghezza,
 profondità) si calcola quanta precisione si guadagna per ogni ms di latenza in più, fra punti vicini della griglia:
 `Δ mAP50-95 / Δ ms`. \<esempio>Esempio con numeri inventati, su PI a 480p:
-larghezza +2 punti ogni 10 ms, profondità +0,5. Vuol dire che su PI i ms conviene spenderli in larghezza. Su AGX il
-conto sarà diverso, perché lì la larghezza costa poco finché la GPU resta mezza vuota.\</esempio> Il tasso si calcola su tutta la
+larghezza +2 punti ogni 10 ms, profondità +0,5. Vuol dire che su PI i ms conviene spenderli in larghezza.\</esempio> Il tasso si calcola su tutta la
 griglia, per vedere come cambia con la taglia. A parte si riporta **quanto costa salire di
 risoluzione di deploy**: quanti ms in più, e quanta mAP in più o in meno, da 480p a 720p a 1080p.
 
@@ -709,7 +698,7 @@ risoluzione di deploy**: quanti ms in più, e quanta mAP in più o in meno, da 4
 **Passo 3 — L'ottimo sotto il budget.** Per ogni dispositivo, precisione e risoluzione di deploy si prendono le
 configurazioni della griglia discreta che stanno nel budget del modello (latenza misurata in 2a) e fra queste si
 sceglie quella con la mAP predetta più alta (figura B, sezione 13). È sempre un modello che esiste. Sui dispositivi a
-gradini (AGX, DX) le misure mostrano da sole quali larghezze sprecano un gradino \<esempio>(per esempio quelle
+gradini (AGX, DX, se abbiamo tempo) le misure mostrano da sole quali larghezze sprecano un gradino \<esempio>(per esempio quelle
 intermedie, con canali multipli di 3)\</esempio>.
 
 **Criterio di scelta, valido in tutta la tesi** (ottimo, candidate, modello da potare): conta la **mAP50-95
@@ -727,8 +716,6 @@ solo i seed 1 e 2. Quali ottimi confermare con 3 seed (tutti, o uno per disposit
 | run | cosa | seed / ripetizioni |
 |---|---|---|
 | T2-O1 | ottimo predetto per PI | 0, 1, 2 |
-| T2-O2 | ottimo predetto per AGX | 0, 1, 2 |
-| T2-O3 | ottimo predetto per DX | 0, 1, 2 |
 
 Se più dispositivi o risoluzioni hanno lo stesso ottimo, i suoi training si fanno una volta sola.
 
@@ -740,9 +727,8 @@ Se più dispositivi o risoluzioni hanno lo stesso ottimo, i suoi training si fan
 > \<esempio>Ottimo predetto 0,461, misurato 0,452: errore 0,9 punti; errore del passo 2: 0,6; intorno 0,9. Si allenano
 > le candidate nel budget con mAP predetta ≥ 0,452.\</esempio>
 
-**Cosa ci aspettiamo**: \<esempio>la mAP vera dell'ottimo entro circa 1 punto da quella predetta; ottimi diversi fra
-dispositivi (su PI un modello stretto e solo a 480p, su AGX uno più largo anche a 1080p, su DX canali allineati ai
-blocchi dell'NPU); l'ottimo migliore di qualunque taglia standard (F, P, N, S, M) che sta nel budget.\</esempio>
+**Cosa ci aspettiamo**: \<esempio>la mAP vera dell'ottimo entro circa 1 punto da quella predetta; un ottimo che cambia
+con la risoluzione di deploy (su PI un modello stretto e solo a 480p); l'ottimo migliore di qualunque taglia standard (F, P, N, S, M) che sta nel budget.\</esempio>
 
 **Conoscenza che produciamo**: il tasso di cambio delle leve per dispositivo; la **ricetta** `(w, d)` ottima per
 dispositivo, risoluzione di deploy e budget; quanto costa salire di risoluzione; quanto è affidabile scegliere un
@@ -770,7 +756,7 @@ predetta fra i due (criterio di scelta della 2c: mAP50-95 complessiva, a pari me
 
 Si sceglie sempre il modello con la mAP migliore fra quelli che rispettano la latenza: la distanza di rilevamento non
 entra nelle scelte, si considera solo alla fine. \<esempio>Previsione: **PI stretto** (a 480p il pico ci sta, il nano
-no; a 720p forse nessuno), **AGX e DX** probabilmente "liberi".\</esempio>
+no; a 720p forse nessuno).\</esempio>
 
 ### 2e. Conferma con 3 seed
 
@@ -781,8 +767,6 @@ il suo training di mappatura e servono solo i seed 1 e 2.
 | run | modello | seed |
 |---|---|---|
 | T2-C1…C3 | modello da potare su PI \<esempio>(previsto: N)\</esempio> | 0, 1, 2 |
-| T2-C4…C6 | modello da potare su AGX, se serve | 0, 1, 2 |
-| T2-C7…C9 | modello da potare su DX, se serve | 0, 1, 2 |
 
 Se due dispositivi condividono lo stesso modello, i suoi training si fanno una volta sola.
 
@@ -798,7 +782,6 @@ farli diventare un collo di bottiglia. Se il blocco 2 non si fa, restano punti d
   detection multiple sullo stesso oggetto, più frequenti nei modelli piccoli.
 - Sotto il pico la precisione cala in fretta (canali interni minuscoli).
 - **PI**: nel budget stanno solo i modelli piccoli (circa fino al pico), e probabilmente solo a 480p.
-- **AGX e DX**: probabilmente anche S sta nel budget, almeno a 720p.
 
 \</esempio>
 
@@ -811,7 +794,7 @@ farli diventare un collo di bottiglia. Se il blocco 2 non si fa, restano punti d
 >
 > **Come**: quantizzando dopo il training i modelli del fronte con la ricetta int8 del dispositivo (la stessa della
 > latenza in 2a), e misurando la mAP sul val **con il runtime vero sul dispositivo**
-> (OpenVINO/onnxruntime sul PI, TensorRT sull'AGX, DX-RT sulla DX); con il quantization-aware training solo dove la
+> (OpenVINO/onnxruntime sul PI; TensorRT sull'AGX e DX-RT sulla DX, se abbiamo tempo); con il quantization-aware training solo dove la
 > perdita supera 1 punto.
 >
 > **Conoscenza che produciamo**: per ogni modello e dispositivo, quanti punti di mAP costa l'int8 e quanti ms fa
@@ -823,7 +806,7 @@ farli diventare un collo di bottiglia. Se il blocco 2 non si fa, restano punti d
 
 **Domanda**: usando numeri a 8 bit invece che a 16, quanto si guadagna in velocità e quanto si perde in precisione?
 
-Perché serve: sulla DX-M1 l'int8 è **obbligatorio**; su PI e AGX può spostare il fronte, facendo entrare nel budget
+Perché serve: sul PI l'int8 può spostare il fronte (sulla DX-M1 sarebbe **obbligatorio**, se abbiamo tempo), facendo entrare nel budget
 modelli che in fp16 non ci stavano.
 
 ### Run
@@ -833,9 +816,7 @@ Modelli: gli ottimi T2-O (seed 0), i modelli da potare (2e) e i punti della grig
 | run | variante | cosa si misura |
 |---|---|---|
 | Q3-1 | PI: ricetta di X2 (onnxruntime, testa, ramo di classe e attention in float), 500 immagini di calibrazione dal train | mAP sul val a 640 e sui set di deploy, sul dispositivo (la latenza viene dalla 2a) |
-| Q3-2 | AGX: ricetta standard di Ultralytics per TensorRT (`format=engine`, `int8=True`), calibrazione dal train | come sopra |
-| Q3-3 | DX: conversione di DX-COM, con la sua calibrazione | come sopra |
-| Q3-4 | quantization-aware training (30–50 epoche partendo dal modello già allenato) | solo per i modelli che con Q3-1…Q3-3 perdono più di 1 punto di mAP50-95 |
+| Q3-4 | quantization-aware training (30–50 epoche partendo dal modello già allenato) | solo per i modelli che con Q3-1 perdono più di 1 punto di mAP50-95 |
 
 ### Cosa ci aspettiamo
 
@@ -844,8 +825,6 @@ Modelli: gli ottimi T2-O (seed 0), i modelli da potare (2e) e i punti della grig
 - 0,5–2 punti di mAP persi con la quantizzazione dopo il training, recuperati dal quantization-aware training.
 - **PI**: latenza simile all'fp16 e mAP più bassa (prova preliminare di X2), quindi int8 scartato; è la conferma sui
   modelli nuovi che la tesi riporta.
-- **AGX**: guadagno modesto, perché per i modelli piccoli pesa il costo minimo per strato.
-- **DX**: è l'unico modo di farli girare.
 
 \</esempio>
 
@@ -877,7 +856,7 @@ Sugli altri non c'è niente da ottimizzare. Ha due parti: prima lo stimatore (4a
 
 #### Perimetro
 
-- **Un solo dispositivo come dimostrazione: il PI.** AGX e DX si fanno con lo stesso metodo solo se c'è tempo e se
+- **Un solo dispositivo come dimostrazione: il PI.** AGX e DX si fanno con lo stesso metodo solo se abbiamo tempo (sezione 16) e se
   la decisione 2d li dà stretti.
 - **Una sola configurazione, fissata a priori**: OpenVINO fp16 (`infer_precision` f16), 4 core, governor
   `performance`, 2,4 GHz, ventola al massimo. Con un altro backend, un'altra precisione, altri core o un'altra
@@ -1111,12 +1090,8 @@ modello del dispositivo; `B'` è un budget più stretto (per esempio 20 fps), pe
 | S4-01 | PI | N | calcoli | `B` | metodo classico |
 | S4-02 | PI | N | stimatore di PI | `B` | |
 | S4-03 | PI | N | stimatore di PI | `B'` | budget più stretto |
-| S4-04 | AGX | dalla decisione 2d | calcoli | `B` | solo se AGX è stretto |
-| S4-05 | AGX | dalla decisione 2d | stimatore di AGX | come sopra | |
-| S4-06 | DX | dalla decisione 2d | calcoli | `B` | solo se DX è stretto |
-| S4-07 | DX | dalla decisione 2d | stimatore di DX | `B` | |
 
-**Run: i confronti (3 seed)**, sulla variante di potatura migliore di ogni dispositivo (scelta sul val con il seed 0):
+**Run: i confronti (3 seed)**, sulla variante di potatura migliore del PI (scelta sul val con il seed 0):
 
 | run | cosa | seed |
 |---|---|---|
@@ -1140,19 +1115,12 @@ Per ogni potato si misurano la latenza end-to-end sul suo dispositivo (`B4-xx`) 
 
 - **PI**: il nano potato batte l'ottimo scalato di poco, o pareggia (il costo fisso limita il guadagno); calcoli e
   stimatore danno risultati simili, perché sul Pi la latenza segue i calcoli.
-- **AGX**: togliere canali serve poco; lo stimatore evita i canali non allineati.
-- **DX**: lo stimatore allinea i canali ai blocchi dell'NPU, con un guadagno netto rispetto ai calcoli.
 
 \</esempio>
 - Se la potatura perde contro l'ottimo scalato, è comunque un risultato: "su questo dispositivo conviene scegliere
   bene il modello piccolo".
 - La potatura in profondità (togliere blocchi interi) resta fuori dal piano: si valuta solo se lo stimatore mostra
-  che sull'AGX il costo per strato domina.
-- **Nota, se c'è tempo: allineamento dei canali su TensorRT.** Lo stimatore (4a) tiene già conto dei blocchi di
-  canali (`g`). Come verifica diretta, sull'AGX si confronta un potato con i suoi canali così come escono dalla
-  potatura e lo stesso potato con i canali arrotondati a multipli di `g`. Sul Pi l'arrotondamento non dava speedup;
-  su GPU HALP (Shen et al., NeurIPS 2022) mostra latenza a gradini e guadagno con canali allineati: è il contrappunto
-  da citare.
+  che il costo per strato domina (AGX, se abbiamo tempo).
 
 ---
 
@@ -1162,7 +1130,7 @@ Per ogni potato si misurano la latenza end-to-end sul suo dispositivo (`B4-xx`) 
 >
 > **Come**: aprendo il test una volta sola sui
 > modelli scelti con il val, a 640 e alle risoluzioni di deploy; rimisurando latenza ed energia nelle condizioni
-> finali; rimisurando a 15 W sull'AGX e alla frequenza sostenibile sul Pi.
+> finali; rimisurando alla frequenza sostenibile sul Pi (a 15 W sull'AGX: se abbiamo tempo).
 >
 > **Conoscenza che produciamo**: lo scarto fra val e test (quanto erano ottimistiche le scelte); se ottimi e classifica
 > reggono a bassa potenza; la mAP per classe e per grandezza del box, cioè fino a che grandezza il modello vede ancora
@@ -1187,8 +1155,7 @@ potato.
 | E5-1 | precisione sul test di ogni modello scelto (3 seed), a 640 e sui set di test alle risoluzioni di deploy: mAP, e precision, recall e falsi positivi per fotogramma alla soglia di deploy scelta sul val | una volta sola |
 | E5-2 | mAP sul test per classe e per fascia di grandezza del box (16–32, 32–64, 64–96, sopra 96 px) | una volta sola, dalle stesse predizioni di E5-1 |
 | B5-1 | latenza end-to-end finale sul proprio dispositivo | 5 passate, condizioni registrate |
-| B5-2 | energia per inferenza sull'AGX (sensori di bordo) | 3 passate |
-| B5-3 | robustezza: i modelli scelti rimisurati sull'AGX a 15 W e sul PI alla frequenza sostenibile senza throttling | 3 passate |
+| B5-3 | robustezza: i modelli scelti rimisurati sul PI alla frequenza sostenibile senza throttling | 3 passate |
 
 B5-3 serve solo a dire se la decisione 2d e la classifica dei modelli reggono a bassa potenza: se sì, basta una
 frase nella tesi; se no, è un risultato da riportare.
@@ -1254,13 +1221,9 @@ inventati: quando arrivano i dati veri si sostituiscono le funzioni `lat` (fase 
 | rischio | quando lo si scopre | piano B |
 |---|---|---|
 | il tempo non basta per il blocco 2 | fine del blocco 1 | la tesi è il blocco 1; il test si fa alla data limite senza i potati |
-| operatori di YOLO26 non supportati dalla DX-M1 | X1 | sostituirli; altrimenti DX diventa descrittivo |
-| AGX non disponibile | fase 1 | si lavora su PI e DX |
 | aggiunte al dataset (uccelli e aerei grandi) non trovate o troppo lente da etichettare | fase 0 | **successo in parte**: aerei ed elicotteri trovati (DVIDS), uccelli in volo pochi (Open Images); uccelli e droni piccoli di val e test dichiarati come limite |
 | SAM 2 non rende aderenti i box degli oggetti minuscoli (sagome vuote o sbagliate) | fase 0 | **successo**: con il box come prompt SAM 2 restituiva il box stesso; box rifatti con contrasto locale e SAM 2 con un punto, poi revisione in CVAT di tutti i frame |
 | sul Pi non sta nessun modello a 720p e 1080p | 2a | sul Pi solo 480p: è un risultato |
-| lo stimatore sbaglia più del 10% sull'AGX | 4a (L4-1) | MLP sul residuo (L4-2); altrimenti sull'AGX si pota solo con i calcoli |
-| compilazione DX-COM troppo lenta per i probe completi | X1 | probe e reti potate a caso ridotti sulla DX |
 
 ---
 
@@ -1269,7 +1232,7 @@ inventati: quando arrivano i dati veri si sostituiscono le funzioni `lat` (fase 
 | # | scelta | stato |
 |---|---|---|
 | 1 | **ricetta di training** | **decisa**: una ricetta unica per tutti i training, niente versione ridotta per la mappatura; 300 epoche con early stopping a patience 200 (tempo di GPU) |
-| 2 | **software di inferenza per dispositivo** | **decisa** con X2: sul PI OpenVINO per l'fp16 e onnxruntime per l'int8, perché OpenVINO int8 su ARM è più lento (41,1 contro 29,4 ms sul pico); AGX TensorRT (int8 con la ricetta standard di Ultralytics), DX DX-COM/DX-RT |
+| 2 | **software di inferenza per dispositivo** | **decisa** con X2: sul PI OpenVINO per l'fp16 e onnxruntime per l'int8, perché OpenVINO int8 su ARM è più lento (41,1 contro 29,4 ms sul pico); AGX TensorRT (int8 con la ricetta standard di Ultralytics) e DX DX-COM/DX-RT, se abbiamo tempo |
 | 3 | **ottimo predetto al posto del riempimento** (2c) | **accettata** |
 | 4 | **secondo budget più stretto** (`B'`, es. 20 fps) in fase 4 | aperta, si decide all'inizio del blocco 2 |
 | 5 | **latenza misurata con pesi casuali**, subito (fasi 1 e 2) | **accettata**, insieme alla 3: la latenza delle candidate dell'ottimo si misura invece di predirla |
@@ -1303,3 +1266,112 @@ con quello del preaddestramento, e i trend della fase 2 non sarebbero più leggi
 costerebbe giorni di GPU per modello. \<esempio>Con un dataset grande e un training lungo, partire da zero si avvicina al
 preaddestrato.\</esempio> Il guadagno del preaddestramento si può citare come limite, o misurare con un solo run (lo stesso
 modello da zero e da COCO) se resta tempo.
+
+---
+
+## 16. Se abbiamo tempo: AGX e DX
+
+Si lavora solo sul PI. Qui sta quello che riguarda gli altri due dispositivi, spostato dalle sezioni indicate. Si fa dopo
+aver chiuso il PI, solo se resta tempo, e non cambia le conclusioni sul PI.
+
+### Dispositivi (sezione 3)
+
+| sigla | dispositivo | dove calcola | software di inferenza | precisioni | configurazione |
+|---|---|---|---|---|---|
+| **AGX** | Jetson AGX Orin | GPU Ampere | TensorRT | fp16, int8 | profilo MAXN, clock fissati |
+| **DX** | Raspberry Pi 5 + DX-M1 | NPU, collegato via PCIe | DX-COM (compilatore) e DX-RT (runtime) | solo int8 | host come PI |
+
+- **AGX**: \<esempio>per modelli piccoli la GPU è quasi vuota e la latenza dipende soprattutto dal **numero di
+  strati** (ogni strato ha un costo minimo di qualche µs), e i canali "tondi" (multipli di 8 o 16) contano\</esempio>.
+  È quello che succede sulla RTX 6000 della workstation, misurato: il probe dà N=16 e un gradino netto a 64 canali, e
+  il pico potato canale per canale è più lento del pico intero. Sulla AGX va verificato.
+- **DX**: un NPU elabora i canali a blocchi fissi; \<esempio>ci aspettiamo una latenza a gradini, con la dimensione dei blocchi
+  da scoprire. Il trasferimento dell'immagine sul PCIe potrebbe pesare quanto l'inferenza per i modelli piccoli.\</esempio>
+
+### Incognita X1 (sezione 6)
+
+La prova resta nella sezione 6, marcata. Se la DX non gira, resta un risultato descrittivo; se la compilazione DX-COM è troppo lenta per i probe completi, si riducono i probe e le reti potate a caso sulla DX.
+
+### Fase 1 (sezione 7)
+
+B1-0, B1-1, B1-2, P1-1 e B1-3 si ripetono su **AGX** (fp16) e **DX** (int8). Il probe ridotto sono 288 reti per dispositivo:
+\<esempio>4–6 ore di build sull'AGX\</esempio>, da verificare sulla DX (dipende dal compilatore, si scopre con X1).
+Il controllo di H2D e D2H sull'AGX è in sezione 5.
+
+Cosa ci aspettiamo:
+
+\<esempio>
+
+- **AGX**: gradini (attorno ai 64 canali), costo per strato di qualche µs che pesa molto sui modelli piccoli; N = 8–16
+  (sulla RTX 6000 viene 16).
+- **DX**: gradini alla granularità dell'NPU; trasferimento PCIe importante per i modelli piccoli.
+
+\</esempio>
+
+### Fase 2 (sezione 9)
+
+**Griglia di latenza (2a).** Costo indicativo: \<esempio>sull'AGX la build di ogni engine richiede minuti, quindi circa un giorno di
+macchina senza presidio\</esempio>; sulla DX dipende dal tempo di compilazione (X1). Ricetta int8: sull'AGX quella standard di Ultralytics
+per TensorRT (`format=engine`, `int8=True`); sulla DX la conversione di DX-COM.
+
+| run | modelli | dove | precisioni |
+|---|---|---|---|
+| B2-2 | griglia discreta di latenza | AGX | fp16, int8 Ultralytics (fp32 sui modelli della mappatura) |
+| B2-3 | griglia discreta di latenza | DX | int8 DX-COM |
+
+**Ottimo (2c) e modello da potare (2e).**
+
+| run | cosa | seed |
+|---|---|---|
+| T2-O2 | ottimo predetto per AGX | 0, 1, 2 |
+| T2-O3 | ottimo predetto per DX | 0, 1, 2 |
+| T2-C4…C6 | modello da potare su AGX, se serve | 0, 1, 2 |
+| T2-C7…C9 | modello da potare su DX, se serve | 0, 1, 2 |
+
+Cosa ci aspettiamo: \<esempio>su AGX il tasso di cambio è diverso da quello del PI, perché lì la larghezza costa poco finché la GPU resta mezza
+vuota; ottimi più larghi (su AGX anche a 1080p) e, su DX, canali allineati ai blocchi dell'NPU; AGX e DX probabilmente «liberi» nella
+decisione 2d, con S nel budget almeno a 720p.\</esempio>
+
+### Fase 3 (sezione 10)
+
+| run | variante | cosa si misura |
+|---|---|---|
+| Q3-2 | AGX: ricetta standard di Ultralytics per TensorRT (`format=engine`, `int8=True`), calibrazione dal train | mAP sul val a 640 e sui set di deploy, sul dispositivo |
+| Q3-3 | DX: conversione di DX-COM, con la sua calibrazione | come sopra |
+
+\<esempio>AGX: guadagno modesto, perché per i modelli piccoli pesa il costo minimo per strato. DX: l'int8 è l'unico modo di farli girare.\</esempio>
+
+### Fase 4 (sezione 11)
+
+Come per il PI, solo se il dispositivo risulta «stretto» nella decisione 2d. Se lo stimatore sbaglia più del 10% sull'AGX: MLP sul residuo (L4-2); altrimenti sull'AGX si pota solo con i calcoli.
+
+| run | dispositivo | si parte da | costo che guida la potatura | budget | nota |
+|---|---|---|---|---|---|
+| S4-04 | AGX | dalla decisione 2d | calcoli | `B` | solo se AGX è stretto |
+| S4-05 | AGX | dalla decisione 2d | stimatore di AGX | come sopra | |
+| S4-06 | DX | dalla decisione 2d | calcoli | `B` | solo se DX è stretto |
+| S4-07 | DX | dalla decisione 2d | stimatore di DX | `B` | |
+
+Cosa ci aspettiamo: \<esempio>AGX: togliere canali serve poco; lo stimatore evita i canali non allineati. DX: lo stimatore allinea i canali ai blocchi dell'NPU, con un guadagno netto rispetto ai calcoli.\</esempio>
+
+- **Nota, se c'è tempo: allineamento dei canali su TensorRT.** Lo stimatore (4a) tiene già conto dei blocchi di
+  canali (`g`). Come verifica diretta, sull'AGX si confronta un potato con i suoi canali così come escono dalla
+  potatura e lo stesso potato con i canali arrotondati a multipli di `g`. Sul Pi l'arrotondamento non dava speedup;
+  su GPU HALP (Shen et al., NeurIPS 2022) mostra latenza a gradini e guadagno con canali allineati: è il contrappunto
+  da citare.
+
+### Fase 5 (sezione 12)
+
+| run | cosa | ripetizioni |
+|---|---|---|
+| B5-2 | energia per inferenza sull'AGX (sensori di bordo) | 3 passate |
+| B5-3 (AGX) | i modelli scelti rimisurati sull'AGX a 15 W | 3 passate |
+
+### Rischi (sezione 14)
+
+| rischio | quando lo si scopre | piano B |
+|---|---|---|
+| operatori di YOLO26 non supportati dalla DX-M1 | X1 | sostituirli; altrimenti DX diventa descrittivo |
+| AGX non disponibile | fase 1 | si lavora su PI e DX |
+| lo stimatore sbaglia più del 10% sull'AGX | 4a (L4-1) | MLP sul residuo (L4-2); altrimenti sull'AGX si pota solo con i calcoli |
+| compilazione DX-COM troppo lenta per i probe completi | X1 | probe e reti potate a caso ridotti sulla DX |
