@@ -1,3 +1,4 @@
+# DEPRECATA: N dal probe superato: per il PI usare pit_latency (n=2, passo della LUT).
 # Come pit_duccio, ma N viene dal probe onnxruntime (stage=probe) per la board e la precisione
 # della config, qualunque sia il backend: per esempio
 #   python run.py stage=search strategy=pit_auto hardware=rpi5 quantization=int8
