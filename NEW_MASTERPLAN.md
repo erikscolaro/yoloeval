@@ -1100,6 +1100,10 @@ sottostimava di 0,75 ms (−2,8%, p99 4,0%). Il fit ora usa anche 108 reti PIT d
 (`experiments/pruning/fit_pit/`), contate 10 volte per pesare quanto B4-R. Su 32 reti PIT di test (mai nel fit): bias −2,0% → −0,3%,
 p99 3,1% → 1,5%; sulle 15 reti del livello 0: bias −2,8% → −0,5%, p99 4,0% → 1,6%; su B4-R tenute fuori per architettura il p99
 passa da 4,1% a 3,5% (bias +0,2% → 0,0%). Il vecchio fit è `artifacts/lut/rpi5/fit_b4r.json`; i numeri sopra (4,1%) sono quelli di B4-R da sola.
+Secondo giro (13/11, sera): 15 reti PIT di train e 5 di test per ognuna delle 15 architetture. Il default `fit.json` tiene gli `a_f`
+e rifà `C` come media dei residui sulle 15 reti PIT di ogni architettura. Sulle 75 reti di test: bias −1,0% → −0,1%, p99 2,7% → 2,2%;
+B4-R tenute fuori invariato (3,5%); sul livello 0 del nano peggiora poco (bias −0,5% → −0,9%, p99 1,6% → 2,0%). Il fit di prima è
+`fit_pit.json`; un fit rifatto da zero con tutte le PIT è scartato (p99 di B4-R 4,0%).
 
 **Limiti da dichiarare**: strati misurati da soli, non dentro la rete (lo correggono `C` e `a_f`); temperatura letta
 dopo ogni misura, non durante; le prove preliminari del 05–06/11 sono senza ventola, la LUT con la ventola.
