@@ -35,3 +35,4 @@ search:
   regularizer:
     mode: duccio
     target: {latency: '${target.model_budget_ms}'}   # ms nelle condizioni del profilo
+    strength: 1.0           # moltiplicatore della forza di DUCCIO (yolopit); >1 se la ricerca si ferma sopra il target

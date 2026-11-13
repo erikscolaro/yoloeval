@@ -120,3 +120,6 @@ search:
       params: 1.5M
       latency: 40
         # ms, solo con pit.latency.
+    strength: 1.0
+      # Solo mode: duccio. Moltiplica la forza che DUCCIO ricava dalla loss iniziale. A 1 il costo
+      # pesa all'inizio quanto la loss di detection e le maschere possono fermarsi sopra il target.
