@@ -35,7 +35,7 @@ RL = ["crop128", "crop256", "crop512", "640", "480p", "720p", "1080p"]  # in ord
 RPIX = {"crop128": (128, 128), "crop256": (256, 256), "crop512": (512, 512),  # ritagli quadrati del tracking
         "640": (640, 640),  # scala del training
         "480p": (864, 480), "720p": (1280, 736), "1080p": (1920, 1088)}  # ingresso del modello, multipli di 32
-RLAB = {"crop128": "128²", "crop256": "256²", "crop512": "512²"}  # etichetta sull'asse, se diversa dal nome
+RLAB = {"crop128": "128²", "crop256": "256²", "crop512": "512²", "640": "640²"}  # etichetta sull'asse, se diversa dal nome
 DEPTHS = ["D101", "D126", "D170"]  # profondità = numero di conv (masterplan, sezione 4)
 PRECS = ["fp16", "int8"]
 
