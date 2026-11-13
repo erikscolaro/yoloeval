@@ -1,4 +1,4 @@
-# Modello senza potatura: export e misura sul Pi (i pesi devono esistere; aggiungi train se mancano)
+# Modello allenato senza potatura: export e misura sul Pi. La latenza è uguale a quella con pesi a caso già misurata (griglia), serve per avere l'artefatto allenato pronto al deploy
 step export benchmark
 set strategy=baseline
 set target=rpi5_640
