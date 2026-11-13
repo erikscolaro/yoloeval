@@ -52,7 +52,7 @@ entro soglia scendevano dal 71 al 47% (`NEW_MASTERPLAN.md`, 4a; [`separability`]
   costante C del modello `latenza ≈ C + Σ_f a_f · Σ_strati LUT_f(c_in, c_out)`.
 - Le identità restano soltanto come strumento diagnostico, in `warmup.py` e `check_fusion.py`.
 
-Codice: `run.py` (`points()` non genera più identità), `analyze.py` (niente `lut_identity.csv`).
+Codice: `run.py` (`points()` non genera più identità), `analyze.py` (niente `lut_identity.csv`); ora in `src/lut/`.
 `warmup.py` costruisce da sé le 11 identità che usa.
 
 ## Ipotesi da verificare

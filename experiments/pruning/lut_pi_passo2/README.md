@@ -5,6 +5,11 @@ D126) sul Raspberry Pi 5. Ingresso sempre 640×640, 4 classi. Le LUT servono all
 per la potatura per canale (PIT, `~/Desktop/yolopit`): vedi
 `NEW_MASTERPLAN.md` (sezione 11, fase 4a).
 
+**Stato (13/11):** chiuso. LUT completa, 71 328 punti × 3 ripetizioni (+ 6 sui 1 123 punti instabili), 220 722
+misure in 74 h dal 06/11 al 09/11, nessuna pausa termica né throttling (massimo 52 °C). La procedura (rete, misura,
+analisi) ora sta in `src/lut` ed è la stessa di `scripts/build_lut.sh`; `./rifai.sh` la ripete con i parametri di
+allora. Qui restano gli studi una tantum (warmup, transitorio, due regimi, fusione della SiLU) e le figure.
+
 ## Perché lo facciamo
 
 - **PIT pota solo canali.** Uno strato non sparisce mai, quindi la parte fissa (C2PSA, PSABlock,
@@ -59,7 +64,7 @@ Le condizioni sono quelle del deploy, da `conf/hardware/rpi5.yaml`, `conf/backen
   strato, e se serve si misurerà a parte.
 - Ingresso e uscita delle conv sono in **NHWC**, il layout che il plugin CPU ARM usa all'interno.
   L'ONNX resta NCHW: il PrePostProcessor di OpenVINO dichiara i tensori NHWC e la rete è salvata come
-  IR (`.xml` + `.bin`, funzione `to_ir` di `run.py`). Con l'ONNX NCHW, invece, OpenVINO eseguiva a
+  IR (`.xml` + `.bin`, funzione `to_ir` di `src/lut/pi.py`, allora `run.py`). Con l'ONNX NCHW, invece, OpenVINO eseguiva a
   ogni inferenza un `Reorder` NCHW → NHWC sull'ingresso e uno NHWC → NCHW sull'uscita. Nel nano
   questi riordini non ci sono, perché fra uno strato e l'altro i tensori restano NHWC. Su 160×160
   costavano più della conv: 290 + 745 µs contro 381.
@@ -112,7 +117,7 @@ lanciate e fermate il 05/11:
 - *I/O fp16 ma NCHW.* Fermata prima della prima misura, quando i performance counter hanno mostrato
   i `Reorder`: senza questi le conv costano dal 10 al 58% in meno.
 - *I/O fp16 NHWC senza le singole inferenze*, alle 21:48, per circa 600 misure. Fermata per salvare
-  anche il tempo di ogni inferenza (`bench_dump.py`).
+  anche il tempo di ogni inferenza (`bench_dump.py`, ora `src/lut/bench_dump.py`).
 
 ## Famiglie e griglia
 
@@ -145,7 +150,7 @@ e c_out ∈ {1, 2, 4, 6, …, c_out max}: cioè 1, tutti i pari e il massimo.
 - **Punti instabili.** Alla fine, i punti in cui le 3 ripetizioni differiscono più del 5%
   ((max − min) / mediana) vengono misurati altre 6 volte, e la LUT ne prende la mediana su 9. Serve per i
   punti con due regimi come `k1s1_160` 48×64 (sezione Due regimi). Nel pilota rimisurato nessun punto
-  superava il 5,2%, quindi sono attesi pochi punti. `run.py unstable()`, test in `test_run.py`; il numero
+  superava il 5,2%, quindi sono attesi pochi punti. `unstable()` in `src/lut/pi.py`, test in `tests/test_lut.py`; il numero
   finisce in `summary.json` (`unstable_remeasured`).
 - L'ordine di tutti i punti di tutte le famiglie è mescolato con seme 0 e rimescolato a ogni
   ripetizione. Così una deriva non si concentra su una famiglia o su una zona della griglia.
@@ -154,7 +159,8 @@ e c_out ∈ {1, 2, 4, 6, …, c_out max}: cioè 1, tutti i pari e il massimo.
 - Circa ogni 6 ore scrive un checkpoint in `results/status.json`: misure fatte, s/misura, pause
   termiche, temperatura massima, ETA. Lo scrive anche alla fine.
 - Il processo gira staccato da Claude e dal terminale, come unit systemd utente
-  `lut-pi-passo2.service` (`launch.sh`). Dopo un errore riparte da solo, fino a 20 volte.
+  `lut-pi-passo2.service` (allora `launch.sh`, ora `./rifai.sh`). Dopo un errore riparte da solo, fino a 20 volte
+  (`scripts/build_lut.sh`).
 
 **Pilota** (I/O fp16 NHWC, 05/11 verso le 21:50): 0,62 s a misura, senza pause termiche (massimo 73 °C),
 per una stima di 36,5 h. Il primo lancio (I/O fp32) era sceso dopo due ore a 2,5 s a misura, con il
@@ -162,12 +168,12 @@ per una stima di 36,5 h. Il primo lancio (I/O fp32) era sceso dopo due ore a 2,5
 durata reale sarà più lunga.
 
 ```bash
-ITERS=200 python run.py pilot 100     # stima della durata (results/pilot.csv)
 python check_fusion.py                # SiLU fusa o no nel grafo compilato (results/fusion.json)
-systemd-run --user --unit=lut-pi-passo2 --working-directory=$PWD ./launch.sh   # misura completa
-systemctl --user status lut-pi-passo2; tail -f runs/run.log; cat results/status.json
-systemctl --user stop lut-pi-passo2   # ferma e ripristina la board (run.py tratta SIGTERM come Ctrl-C)
-python analyze.py                     # LUT e riepilogo
+./rifai.sh --dry-run                  # passi e conteggi, senza toccare il Pi
+systemd-run --user --unit=lut-pi-passo2 --working-directory=$PWD bash -c './rifai.sh >> runs/run.log 2>&1'
+systemctl --user status lut-pi-passo2; tail -f runs/run.log; cat results/status.json; python progress.py
+systemctl --user stop lut-pi-passo2   # ferma e ripristina la board (SIGTERM trattato come Ctrl-C)
+./rifai.sh /altra/dir                 # in un'altra cartella (results/ e runs/ lì), senza toccare questa
 python figures.py lut                 # heatmap per famiglia e di tutte le famiglie
 python log_wandb.py                   # run su wandb yolo-bench
 ```
@@ -296,12 +302,13 @@ del warmup (`warmup.py check`), e una LUT va misurata tutta con lo stesso protoc
 
 | percorso | contenuto |
 |---|---|
-| `run.py`, `launch.sh` | misura (pilota e completa), lancio staccato |
+| `rifai.sh` | misura e analisi con `src/lut` (`scripts/build_lut.sh`, passo `lut`); allora `run.py`, `launch.sh`, `analyze.py` (storia git) |
+| `progress.py` | avanzamento durante la misura |
 | `check_fusion.py` | verifica della fusione della SiLU |
 | `bimodal.py` | indagine sui due regimi di `k1s1_160` 48×64 |
 | `DECISIONE_IDENTITA.md` | perché la LUT non misura né sottrae le reti identità (06/11) |
 | `warmup.py`, `transient.py` | durata del warmup di benchmark_app (`transient.py` non si chiude senza ventola) |
-| `analyze.py`, `log_wandb.py` | analisi (solo numeri) e upload |
+| `log_wandb.py` | upload |
 | `figures.py` | tutte le figure, stile comune `tools/plots.py` (PNG + PDF): `lut`, `warmup`, `bimodal`, `all` |
 | `results/raw.csv` | una riga per misura: famiglia, kernel, stride, mappa, c_in, c_out, ripetizione, ms, temperatura, frequenza, throttling, timestamp |
 | `results/lut_<famiglia>.csv` | mediana, min, max e dispersione relativa per punto |
