@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Configuratore e launcher degli esperimenti (whiptail). Costruisce solo la riga di comando di run.py o degli
+# Configuratore e launcher degli esperimenti, menu in bash puro. Costruisce solo la riga di comando di run.py o degli
 # script: opzioni da conf/<gruppo>/, help da docs/config/, nessuno YAML modificato. Ogni run va in runs/ con il comando.
 #   ./lab
 set -uo pipefail
@@ -12,8 +12,69 @@ STEPS=()          # step scelti, nell'ordine di STEPS_ALL
 OV=()             # override Hydra, chiave=valore
 T="yoloeval lab"
 
-wt() { whiptail --title "$T" "$@" 3>&1 1>&2 2>&3; }
-size() { H=$(($(tput lines) - 4)); W=$(($(tput cols) - 8)); L=$((H - 8)); }
+# Widget in bash puro, con gli argomenti di whiptail (--menu, --checklist, --inputbox, --msgbox, --yesno).
+# Tasti: su/giu' muovono, Invio e freccia destra entrano o scelgono, freccia sinistra, Esc e Backspace tornano indietro,
+# spazio spunta nelle checklist. Disegnano su /dev/tty; la scelta esce su stdout; indietro = exit status 1.
+key() {  # legge un tasto: up down right left enter back space o il carattere
+  local k r
+  IFS= read -rsn1 k </dev/tty
+  case $k in
+    $'\e') IFS= read -rsn2 -t 0.02 r </dev/tty
+           case $r in '[A') echo up ;; '[B') echo down ;; '[C') echo right ;; '[D') echo left ;;
+                      '[5') read -rsn1 -t 0.02 </dev/tty; echo pgup ;; '[6') read -rsn1 -t 0.02 </dev/tty; echo pgdn ;;
+                      *) echo back ;; esac ;;
+    '') echo enter ;; ' ') echo space ;; $'\x7f' | $'\b') echo back ;; *) echo "$k" ;;
+  esac
+}
+
+wt() {
+  local mode=$1 text=$2 tags=() descs=() on=() n i cur=0 top=0 rows k step=2 sel out
+  shift 2
+  case $mode in
+    --menu | --checklist)
+      shift 3; [[ $mode == --checklist ]] && step=3
+      while (($#)); do tags+=("$1"); descs+=("$2"); [[ $step == 3 ]] && on+=("$3"); shift $step; done
+      n=${#tags[@]}
+      while :; do
+        rows=$(($(tput lines) - $(printf '%b\n' "$text" | wc -l) - 6)); ((rows < 3)) && rows=3
+        ((cur < top)) && top=$cur; ((cur >= top + rows)) && top=$((cur - rows + 1))
+        { tput clear; printf '\e[1m%s\e[0m\n\n%b\n\n' "$T" "$text"
+          for ((i = top; i < n && i < top + rows; i++)); do
+            sel="  "; ((i == cur)) && sel="> "
+            [[ $step == 3 ]] && { [[ ${on[i]} == ON ]] && sel+="[x] " || sel+="[ ] "; }
+            ((i == cur)) && printf '\e[7m'
+            printf '%s%-28s %s\e[0m\n' "$sel" "${tags[i]}" "${descs[i]:0:$(($(tput cols) - 40))}"
+          done
+          printf '\n\e[2m su/giu muovi   Invio/destra %s   sinistra/Esc indietro%s\e[0m' \
+            "$([[ $step == 3 ]] && echo conferma || echo entra)" "$([[ $step == 3 ]] && echo '   spazio spunta')"
+        } >/dev/tty
+        k=$(key)
+        case $k in
+          up) ((cur > 0)) && ((cur--)) ;; down) ((cur < n - 1)) && ((cur++)) ;;
+          pgup) cur=$((cur > rows ? cur - rows : 0)) ;; pgdn) cur=$((cur + rows < n ? cur + rows : n - 1)) ;;
+          space) [[ $step == 3 ]] && { [[ ${on[cur]} == ON ]] && on[cur]=OFF || on[cur]=ON; } ;;
+          left | back) return 1 ;;
+          enter | right)
+            if [[ $step == 3 ]]; then
+              out=""; for ((i = 0; i < n; i++)); do [[ ${on[i]} == ON ]] && out+="\"${tags[i]}\" "; done
+              echo "$out"
+            else echo "${tags[cur]}"; fi
+            return 0 ;;
+        esac
+      done ;;
+    --inputbox)
+      { tput clear; printf '\e[1m%s\e[0m\n\n%b\n\n\e[2m Invio conferma   Ctrl-D annulla\e[0m\n' "$T" "$text"; } >/dev/tty
+      IFS= read -re -i "$3" -p "> " out </dev/tty 2>/dev/tty || return 1
+      echo "$out" ;;
+    --msgbox)
+      { tput clear; printf '\e[1m%s\e[0m\n\n%b\n\n\e[2m un tasto per continuare\e[0m' "$T" "$text"; } >/dev/tty
+      key >/dev/null ;;
+    --yesno)
+      { tput clear; printf '\e[1m%s\e[0m\n\n%b\n\n\e[2m Invio/destra si   sinistra/Esc no\e[0m' "$T" "$text"; } >/dev/tty
+      while :; do case $(key) in enter | right) return 0 ;; left | back) return 1 ;; esac; done ;;
+  esac
+}
+size() { H=0; W=0; L=0; }  # misure di whiptail: i widget sopra si adattano al terminale
 
 set_ov() {  # set_ov chiave valore: sostituisce l'override con la stessa chiave
   local k=$1 v=$2 i out=()
