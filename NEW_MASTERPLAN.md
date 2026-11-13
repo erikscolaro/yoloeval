@@ -95,7 +95,7 @@ Queste regole valgono per tutta la tesi. Servono a rendere i confronti onesti e 
   misurano una volta e si sottraggono dal budget. Quello che resta è il **budget del modello**:
   `budget del modello = 33 ms − (pre + post + trasferimenti)`.
 - **Sul PI il percorso principale è a 640×640** (vedi "Risoluzione"). Il budget del modello a 640 è **da fissare**:
-  lo sceglie l'utente dalla tabella `reports/budget_latenza_rpi5_640` (misure in corso). Il valore 28 ms che compare
+  lo sceglie l'utente dalla tabella `reports/budget_latenza_rpi5` (`experiments/latenza/griglia_rpi5/rifai.sh`). Il valore 28 ms che compare
   negli esempi è quello ottenuto a 480p: vale solo come esempio.
 
 ### Risoluzione

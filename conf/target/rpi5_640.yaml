@@ -13,7 +13,7 @@ compute_target: cpu_4
 
 target:
   name: rpi5_640
-  budget_ms: null         # B, da scegliere dalla tabella reports/budget_latenza_rpi5_640
+  budget_ms: null         # B, da scegliere dalla tabella reports/budget_latenza_rpi5 (experiments/latenza/griglia_rpi5)
   floor_ratio: 0.85       # test del pavimento: pavimento <= 85 % di B
   tie: 0.01               # pari merito fra ottimo e tetto: 1 punto di mAP50-95 (criterio della tesi)
   seed_noise: 0.004       # pari merito fra le partenze: deviazione standard della mAP50-95 di P su 5 seed
