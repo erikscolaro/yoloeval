@@ -317,6 +317,9 @@ menu_parametri() {  # tutti i campi: prima lo step (ognuno compone la sua config
                 else echo "$(grep -c "^$1\." <<<"$cfg") campi"; fi; }
       args=("" "usate da stage=$st")
       for sez in "${usate[@]}"; do args+=("$sez" "$(conta "$sez")"); done
+      for sez in ${USA[$st]}; do   # usate dallo step ma assenti dalla config (es. target senza profilo)
+        [[ " ${usate[*]} " == *" $sez "* ]] || args+=("" "  $sez: manca (target: scegli il profilo nella pagina principale)")
+      done
       args+=("" "altre sezioni: sono nella config, ma stage=$st non le usa")
       for sez in "${altre[@]}"; do args+=("$sez" "$(conta "$sez")"); done
       HELPFN=""
