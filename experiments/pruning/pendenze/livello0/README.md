@@ -77,4 +77,31 @@ detection ripristina la scala, qui no. L'unica modalità diversa è `lut`, che u
 
 Le reti di `results/nets.csv` (le 8 della tabella, le loro `first` e `nano_full`) misurate dal Pi: latenza misurata contro stimata, errore
 in ms e in %. Stato in `runs/pi.log` e `systemctl --user status pendenze-l0`; `results/confronto.csv` si scrive alla fine.
-I valori misurati non ci sono ancora (misura in coda dietro `coda-13nov`).
+Misura del 13/11/2026, 16:00 (3 ripetizioni per rete, condizioni della LUT; `first` coincide con `final` tranne dove
+indicato). Errore = misurata − stimata.
+
+| rete | stimata (ms) | misurata (ms) | errore |
+|---|---|---|---|
+| nano intero | 56,55 | 56,19 | −0,36 ms (−0,6 %) |
+| lut, AdamW | 27,81 | 28,85 | +1,04 ms (+3,7 %) |
+| smooth, AdamW | 22,08 | 22,71 | +0,63 ms (+2,9 %) |
+| secant, AdamW | 22,22 | 23,00 | +0,78 ms (+3,5 %) |
+| best, AdamW | 22,08 | 22,58 | +0,50 ms (+2,3 %) |
+| lut, SGD | 28,51 | 29,36 | +0,86 ms (+3,0 %) |
+| smooth, SGD | 27,94 | 28,38 | +0,45 ms (+1,6 %) |
+| secant, SGD | 27,46 | 28,44 | +0,98 ms (+3,6 %) |
+| best, SGD | 27,67 | 28,27 | +0,60 ms (+2,2 %) |
+
+Le reti `first` misurano da 0 a 0,2 ms in più delle `final` (stessa architettura: è il rumore della misura).
+
+### Cosa dice
+
+- **Lo stimatore regge**: tutte le reti potate stanno entro il 5 % (l'obiettivo dello stimatore), da +1,6 a +3,8 %.
+- **Ma sulle reti potate sbaglia sempre nello stesso verso**: le sottostima tutte, di 0,5–1,0 ms, mentre la rete intera
+  è stimata giusta (−0,6 %). Sulle reti di prova del fit (B4-R) l'errore non aveva un verso; queste reti sono più
+  sbilanciate (molti layer a 2 canali, perché senza loss di detection niente li trattiene), cioè fuori dalla zona del fit.
+- **Conseguenza pratica**: con target 28 ms nessuna rete potata sta sotto 28 ms misurati (28,3–29,4 ms con SGD). Una
+  ricerca che arriva al target sfora il budget di circa il 2–4 %. Da decidere: un margine sul target (per esempio −4 %),
+  oppure la verifica con le reti del livello 1, che con la loss di detection saranno meno estreme.
+- **Fra le modalità** l'errore non cambia in modo utile (smooth e best un po' meglio, lut e secant un po' peggio, ma
+  dentro 0,5 ms): la scelta della pendenza la fanno il livello 1 e 2, non la precisione della stima.
