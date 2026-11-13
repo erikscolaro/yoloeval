@@ -6,3 +6,4 @@ local_path: ${project_root}/data/air-detection/${.subset}   # storico come name:
 yaml: ${.local_path}/dataset.yaml    # data yaml in formato Ultralytics
 nc: 4
 names: [drone, airplane, helicopter, bird]
+interest_class: drone   # criterio di pari merito della tesi (NEW_MASTERPLAN 2c)

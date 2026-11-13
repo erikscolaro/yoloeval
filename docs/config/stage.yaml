@@ -9,7 +9,7 @@ defaults: [probe_edge, _self_]
 
 name: benchmark
   # OBBLIGATORIO. Valori: train | search | finetune | probe | roofline | export |
-  #                       benchmark | provision
+  #                       benchmark | select | provision
   #   train     -> allena su pretrain_dataset e mette i pesi in artifacts/weights/
   #   roofline  -> misura i tetti del roofline model (picco di calcolo, banda):
   #                results/roofline/, usati da tools.roofline
@@ -23,6 +23,8 @@ name: benchmark
   #                artifacts/finetune/
   #   export    -> esporta (e quantizza) in artifacts/exports/
   #   benchmark -> misura, e scrive un JSON per cella in results/
+  #   select    -> regola 2c-2d: il modello di partenza per il profilo target=<nome>,
+  #                results/select/<target.name>.json
   #   provision -> prepara la board e verifica che sia usabile
 
 force: false

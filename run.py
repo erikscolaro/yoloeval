@@ -94,6 +94,12 @@ def main(cfg: DictConfig) -> None:
         run_export(cfg)
         return
 
+    if stage == "select":
+        from src.stages.select import run_select
+
+        run_select(cfg)
+        return
+
     if stage == "benchmark":
         from src.stages.benchmark import run_benchmark
 
@@ -102,7 +108,7 @@ def main(cfg: DictConfig) -> None:
 
     raise ValueError(
         f"stadio sconosciuto: {stage!r} "
-        f"(stage=train|search|finetune|probe|roofline|export|benchmark|provision)"
+        f"(stage=train|search|finetune|probe|roofline|export|benchmark|select|provision)"
     )
 
 

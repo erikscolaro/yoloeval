@@ -16,10 +16,10 @@ from mpl_toolkits.mplot3d import proj3d
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from tools.plots import STYLE, WIDTH, color, save  # noqa: E402
+from src.selection import LETTERA  # noqa: E402,F401
 
 W = ROOT / "artifacts/weights"
 # sigle delle larghezze (capitolo 4): le intermedie prendono le lettere delle due vicine
-LETTERA = {0.0625: "F", 0.09375: "FP", 0.125: "P", 0.1875: "PN", 0.25: "N", 0.375: "NS", 0.5: "S", 0.75: "SM", 1.0: "M"}
 WIDTHS = [0.0625, 0.09375, 0.125, 0.1875, 0.25, 0.375, 0.5, 0.75]
 DEPTHS = ["D101", "D126", "D170"]
 # pico, nano e small D126 allenati prima della griglia con la stessa ricetta

@@ -1,0 +1,35 @@
+# Riferimento dei campi di conf/target/<nome>.yaml
+#
+# Profilo di deploy: un file per dispositivo e risoluzione. E' un config `@package _global_`: con
+# target=<nome> sceglie hardware, deploy, backend e quantizzazione (defaults con override) e fissa
+# freq_target e compute_target. Lo leggono stage=select e strategy=pit_latency.
+
+defaults:
+  - override /hardware: rpi5
+  # Gli assi della misura del profilo: devono essere quelli in cui e' stata misurata la LUT.
+
+freq_target: max
+compute_target: cpu_4
+  # Come in config.yaml; qui valgono per il profilo.
+
+target:
+  name: rpi5_640
+    # OBBLIGATORIO. Nome del file di uscita di stage=select: results/select/<name>.json.
+  budget_ms: null
+    # OBBLIGATORIO per stage=select e strategy=pit_latency. Il budget B in ms, nelle condizioni del
+    # profilo. pit_latency lo usa come target della ricerca.
+  floor_ratio: 0.85
+    # Test del pavimento: un modello si pota solo se il pavimento sta sotto floor_ratio * B.
+  tie: 0.01
+    # Pari merito di mAP50-95 fra ottimo e tetto (1 punto, criterio della tesi).
+  seed_noise: 0.004
+    # Pari merito fra i modelli di partenza: il rumore della mAP50-95 tra seed. Vince il pavimento piu' basso.
+  start_model: null
+    # Scelta manuale del modello di partenza (es. w0.25_D126). null = sceglie la regola. Il test del
+    # pavimento resta come avviso.
+  start_reason: null
+    # OBBLIGATORIO con start_model: il motivo, scritto nel risultato.
+  lut_dir: artifacts/lut/rpi5
+    # LUT e fit.json dello stimatore di latenza, misurati nelle condizioni del profilo (scripts/build_lut.sh).
+  latency_csv: null
+    # Facoltativo. csv (arch, ms) delle reti intere misurate nel profilo, in aggiunta a B4-R e pavimento_s.

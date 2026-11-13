@@ -204,12 +204,12 @@ def _lut(d, fit="{}"):
 
 
 def test_latency_path_relativi_alla_root_e_arch_dal_modello(tmp_path):
-    lat = latency_conf(make_cfg("strategy=pit_latency", "model=yolo26", "model.width=0.09375",
+    lat = latency_conf(make_cfg("strategy=pit_latency", "target=rpi5_640", "model=yolo26", "model.width=0.09375",
                                 "model.depth=D101", project_root=str(tmp_path)))
     assert lat == {"arch": "w0.09375_D101", "estimator": "smooth",
                    "lut_dir": str(tmp_path / "artifacts/lut/rpi5"),
                    "fit": str(tmp_path / "artifacts/lut/rpi5/fit.json")}
-    cfg = make_cfg("strategy=pit_latency", "strategy.search.pit.latency.arch=w0.25_D170",
+    cfg = make_cfg("strategy=pit_latency", "target=rpi5_640", "strategy.search.pit.latency.arch=w0.25_D170",
                    "strategy.search.pit.latency.lut_dir=/abs/lut", project_root=str(tmp_path))
     assert latency_conf(cfg)["arch"] == "w0.25_D170" and latency_conf(cfg)["lut_dir"] == "/abs/lut"
     assert search_args(cfg)["pit"]["latency"] == latency_conf(cfg)
@@ -218,7 +218,7 @@ def test_latency_path_relativi_alla_root_e_arch_dal_modello(tmp_path):
 
 def test_search_key_cambia_con_il_contenuto_di_lut_e_fit(tmp_path):
     d = _lut(tmp_path / "artifacts/lut/rpi5")
-    cfg = make_cfg("strategy=pit_latency", project_root=str(tmp_path))
+    cfg = make_cfg("strategy=pit_latency", "target=rpi5_640", project_root=str(tmp_path))
     k = search_key(cfg)
     assert search_key(cfg) == k
     (d / "fit.json").write_text('{"C_ms": {}}')

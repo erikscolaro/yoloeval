@@ -15,6 +15,7 @@ defaults:
   - strategy: baseline
   - finetune: default
   - _self_
+  - target: null                       # profilo di deploy (conf/target/): dopo _self_, cosi' fissa freq e compute
 
 freq_target: default            # chiave dentro hardware.freq
 compute_target: null            # chiave dentro hardware.compute; null = tutte

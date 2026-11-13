@@ -1,4 +1,5 @@
-from tools.figure_guadagno_latenza import EXP, LUT, pavimenti
+from src.selection import EXP, pavimenti
+from tools.figure_guadagno_latenza import LUT
 
 
 def test_pavimento_nano_come_il_misurato():

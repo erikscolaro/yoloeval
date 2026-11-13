@@ -14,6 +14,7 @@ stringhe sono ammesse.
 | [`quantization.yaml`](quantization.yaml) | `conf/quantization/*.yaml`: precisione, calibrazione, soglie |
 | [`backend.yaml`](backend.yaml) | `conf/backend/*.yaml`: requisiti, build, riga di comando |
 | [`hardware.yaml`](hardware.yaml) | `conf/hardware/*.yaml`: una board per file |
+| [`target.yaml`](target.yaml) | `conf/target/*.yaml`: profilo di deploy (dispositivo, risoluzione, budget, LUT) |
 | [`eval.yaml`](eval.yaml) | `conf/eval/*.yaml`: le soglie, che sono due coppie diverse |
 | [`logging.yaml`](logging.yaml) | `conf/logging/*.yaml` |
 | [`strategy.yaml`](strategy.yaml) | `conf/strategy/*.yaml`: baseline o ricerca PIT (yolopit) |

@@ -162,8 +162,7 @@ def make_cfg():
     from hydra import compose, initialize_config_dir
     with initialize_config_dir(config_dir=str(REPO / "conf"), version_base=None):
         return compose("config", overrides=[
-            "stage=probe_edge", "hardware=rpi5", "backend=openvino", "quantization=fp16",
-            "freq_target=max", "compute_target=cpu_4", f"project_root={REPO}"])  # start threshold 50 C, as in the deploy benchmark
+            "stage=probe_edge", "target=rpi5_640", f"project_root={REPO}"])  # start threshold 50 C, as in the deploy benchmark
 
 
 STATE = ("; rc=$?; echo \"STATE $(cat /sys/class/thermal/thermal_zone0/temp) "

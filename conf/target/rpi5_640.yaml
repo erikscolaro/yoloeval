@@ -1,0 +1,23 @@
+# @package _global_
+# Profilo di deploy (NEW_MASTERPLAN 2d): le condizioni di misura del dispositivo, il budget e la LUT misurata in
+# quelle condizioni. Con target=rpi5_640 si fissano tutte insieme; per un altro dispositivo o un'altra risoluzione
+# si aggiunge un file. Lo leggono stage=select e strategy=pit_latency.
+defaults:
+  - override /hardware: rpi5
+  - override /deploy: "640"
+  - override /backend: openvino
+  - override /quantization: fp16
+
+freq_target: max
+compute_target: cpu_4
+
+target:
+  name: rpi5_640
+  budget_ms: null         # B, da scegliere dalla tabella reports/budget_latenza_rpi5_640
+  floor_ratio: 0.85       # test del pavimento: pavimento <= 85 % di B
+  tie: 0.01               # pari merito fra ottimo e tetto: 1 punto di mAP50-95 (criterio della tesi)
+  seed_noise: 0.004       # pari merito fra le partenze: deviazione standard della mAP50-95 di P su 5 seed
+  start_model: null       # scelta manuale, es. w0.25_D126; null = sceglie la regola
+  start_reason: null      # obbligatorio con start_model
+  lut_dir: artifacts/lut/rpi5   # relativo alla root; scripts/build_lut.sh lo produce
+  latency_csv: null       # csv (arch, ms) delle reti intere misurate a 640, oltre a B4-R e pavimento_s
