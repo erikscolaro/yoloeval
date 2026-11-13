@@ -76,3 +76,19 @@ degrees: 0.0
   # Rotazione casuale massima, in gradi.
 fliplr: 0.5
   # Probabilita' di specchiatura orizzontale.
+
+flipud: 0.0
+  # Probabilita' di capovolgimento verticale.
+shear: 0.0
+  # Taglio (shear) casuale massimo, in gradi.
+perspective: 0.0
+  # Distorsione prospettica casuale (0-0.001).
+bgr: 0.0
+  # Probabilita' di scambiare i canali RGB in BGR.
+cutmix: 0.0
+  # Probabilita' di CutMix: incolla una zona di un'altra immagine con i suoi box.
+augmentations: []
+  # Lista di trasformazioni Albumentations nel formato A.to_dict ({transform: {__class_fullname__: ..., p: ...}}).
+  # Sostituisce la lista di default di Ultralytics (Blur, MedianBlur, ToGray, CLAHE). Qui: degrado della camera.
+defaults: [default, _self_]
+  # Facoltativo. Una ricetta che eredita da un'altra e scrive solo le differenze (isp.yaml).

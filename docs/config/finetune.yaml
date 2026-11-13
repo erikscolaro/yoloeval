@@ -45,3 +45,23 @@ pretrained: true
   # true | false. Il fine-tuning parte dai pesi ereditati dal pruned.pt della ricerca: va lasciato true.
 scale: 0.5
   # Intervallo di scala casuale dell'immagine: fattore tra 1-scale e 1+scale (0 = nessun ridimensionamento).
+
+flipud: 0.0
+  # Probabilita' di capovolgimento verticale.
+shear: 0.0
+  # Taglio (shear) casuale massimo, in gradi.
+perspective: 0.0
+  # Distorsione prospettica casuale (0-0.001).
+bgr: 0.0
+  # Probabilita' di scambiare i canali RGB in BGR.
+cutmix: 0.0
+  # Probabilita' di CutMix: incolla una zona di un'altra immagine con i suoi box.
+augmentations: []
+  # Lista di trasformazioni Albumentations nel formato A.to_dict ({transform: {__class_fullname__: ..., p: ...}}).
+  # Sostituisce la lista di default di Ultralytics (Blur, MedianBlur, ToGray, CLAHE). Qui: degrado della camera.
+translate: 0.1
+  # Traslazione casuale, frazione della dimensione dell'immagine.
+degrees: 0.0
+  # Rotazione casuale massima, in gradi.
+fliplr: 0.5
+  # Probabilita' di specchiatura orizzontale.

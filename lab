@@ -21,6 +21,17 @@ DEPS_ALL=('' 'provision' '' 'train, lut' 'select, lut' 'search' 'train o finetun
 # Campi che si cambiano quasi sempre: la vista "parametri principali"
 ESSENZIALI=(target.fps target.pre_ms target.post_ms strategy.search.pit.latency.estimator strategy.search.epochs finetune.epochs
             train.epochs seed dry_run force)
+# Sezioni della config che ogni step usa davvero (le altre ci sono, ma lo step le ignora). train e pretrain_dataset
+# entrano nella chiave dei pesi, per questo compaiono anche negli step dopo il training.
+declare -A USA=(
+  [provision]="hardware generali"
+  [train]="model train pretrain_dataset generali"
+  [select]="target model generali"
+  [search]="model strategy target train pretrain_dataset generali"
+  [finetune]="model finetune strategy target train pretrain_dataset generali"
+  [export]="model deploy quantization backend hardware strategy train eval generali"
+  [benchmark]="model deploy quantization backend hardware eval strategy train generali"
+)
 GRAPH=()          # colonna del grafo nei menu, se impostata
 GRAPHC=()         # righe di collegamento del grafo fra una voce e la successiva
 HELPFN=""         # funzione che da' l'help della voce sotto il cursore (tasto ?)
@@ -298,10 +309,16 @@ menu_parametri() {  # tutti i campi: prima lo step (ognuno compone la sua config
     st=$(wt --menu "Parametri di quale step? Ogni step compone la sua config; gli override valgono per tutti." 0 0 0 "${args[@]}") || return
     while :; do
       cfg=$(flat "$st" 2>"$TMP/err") || { wt --msgbox "La config di stage=$st non si compone:\n\n$(cat "$TMP/err")"; break; }
-      args=(generali "$(cut -f1 <<<"$cfg" | grep -vc '\.') campi senza sezione (seed, force, dry_run, ...)")
+      local usate=() altre=() conta
       while read -r sez; do
-        args+=("$sez" "$(grep -c "^$sez\." <<<"$cfg") campi")
-      done < <(cut -f1 <<<"$cfg" | grep '\.' | cut -d. -f1 | awk '!s[$0]++')
+        [[ " ${USA[$st]} " == *" $sez "* ]] && usate+=("$sez") || altre+=("$sez")
+      done < <(echo generali; cut -f1 <<<"$cfg" | grep '\.' | cut -d. -f1 | awk '!s[$0]++')
+      conta() { if [[ $1 == generali ]]; then echo "$(cut -f1 <<<"$cfg" | grep -vc '\.') campi (seed, force, dry_run, ...)"
+                else echo "$(grep -c "^$1\." <<<"$cfg") campi"; fi; }
+      args=("" "usate da stage=$st")
+      for sez in "${usate[@]}"; do args+=("$sez" "$(conta "$sez")"); done
+      args+=("" "altre sezioni: sono nella config, ma stage=$st non le usa")
+      for sez in "${altre[@]}"; do args+=("$sez" "$(conta "$sez")"); done
       HELPFN=""
       sez=$(wt --menu "stage=$st: sezioni (scrivi per filtrare)." 0 0 0 "${args[@]}") || break
       while :; do
