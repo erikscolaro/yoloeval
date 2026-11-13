@@ -751,8 +751,30 @@ predetta fra i due (criterio di scelta della 2c: mAP50-95 complessiva, a pari me
 
 | caso | cosa vuol dire | cosa si fa |
 |---|---|---|
-| **stretto** | il tetto non sta nel budget, e l'ottimo nel budget perde più di 1 punto di mAP50-95 | fase 4: si pota partendo dal tetto (o dal modello più piccolo che lo eguaglia) |
+| **stretto** | il tetto non sta nel budget, e l'ottimo nel budget perde più di 1 punto di mAP50-95 | fase 4: si pota partendo dal tetto (o dal modello più piccolo che lo eguaglia), se passa il test del pavimento (sotto) |
 | **libero** | il tetto sta nel budget, oppure la differenza è sotto 1 punto | l'ottimo è il modello finale; il dispositivo diventa un risultato descrittivo |
+
+**Test del pavimento.** Un modello è candidato alla potatura solo se il suo **pavimento** sta sotto il **70% del
+budget `B`**. Il pavimento è la latenza con tutti gli strati potabili al minimo (2 canali): resta solo la parte fissa
+C (C2PSA, PSABlock, Detect, nodi non conv) più il costo minimo di ogni conv. Vicino al pavimento la rete perde troppa
+accuratezza; un modello il cui pavimento supera `B` non può proprio arrivarci. Sul PI `B` = 28 ms, quindi il
+pavimento deve stare sotto 19,6 ms.
+
+- Per le architetture coperte dallo stimatore (F…N+, larghezze 0,0625–0,25, D101/D126/D170) il pavimento si calcola
+  con LUT + fit: C + Σ a_f·LUT_f al minimo.
+- Per quelle fuori (NS, S, SM, M) si misura sul Pi **una sola rete** al minimo.
+
+\<esempio>Stime a 640×640 (LUT + fit; la latenza intera è misurata):
+
+| arch | intera (ms) | pavimento (ms) | C (ms) | passa su PI |
+|---|---|---|---|---|
+| P (w0,125 D126) | 28,0 | 14,4 | 5,5 | sì |
+| N- (w0,25 D101) | 53,2 | 18,7 | 11,6 | sì |
+| N (w0,25 D126) | 56,1 | 19,5 | 10,5 | sì, di poco (19,5 < 19,6) |
+| N+ (w0,25 D170) | 70,5 | 23,5 | 10,4 | no |
+
+S: pavimento stimato 29–30 ms (C estrapolata a circa 20 ms), quindi no; da misurare. Osservazione: P intero fa già
+28,0 ms, cioè sta esattamente nel budget a 640: è un candidato come baseline da battere.\</esempio>
 
 Si sceglie sempre il modello con la mAP migliore fra quelli che rispettano la latenza: la distanza di rilevamento non
 entra nelle scelte, si considera solo alla fine. \<esempio>Previsione: **PI stretto** (a 480p il pico ci sta, il nano
@@ -1074,7 +1096,7 @@ dopo ogni misura, non durante; le prove preliminari del 05–06/11 sono senza ve
 **Come si pota**:
 
 - Si parte dal modello indicato dalla decisione 2d (il tetto, o il più piccolo che lo eguaglia), già allenato con 3
-  seed in 2e. \<esempio>Su PI è previsto il **nano**: per portarlo alla latenza del pico va tolto circa il 70% dei calcoli
+  seed in 2e. Deve passare il test del pavimento della 2d (pavimento sotto il 70% di `B`). \<esempio>Su PI è previsto il **nano**: per portarlo alla latenza del pico va tolto circa il 70% dei calcoli
   (stima dalla retta 16,6 ms + 15,2 ms/GMAC).\</esempio>
 - **La potatura lavora sulla leva che rende di più (tasso di cambio, 2c)**, alla risoluzione di deploy a cui il
   dispositivo è stretto.
