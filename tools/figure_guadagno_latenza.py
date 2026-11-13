@@ -205,8 +205,7 @@ def main():
         fw = lambda x: np.where(x <= G0, x, np.where(x <= G1, G0 + (x - G0) * k, x - (G1 - G0) + W))
         iv = lambda y: np.where(y <= G0, y, np.where(y <= G0 + W, G0 + (y - G0) / k, y + (G1 - G0) - W))
         axb.set_xscale("function", functions=(fw, iv))
-        axb.axvspan(G0, G1, color=plt.rcParams["axes.facecolor"], lw=0, zorder=3.5)
-        axb.plot([G0, G1], [0, 0], ls="", marker=[(-1, -2), (1, 2)], ms=7, mew=0.9, color=ink,
+        axb.plot([G0 + 0.38 * (G1 - G0), G0 + 0.62 * (G1 - G0)], [0, 0], ls="", marker=[(-1, -2), (1, 2)], ms=7, mew=0.9, color=ink,
                  transform=axb.get_xaxis_transform(), clip_on=False, zorder=5)
         ticks = [t for t in ticks if t < G0 or t >= G1]
     axb.set_xticks(ticks, [str(t) for t in ticks])
