@@ -29,7 +29,3 @@ subset: all
   # congelato il 23/10/2026. La mAP per fascia, i mosaici alle risoluzioni di deploy e il
   # bootstrap per gruppo si fanno qui in yoloeval (decisione del 23/10/2026). Entra in `name`
   # e `local_path`, quindi ogni sottoinsieme ha artefatti e copia sulla board suoi.
-
-interest_class: drone
-  # Classe di interesse: decide i pari merito di mAP50-95 (NEW_MASTERPLAN 2c). Oggi stage=select non la usa
-  # ancora (i meta.json dei training non hanno l'AP per classe) e a pari merito sceglie la rete piu' veloce.

@@ -117,8 +117,6 @@ def scegli(lat, mAP, floor, budget, floor_ratio, tie, seed_noise, start_model=No
     tetto: la mAP migliore senza vincoli. Caso libero se il tetto sta nel budget o perde meno di `tie` dall'ottimo:
     si usa l'ottimo, niente potatura. Caso stretto: si pota il piu' preciso fra quelli con pavimento <= floor_ratio*B;
     a pari merito (sotto `seed_noise`) quello con il pavimento piu' basso. `start_model` forza la partenza."""
-    # shortcut: il pari merito dell'ottimo va alla rete piu' veloce, non alla classe di interesse: i meta.json non hanno
-    # l'AP per classe. Quando il training la salva, usare dataset.interest_class.
     def migliore(cs, poi, soglia):
         if not cs:
             return None

@@ -710,9 +710,7 @@ intermedie, con canali multipli di 3)\</esempio>.
 **Criterio di scelta, valido in tutta la tesi** (ottimo, candidate, modello da potare): conta la **mAP50-95
 complessiva** (media sulle 4 classi, oggetti ≥ 8 px, sul set di val della risoluzione di deploy). A pari merito,
 cioè con una differenza **sotto 1 punto di mAP50-95** (soglia fissa, la stessa in tutta la tesi), vince il modello
-migliore **sulla classe di interesse** (parametro del dataset; per questo dataset: AP della classe drone). Metriche
-di una sola classe come criterio principale cambierebbero la domanda della tesi da "il detector migliore" a "il
-miglior rilevatore della classe di interesse".
+più veloce.
 
 **Passo 4 — Verifica.** Si allena l'ottimo predetto con 3 seed. Gli ottimi sono uno per dispositivo e risoluzione di
 deploy (fino a 9), ma il training non dipende dalla risoluzione: **si allenano solo le architetture `(w, d)`
@@ -753,7 +751,7 @@ modello senza allenarlo.
 
 Per ogni dispositivo (figura C, sezione 13) si confronta l'ottimo nel budget (2c) con il **tetto**, cioè il modello
 più preciso della griglia senza vincoli di latenza, alla stessa risoluzione di deploy. Il dato è la differenza di mAP
-predetta fra i due (criterio di scelta della 2c: mAP50-95 complessiva, a pari merito la mAP della classe di interesse; è un parametro, per questo dataset: drone):
+predetta fra i due (criterio di scelta della 2c: mAP50-95 complessiva, a pari merito il modello più veloce):
 
 | caso | cosa vuol dire | cosa si fa |
 |---|---|---|
@@ -779,7 +777,7 @@ la soglia dell'85% sono parametri per dispositivo. \<esempio>Sul PI `B` = 28 ms,
   scelta forzata va scritta con il motivo, e il test del pavimento resta come avviso.
 - **Implementazione.** `python run.py stage=select target=rpi5_640 target.budget_ms=<B>` (regola in
   `src/selection.py`, risultato in `results/select/<profilo>.json`). Budget, soglia, pari merito, scelta manuale e LUT
-  stanno nel profilo `conf/target/rpi5_640.yaml`; la classe di interesse in `conf/dataset/`.
+  stanno nel profilo `conf/target/rpi5_640.yaml`.
 
 Latenze a 640×640 sul PI (ms). Il pavimento è la stima con lo schema esatto della rete al minimo
 (`tools/figure_guadagno_latenza.py`; figura della tesi, cap. 8 "Decisione per dispositivo", `fig:ch8-guadagno-latenza`),
