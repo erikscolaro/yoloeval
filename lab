@@ -117,6 +117,12 @@ menu_steps() {
   for x in "${STEPS_ALL[@]}"; do [[ $s == *"\"$x\""* ]] && STEPS+=("$x"); done
 }
 
+# Varianti della griglia nel menu dei modelli (model=yolo26 + larghezza e profondita'), con la sigla della tesi
+GRIGLIA=()
+for w in 0.0625:F 0.09375:FP 0.125:P 0.1875:PN 0.25:N 0.375:NS 0.5:S 0.75:SM 1.0:M; do
+  for d in D101:- D126: D170:+; do GRIGLIA+=("${w%%:*}:${d%%:*}" "${w##*:}${d##*:}  (larghezza ${w%%:*}, ${d%%:*})"); done
+done
+
 menu_gruppi() {
   local g f d args=() o
   while :; do
@@ -133,9 +139,13 @@ menu_gruppi() {
       o=$(basename "$f" .yaml)
       args+=("$o" "$(grep -m1 -E '^#' "$f" | grep -v '@package' | sed 's/^# *//' | cut -c1-70)")
     done
+    [[ $g == model ]] && args+=("${GRIGLIA[@]}")
     o=$(wt --menu "conf/$g/: scegli un'opzione." $H $W $L "${args[@]}") || continue
     [[ $o == - ]] && o=""
-    set_ov "$g" "$o"
+    set_ov model.width ""; set_ov model.depth ""
+    if [[ $g == model && $o == *:* ]]; then   # variante della griglia: model=yolo26 con larghezza e profondita'
+      set_ov model yolo26; set_ov model.width "${o%%:*}"; set_ov model.depth "${o##*:}"
+    else set_ov "$g" "$o"; fi
   done
 }
 
