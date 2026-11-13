@@ -862,7 +862,7 @@ l'ottimo int8 cambia, lo si verifica con un training come in 2c.
 Si fa **solo dopo aver chiuso il blocco 1**, e **solo sui dispositivi "stretti"** della decisione 2d.
 Sugli altri non c'è niente da ottimizzare. Ha due parti: prima lo stimatore (4a), poi la potatura (4b).
 
-### 4a. Stimatore di latenza (circa 2 settimane)
+### 4a. Stimatore di latenza (chiusa il 09/11/2026)
 
 > **Cosa testiamo**: se la latenza di una rete potata per canale si predice sommando le latenze dei suoi strati,
 > misurate una volta per tutte in una tabella (LUT), più pochi parametri di composizione.
@@ -993,18 +993,7 @@ Dettagli, prove e decisioni in [`pruning/lut_pi_passo2`](experiments/pruning/lut
 - **Guardia termica**: sopra 75 °C o con throttling si aspetta e si ripete. Con la ventola al massimo il Pi sta fra
   35 e 51 °C.
 
-**Stato**: lanciata il 06/11 alle 11:10 (0,67 s a misura, 209 967 misure, fine stimata sabato 07/11 verso le 23).
-
-**Primi risultati** (06/11, circa 17 000 misure, tutte della prima ripetizione, nessun throttling):
-
-- **I MAC spiegano bene le mappe piccole e male le grandi.** Fit lineare per famiglia `a + b·MAC`: Spearman
-  0,95–0,97 ed errore mediano 10–14% su 1×1 e 3×3 s2 a 20×20; errore 25% a 80×80, 45% sulla 1×1 a 160×160.
-- **Il rumore fra punti vicini è basso**: ogni punto differisce in mediana dello 0,6% dalla media dei due vicini
-  (`c_out` ± 2), misurati in processi diversi.
-- **I salti sono strutturati**: il 3,5% dei punti si scosta dai vicini di oltre il 10%, solo con `c_out` multiplo di
-  8 (più veloce, per esempio 96) o con resto 2 modulo 8 (più lento, per esempio 34). La LUT li cattura, un fit sui
-  MAC no.
-- La stabilità fra ripetizioni si vedrà dalla seconda passata.
+**Stato**: finita il 09/11, 71 328 punti (le 13 famiglie, con le forme di B4-R).
 
 #### Dalla LUT alla latenza della rete
 
@@ -1034,7 +1023,7 @@ quindi i rami paralleli (C3k2, FPN) non si sovrappongono e sommare gli strati è
    Le forme che la LUT del nano non copre (D101, D170 e w0.09375, circa 2 500 punti) si aggiungono alla LUT prima
    della misura. Larghezze 0.375, S e oltre solo in futuro: la LUT dovrebbe coprire fino a 4× i punti.
 2. Per la rete `j` e la famiglia `f`: `x_jf = Σ LUT_f(c_in, c_out)` sui suoi strati.
-3. **Ridge verso 1** con `a ≥ 0`: `min ‖y − C − X·a‖² + λ‖a − 1‖²`, `λ` con cross-validation a 5 fold. Forma chiusa,
+3. **Ridge verso 1** con `a ≥ 0`: `min ‖y − C − X·a‖² + λ‖a − 1‖²`, `λ` con cross-validation a 5 fold di architetture intere (non di reti: con reti casuali il fit impara a memoria le architetture). Forma chiusa,
    niente gradient descent. Le famiglie che variano sempre insieme (correlazione > 0,98) condividono un solo `a`.
 4. **Verifica** su reti tenute fuori (test diviso per architettura), confrontata con due stimatori più semplici:
    somma della LUT + `C` (`a_f` = 1) e `C + β·MAC`.
@@ -1043,28 +1032,43 @@ Se gli `a_f` non bastano, l'alternativa più fedele è misurare la latenza degli
 performance counter di OpenVINO sulle reti B4-R. Prima della misura di B4-R si fa comunque il profiling per nodo di
 un nano intero e di un potato, per vedere quanto pesano concat, add, upsample e maxpool sul PI.
 
-#### Integrazione con PIT (da decidere)
+#### Integrazione con PIT
+
+Implementata in yolopit (`yolopit/latency.py`, `search.py`, `config.py`), con 13 test che passano.
 
 - `pit.n` = 2, uguale al passo della LUT: ogni scelta discreta di PIT cade su un punto misurato.
-- Per il gradiente la LUT si interpola (lineare fra i punti della griglia) sul numero di canali atteso dalle maschere
-  morbide di PIT.
-- In alternativa: search con la sola parte liscia (`C + Σ β·MAC`) e, dopo la search, ricerca locale strato per strato
-  (qualche passo in più o in meno) verso il valore che costa meno secondo la LUT.
-- Il costo passa da PLiNIO come costo `latency` sullo stesso modello, con un obiettivo DUCCIO in ms invece che in
-  percentuale di calcoli.
+- Il costo `latency` è `C_arch + Σ a_f · LUT_f` sulle maschere morbide, con interpolazione bilineare fra i punti della
+  griglia. Il valore è sempre quello esatto della LUT; si cambia solo la pendenza per il gradiente.
+- Il target DUCCIO si dà in ms: `target: {latency: X}`.
+- Quattro pendenze, scelte con `pit.latency.estimator`: `lut` (derivata della LUT), `smooth` (superficie liscia per
+  famiglia, **default**), `secant` (retta fino a D canali più in basso), `best` (retta più ripida verso qualsiasi punto
+  più in basso). Servono perché la latenza va a gradini (ogni 32 canali di uscita) e la ricerca sente solo la pendenza
+  nel punto in cui sta.
+
+**Da provare** (dettagli in `reports/stimatore-latenza.md`, sezione 9):
+
+1. Confronto delle quattro pendenze: stessa ricerca, stesso target in ms, cambia solo `estimator`. Si guardano mAP,
+   latenza misurata sul PI e distanza dalla stima.
+2. Aggiustamento dopo la search: i layer appena sopra un gradino si spostano al gradino sotto (per esempio da 34 a
+   32 canali) e si misura quanto cambia la mAP dopo il finetune. È la vecchia idea "search con la sola parte liscia e
+   poi ricerca locale sulla LUT", ridotta a un esperimento; non è implementata come strada alternativa.
+3. Stimatore contro calcoli, alla stessa latenza misurata: è S4-01 contro S4-02 in 4b.
 
 **Run**:
 
 | run | cosa | stato |
 |---|---|---|
 | P4-1 | separabilità della LUT: 2 famiglie, scansioni 1D e griglia 2D | fatto il 05/11: rifiutata |
-| P4-2 | LUT 2D a passo 2 delle 13 famiglie del nano, poi l'estensione alle forme di B4-R | in corso dal 06/11 |
-| B4-R | 765 reti potate a caso di 15 architetture, misurate intere | reti generate il 06/11, misura dopo la LUT |
-| L4-1 | stima di `C`, `a_f` (ed eventualmente `γ`) e verifica sulle reti tenute fuori | — |
-| L4-2 | (solo se l'errore supera il 10%) un piccolo MLP che corregge il residuo | — |
+| P4-2 | LUT 2D a passo 2 delle 13 famiglie del nano, poi l'estensione alle forme di B4-R | fatto il 09/11 (71 328 punti) |
+| B4-R | 765 reti potate a caso di 15 architetture, misurate intere | fatto il 09/11 |
+| L4-1 | stima di `C`, `a_f` e verifica sulle reti tenute fuori | fatto il 09/11 |
+| L4-2 | (solo se l'errore supera il 10%) un piccolo MLP che corregge il residuo | non serve |
 
-**Cosa ci aspettiamo**: \<esempio>errore sotto il 10% sul PI; gli `a_f` vicini a 1 sulle mappe piccole e sotto 1 su
-quelle grandi, dove la cache conta di più.\</esempio>
+**Esito.** Su 750 reti potate di 15 architetture, ognuna stimata senza averla vista nel fit, l'errore al p99 è
+**4,1%** (obiettivo 5%), contro 12,9% della somma della LUT e 31,4% dei MAC. Mediana 0,9%, p95 3,0%, massimo 5,2%,
+bias +0,2%: la mediana è pari al rumore fra due misure della stessa rete (1%). I MAC sbagliano sempre nella stessa
+direzione per architettura: sottostimano del 20–25% le reti larghe 0,25. Gli `a_f` stanno fra 0,76 (1×1 a 160×160) e
+1,51 (1×1 a 80×80), con `λ` = 1. `γ` non è servito. Dettagli in `reports/stimatore-latenza.md`.
 
 **Limiti da dichiarare**: strati misurati da soli, non dentro la rete (lo correggono `C` e `a_f`); temperatura letta
 dopo ogni misura, non durante; le prove preliminari del 05–06/11 sono senza ventola, la LUT con la ventola.
