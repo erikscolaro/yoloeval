@@ -1095,6 +1095,12 @@ bias +0,2%: la mediana è pari al rumore fra due misure della stessa rete (1%). 
 direzione per architettura: sottostimano del 20–25% le reti larghe 0,25. Gli `a_f` stanno fra 0,76 (1×1 a 160×160) e
 1,51 (1×1 a 80×80), con `λ` = 1. `γ` non è servito. Dettagli in `reports/stimatore-latenza.md`.
 
+**Aggiornamento del 13/11 (reti PIT nel fit).** Sulle reti prodotte da PIT (canali molto bassi, anche 2) il fit di sole B4-R
+sottostimava di 0,75 ms (−2,8%, p99 4,0%). Il fit ora usa anche 108 reti PIT del nano e di tre architetture vicine, misurate sul Pi
+(`experiments/pruning/fit_pit/`), contate 10 volte per pesare quanto B4-R. Su 32 reti PIT di test (mai nel fit): bias −2,0% → −0,3%,
+p99 3,1% → 1,5%; sulle 15 reti del livello 0: bias −2,8% → −0,5%, p99 4,0% → 1,6%; su B4-R tenute fuori per architettura il p99
+passa da 4,1% a 3,5% (bias +0,2% → 0,0%). Il vecchio fit è `artifacts/lut/rpi5/fit_b4r.json`; i numeri sopra (4,1%) sono quelli di B4-R da sola.
+
 **Limiti da dichiarare**: strati misurati da soli, non dentro la rete (lo correggono `C` e `a_f`); temperatura letta
 dopo ogni misura, non durante; le prove preliminari del 05–06/11 sono senza ventola, la LUT con la ventola.
 
