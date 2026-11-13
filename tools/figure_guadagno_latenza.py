@@ -200,14 +200,14 @@ def main():
     ticks = list(range(x0, int(xs[-1]) + 1, 10))
     lo, hi = max(zip(xs, xs[1:]), key=lambda p: p[1] - p[0])
     if hi - lo > 40:
-        G0, G1, W = int(10 * np.ceil(lo / 10)), int(10 * np.floor(hi / 10)), 8  # il vuoto occupa W ms
+        G0, G1, W = int(10 * np.ceil(lo / 10)), int(10 * np.floor(hi / 10)), 10  # il vuoto occupa quanto un passo delle tacche
         k = W / (G1 - G0)
         fw = lambda x: np.where(x <= G0, x, np.where(x <= G1, G0 + (x - G0) * k, x - (G1 - G0) + W))
         iv = lambda y: np.where(y <= G0, y, np.where(y <= G0 + W, G0 + (y - G0) / k, y + (G1 - G0) - W))
         axb.set_xscale("function", functions=(fw, iv))
         axb.plot([G0 + 0.38 * (G1 - G0), G0 + 0.62 * (G1 - G0)], [0, 0], ls="", marker=[(-1, -2), (1, 2)], ms=7, mew=0.9, color=ink,
                  transform=axb.get_xaxis_transform(), clip_on=False, zorder=5)
-        ticks = [t for t in ticks if t < G0 or t >= G1]
+        ticks = [t for t in ticks if t <= G0 or t >= G1]
     axb.set_xticks(ticks, [str(t) for t in ticks])
     axb.minorticks_off()
     axb.set_xlim(x0, xs[-1] + 3)
