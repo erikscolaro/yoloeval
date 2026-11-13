@@ -15,9 +15,9 @@ target:
   name: rpi5_640
   fps: 30                 # richiesta dell'applicazione: da qui si calcola tutto il resto
   budget_ms: ${ms_per_fps:${.fps}}   # end-to-end, 1000 / fps: dal fotogramma uint8 ai box finali
-  pre_ms: 1.8             # pre-processing (uint8 -> float, /255, layout). PROVVISORIO: Ultralytics sul Pi, 21/09/2026
+  pre_ms: 3.0    # misurato, experiments/latenza/pre_post_rpi5 (numpy, 1 core, mediana 3 passate)
                           #   (tests/fixtures/ultralytics_speed_only.txt); da sostituire con experiments/latenza/pre_post_rpi5
-  post_ms: 0.9            # post-processing fuori dal grafo. PROVVISORIO, stessa fonte; con la one-to-one decodifica e TopK
+  post_ms: 0.01  # misurato, idem (testa one-to-one: soglia e scala)
                           #   sono nel grafo e il resto (soglia, scala dei box) costa ~0,01 ms: 0,9 e' prudente
   model_budget_ms: ${meno:${.budget_ms},${.pre_ms},${.post_ms}}   # budget del modello = budget - pre - post: lo usano
                           #   select e pit_latency; si puo' anche scrivere a mano
