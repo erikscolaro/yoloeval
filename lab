@@ -12,11 +12,8 @@ TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 mkdir -p "$RUNS" "$RICETTE"
 
-# Step in ordine di esecuzione, con il grafo delle dipendenze (colonna 1: train -> export -> benchmark;
-# colonna 2: il ramo delle strategie pit; colonna 3: board e LUT) e chi serve prima di ognuno.
+# Step in ordine di esecuzione e chi serve prima di ognuno.
 STEPS_ALL=(train provision lut select search finetune export benchmark)
-GRAPH_ALL=('●       ' '│   ●──┐' '│   ●  │' '├─●─┤  │' '│ ●─┘  │' '│ ●    │' '●─┘    │' '●──────┘')
-GRAPHC_ALL=('│       ' '│   │  │' '│   │  │' '│ │ │  │' '│ │    │' '│ │    │' '│      │')   # linee fra una voce e la successiva
 # Catene possibili, una per colonna nel menu degli step: una linea dal primo all'ultimo step, un pallino su ogni step
 # della catena (pieno se spuntato). Le colonne che non contengono tutti gli step spuntati si attenuano.
 CHAINS_ALL=("train provision export benchmark" "train provision lut select search finetune export benchmark"
