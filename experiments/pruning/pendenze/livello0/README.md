@@ -105,3 +105,15 @@ Le reti `first` misurano da 0 a 0,2 ms in più delle `final` (stessa architettur
   oppure la verifica con le reti del livello 1, che con la loss di detection saranno meno estreme.
 - **Fra le modalità** l'errore non cambia in modo utile (smooth e best un po' meglio, lut e secant un po' peggio, ma
   dentro 0,5 ms): la scelta della pendenza la fanno il livello 1 e 2, non la precisione della stima.
+
+### Da dove viene la sottostima (verifica del 13/11, senza misure nuove)
+
+- **Ipotesi scartata: un costo dei layer a pochi canali.** Sulle 1515 reti B4-R l'errore non cresce con il numero di
+  layer sotto 8 canali (correlazione +0,12; reti con 30–80 layer così: errore medio +0,01 ms). Lo stesso con ≤ 4 canali
+  e con canali non multipli di 8.
+- **Quello che si vede: sul nano lo stimatore sottostima di più quanto più la rete è leggera.** Reti B4-R del nano
+  (w0.25 D126, 101 reti): misurate 40–60 ms errore medio +0,20 ms; 30–40 ms +0,31; 25–30 ms +0,36; sotto 25 ms +0,42.
+  Le reti del livello 0, più estreme, stanno a +0,5/+1,0 ms. `C_arch` è fissa e il fit pesa tutto l'intervallo, quindi
+  in basso (dove sta il budget) resta un errore con segno.
+- **In pratica**: vicino al budget la stima è bassa di circa 0,4 ms (1,5 %) sulle reti normali, fino a 1 ms (3,5 %) su
+  quelle estreme. Rimedi: un margine sul target (circa −3 %), oppure rifare il fit pesando di più la zona del budget.
