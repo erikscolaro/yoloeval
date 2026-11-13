@@ -5,6 +5,7 @@
 # Variabili: STEPS (default 1500 passi di ottimizzazione per traiettoria), SHARDS (default 3 processi di gen in parallelo).
 # Le reti costruite con pesi finti (yaml) del primo tentativo stanno in results_yaml/ e runs/nets_yaml/ (non rifatte).
 set -euo pipefail
+ulimit -n 65536 2>/dev/null || ulimit -n $(ulimit -Hn)   # gen apre molti file: senza, "Too many open files"
 SHARDS=${SHARDS:-3}
 export OMP_NUM_THREADS=${OMP_NUM_THREADS:-3}   # gen in parallelo senza saturare la CPU (la ricerca di pendenze/livello1 gira insieme)
 X=$(cd "$(dirname "$0")" && pwd)

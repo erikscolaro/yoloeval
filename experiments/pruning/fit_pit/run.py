@@ -26,12 +26,24 @@ LUT_DIR, FIT_OLD = REPO / "artifacts/lut/rpi5", REPO / "artifacts/lut/rpi5/fit_b
 if not FIT_OLD.exists():                       # prima della sostituzione il vecchio e' fit.json
     FIT_OLD = REPO / "artifacts/lut/rpi5/fit.json"
 STEPS, EPOCHS = int(os.environ.get("STEPS", 1500)), 30
-SNAPS = (46, 40, 35, 31, 27, 24)               # ms (nano): maschere al primo passo che li attraversa
+SNAPS = tuple(range(54, 21, -2))               # ms (nano): maschere al primo passo che li attraversa (fitte: ~8 reti per traiettoria)
+THIN = 0.03                                    # reti della stessa traiettoria: almeno il 3 % della latenza intera di distanza
 NOISE = 0.2                                    # seed > 0: rumore sulle maschere iniziali (valore 1, soglia 0,5)
 # (arch, target in frazione della rete intera, seed, split). Il nano intero e' 56,5 ms: 0,62 = 35, 0,35 = 20.
 FRACS_TRAIN = (0.62, 0.40)      # il minimo raggiungibile del nano e' 22,08 ms (0,39): il target si porta almeno a 1,05 x minimo
 MODES, OPTS = ("lut", "smooth", "secant", "best"), ("adamw", "sgd")
 NEAR = ("w0.1875_D126", "w0.25_D101", "w0.25_D170")
+
+
+PRIORITY = ("w0.125_D101", "w0.125_D126", "w0.09375_D101", "w0.09375_D126", "w0.09375_D170", "w0.125_D170",
+            "w0.1875_D101", "w0.1875_D170", "w0.0625_D101", "w0.0625_D126", "w0.0625_D170",
+            "w0.1875_D126", "w0.25_D101", "w0.25_D170")        # ordine di priorita': le vicine al budget di 30 ms per prime
+# per ogni architettura: nucleo = 3 traiettorie di train (seed 1 e 2) + 2 di test (target 0,47, seed 3); rinforzo = altre,
+# solo se servono: fit_eval.roles sceglie 15 reti di train + 5 di test per architettura, le altre sono `extra` (fuori dal fit)
+CORE = [("smooth", "adamw", 1, "train"), ("secant", "sgd", 2, "train"), ("lut", "adamw", 1, "train"),
+        ("smooth", "adamw", 3, "test"), ("secant", "sgd", 3, "test")]
+TOPUP = [("smooth", "sgd", 1, "train"), ("secant", "adamw", 2, "train"), ("smooth", "sgd", 4, "train"),
+         ("secant", "adamw", 5, "train"), ("smooth", "sgd", 6, "test")]
 
 
 def specs():
@@ -42,6 +54,10 @@ def specs():
     s += [("w0.25_D126", m, o, 0.40, seed, "train") for seed in (1, 2) for m in ("lut", "smooth", "secant") for o in OPTS]
     s += [("w0.25_D126", m, o, 0.47, 3, "test") for m in MODES for o in OPTS]      # target e seed mai usati nel train
     s += [(a, "smooth", o, 0.40, 1, "train") for a in NEAR for o in OPTS]
+    # seconda tornata (14/11): le altre architetture della griglia B4-R. Interleave per priorita': prima i train/test
+    # di ogni architettura in ordine, cosi' una corsa interrotta ha gia' tutte le vicine al budget
+    s += [(a, m, o, 0.47 if sp == "test" else 0.40, seed, sp) for lst in (CORE, TOPUP) for a in PRIORITY
+          for m, o, seed, sp in lst]
     return s
 
 
@@ -52,14 +68,19 @@ def load_l0():
     return m
 
 
-WEIGHTS = {"w0.25_D126": "yolo26n_D126", "w0.1875_D126": "yolo26w0.1875_D126", "w0.25_D101": "yolo26w0.25_D101",
-           "w0.25_D170": "yolo26w0.25_D170"}      # pesi e_300 (conta l'architettura, ma l'IR esportato e' quello dei pesi veri)
+def weights(arch):
+    """Pesi e_300 dell'architettura (il nano e' yolo26n); w0.125_D126 ha solo e_0 (BN non addestrate: IR come lo yaml)."""
+    w, d = arch.split("_")
+    stem = "yolo26n_" + d if arch == "w0.25_D126" else f"yolo26{w}_{d}"
+    found = sorted((REPO / "artifacts/weights").glob(f"{stem}_air_detection_all_e300_*/best.pt")) or \
+        sorted((REPO / "artifacts/weights").glob(f"{stem}_air_detection_all_e0_*/best.pt"))
+    return found[0]
 
 
 def build(arch, mode):
     from yolopit.search import build_pit_model
     from src.lut.pi import N_STEP
-    best = sorted((REPO / "artifacts/weights").glob(f"{WEIGHTS[arch]}_air_detection_all_e300_*/best.pt"))[0]
+    best = weights(arch)
     lat = dict(arch=arch, estimator=mode, lut_dir=str(LUT_DIR), fit=str(FIT_OLD))   # solo la pendenza e C: i pesi a_f del fit
     return build_pit_model(str(best), n=N_STEP, remainder=True, trace_imgsz=640, verbose=False, discrete_cost=True, latency=lat)
 
@@ -109,7 +130,7 @@ def gen(k=0, n=1):
     nets_p, layers_p = RES / "nets.csv", RES / "layers.csv"
     dp = RES / "trajs.txt"                          # traiettorie fatte, anche quelle senza reti nuove
     full = {}
-    for arch, mode, opt, frac, seed, split in specs()[k::n]:       # shard k di n: processi in parallelo, scrittura con lock
+    for arch, mode, opt, frac, seed, split in [x for x in specs() if x[0] in os.environ.get("ARCHS", x[0]).split()][k::n]:       # shard k di n: processi in parallelo, scrittura con lock
         nets_rows = list(csv.DictReader(open(nets_p))) if nets_p.exists() else []
         done = {r["traj"] for r in nets_rows} | (set(dp.read_text().split()) if dp.exists() else set())
         traj = f"{arch}_{mode}_{opt}_f{frac}_s{seed}"
@@ -123,7 +144,7 @@ def gen(k=0, n=1):
         w, params, snaps = trajectory(arch, mode, opt, target, seed, full[arch][0])
         seen = {r["sig"] for r in nets_rows}
         variants = [(f"at{t}", m) for t, m in sorted(snaps.items(), reverse=True)] + [("final", None)]
-        new, new_layers = [], []
+        new, new_layers, last = [], [], None
         for tag, masks in variants:
             if masks:
                 with torch.no_grad():
@@ -131,6 +152,9 @@ def gen(k=0, n=1):
                         p.copy_(v)
             name = f"pit_{traj}_{tag}"
             costs = {m: float(v) for m, v in w.real_costs().items()}
+            if last is not None and abs(costs["latency"] - last) < THIN * full[arch][0]:
+                continue                                 # snapshot troppo vicino al precedente: non si esporta
+            last = costs["latency"]
             layers, nc = l0.export(w, name)
             sig = arch + ":" + ",".join(f"{ci}x{co}" for _, _, ci, co in layers)
             if sig in seen:                              # stessa architettura gia' generata
@@ -169,6 +193,31 @@ def gen(k=0, n=1):
         print(traj, len(variants), "varianti,", len(new), "nuove,", round(time.time() - t0), "s", flush=True)
 
 
+def measure():
+    """Misura sul Pi solo le reti scelte da fit_eval.roles (15 di train + 5 di test per architettura) e quelle gia' misurate.
+    pi.b4r legge <dir>/results/nets.csv e scrive raw.csv: una cartella di lavoro con nets.csv filtrato e raw.csv = quello vero."""
+    from src.lut import pi
+    sys.path.insert(0, str(D))
+    import fit_eval
+    rows = list(csv.DictReader(open(RES / "nets.csv")))
+    role = fit_eval.roles({r["net"]: r for r in rows})
+    raw = RES / "raw.csv"
+    done = {r["net"] for r in csv.DictReader(open(raw))} if raw.exists() else set()
+    keep = [r for r in rows if role[r["net"]] != "extra" or r["net"] in done]
+    w = D / "_misura"
+    (w / "results").mkdir(parents=True, exist_ok=True)
+    (w / "runs").mkdir(exist_ok=True)
+    for link, target in ((w / "runs/nets", NETS), (w / "results/raw.csv", raw)):
+        if not link.is_symlink():
+            link.symlink_to(target)
+    with open(w / "results/nets.csv", "w", newline="") as fh:
+        wr = csv.DictWriter(fh, list(rows[0]))
+        wr.writeheader()
+        wr.writerows(keep)
+    print(len(keep), "reti da misurare o gia' misurate su", len(rows), flush=True)
+    pi.b4r(w, [])
+
+
 def l0():
     """Rimisura le reti del livello 0 (IR in livello0/runs/nets) in questa sessione: -> l0_remisura/results/check.csv.
     Serve a separare l'errore dello stimatore dalla deriva fra sessioni di misura."""
@@ -183,5 +232,4 @@ def l0():
 
 
 if __name__ == "__main__":
-    {"gen": lambda: gen(*map(int, sys.argv[2:4])), "measure": lambda: __import__("src.lut.pi", fromlist=["b4r"]).b4r(D, []),
-     "l0": l0, "fit": lambda: __import__("fit_eval").main()}[sys.argv[1]]()
+    {"gen": lambda: gen(*map(int, sys.argv[2:4])), "measure": measure, "l0": l0, "fit": lambda: __import__("fit_eval").main()}[sys.argv[1]]()

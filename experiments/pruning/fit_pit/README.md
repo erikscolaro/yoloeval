@@ -78,3 +78,51 @@ Le altre varianti (stesse righe, `results/valutazione.json`): `nuovo` (w = 1) PI
   con la loss (livello 1) potrà dare reti meno estreme, comunque dentro lo stesso insieme di forme.
 - Il peso x10 è una scelta (pari ai B4-R); non c'è un altro set indipendente su cui sceglierlo oltre il livello 0.
 - `artifacts/` è in `.gitignore`: `fit.json` e `fit_pit.json` non sono nel commit (copia in `yolopit/data/rpi5/fit.json`).
+
+# Seconda tornata (13/11 sera): tutte le 15 architetture di B4-R
+
+Il fit sopra ha PIT solo del nano e di tre vicine, quindi C delle altre 11 dipende dalla sola rete intera. Qui: **20 reti PIT
+per ognuna delle 15 architetture** (15 di train + 5 di test, stessa composizione per tutte), stessa procedura (solo maschere,
+CPU, pesi e_300 veri, OpenVINO fp16 640 cpu_4). Nota: `w0.125_D126` ha solo i pesi e_0 (BN non addestrate, IR come lo yaml).
+
+    ./rifai.sh                  # gen (3 processi), measure (solo le reti scelte), l0, fit
+    ./applica.sh                # fit_pit2.json -> fit.json (artifacts e yolopit); rifiuta se una ricerca usa il fit
+
+- **Generazione**: 736 reti distinte da 151 traiettorie (soglie ogni 2 ms dalla rete intera in giù, reti della stessa traiettoria
+  ad almeno il 3 % di latenza di distanza, seed 1-2 con rumore sul train, seed 3 e 6 e target 0,47 per il test).
+  Quasi 2 h su CPU con la CPU condivisa.
+- **Scelta** (`fit_eval.roles`, `results/selezione.csv`): per architettura 15 di train e 5 di test, a turno dal gruppo
+  (stimatore, ottimizzatore) meno rappresentato e dentro il gruppo la più lontana in latenza dalle già scelte. Le altre sono
+  `extra`: 139 già misurate (27 del nano e le altre vicine) restano fuori dal fit come test in più; le non scelte non si misurano.
+- **Misura sul Pi**: 439 reti × 3 = 1317 misure in totale (di cui 342 in quest'ultimo giro), una alla volta. Nessun riavvio né
+  blocco in tutta la sessione (uptime invariato dal 13/11 15:22), controllato a ogni giro. Pi occupato circa 1 h 20 in tutto il
+  giro (19:55–22:55, a intervalli); **libero dalle 22:55**.
+
+## Risultati (bias % stima/misura − 1 / media misurata − stimata ms / p99 %)
+
+Candidati: `vecchio` (`fit_b4r.json`), `attuale` (default: B4-R + 76 PIT del nano ×10), `nuovo x10` (B4-R + 225 PIT ×10, a e C
+rifatti), **`a attuale + C PIT`** (a dell'attuale, C di ogni architettura = media dei residui sulle sue 15 PIT di train).
+
+| set | n | vecchio | attuale | nuovo x10 | **a attuale + C PIT** |
+|---|---|---|---|---|---|
+| PIT di test (5 per architettura) | 75 | −1,38 / +0,42 / 3,53 | −1,02 / +0,28 / 2,67 | −0,41 / +0,16 / 2,58 | **−0,09 / +0,06 / 2,16** |
+| PIT extra senza nano (mai nel fit) | 51 | −1,00 / +0,24 / 2,97 | −0,71 / +0,15 / 2,99 | −0,11 / +0,04 / 2,13 | **+0,30 / −0,06 / 2,14** |
+| livello 0 (nano, esterno) | 15 | −2,84 / +0,75 / 4,01 | −0,49 / +0,14 / 1,64 | −1,55 / +0,40 / 3,00 | −0,89 / +0,24 / 2,01 |
+| B4-R leave-one-arch-out, p99 % | 750 | 4,11 | 3,50 | 4,03 | 3,50 (a identici) |
+
+Per architettura (PIT di test, 5 reti ciascuna) `a attuale + C PIT` riduce il |bias| in 12 architetture su 15 rispetto
+all'attuale (`results/valutazione.json`, `pit_test_by_arch`); le eccezioni sono `w0.25_D126` (nano: −0,55 → −0,84 %, C da 15
+reti invece di 76), `w0.125_D101` (−0,92 → +1,05 %: ora sovrastima di 0,19 ms, prima sottostimava di 0,19) e `w0.125_D126`
+(+0,05 → +0,24 %, con pesi e_0).
+
+- **Esito: il candidato migliora rispetto all'attuale sulle PIT di test e sulle extra di architetture non nano (bias da −1,0 a −0,1 %
+  e da −0,7 a +0,3 %, p99 2,7 → 2,2 % e 3,0 → 2,1 %), B4-R leave-one-out invariato (3,50 %).** Peggiora un po' il nano (livello 0:
+  −0,49 → −0,89 %, +0,10 ms) e il fit in-sample di B4-R (bias +1,3 %, p99 3,7 %; C è stata alzata di 0,1–0,5 ms per le reti PIT):
+  il leave-one-out ricalibra C sulla rete intera e non lo vede. Il fit congiunto (`nuovo x10`) non migliora abbastanza: il
+  p99 di B4-R sale a 4,03 % (+0,5 punti sull'attuale).
+- **Non applicato**: mentre scrivo gira una ricerca `pit_latency` (unità `pilota-lr001s5`) che usa il fit e non va cambiato in
+  corsa; `pendenze-l1*` non ci sono. `./applica.sh` fa lo scambio (default = `fit_pit2.json`, il precedente resta
+  `fit_pit.json`, `fit_b4r.json` il primo) e si rifiuta finché una ricerca `pit_latency` è in corso.
+- Resta aperto: i residui dipendono dal livello di potatura (le PIT di test di `w0.125_D101` stanno dall'altra parte delle
+  sue PIT di train), quindi una C per architettura non basta; il fit congiunto che lo coglierebbe costa B4-R. Con poche PIT per
+  architettura le stime di C hanno un'incertezza di circa ±0,5 %.
