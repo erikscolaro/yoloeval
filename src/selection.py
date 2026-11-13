@@ -102,7 +102,8 @@ def dati(lut_dir, latency_csv=None, weights=ROOT / "artifacts/weights",
     mis = {"w0.25_D126": nano["nano_floor"], "w0.5_D126": nano["s_floor"]}  # pavimenti misurati
     if latency_csv:
         for r in righe(latency_csv):
-            lat[re.sub(r"_full$", "", r.get("arch") or r["model"])] = float(r.get("ms") or r["measured_ms"])
+            a = r.get("arch") or r.get("model") or arch_di(float(r["width"]), r["depth"])   # o width,depth (benchmark)
+            lat[re.sub(r"_full$", "", a)] = float(r.get("ms") or r.get("measured_ms") or r["median_ms"])
     stim = pavimenti(b4r / "layers.csv", pav / "layers.csv", Path(lut_dir) / "fit.json", lut_dir, lat)
     mp = map_modelli(weights)
     mAP = {a: tuple(np.mean(mp[a], 0)) for a in lat if a in mp}
