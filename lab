@@ -17,6 +17,12 @@ mkdir -p "$RUNS" "$RICETTE"
 STEPS_ALL=(train provision lut select search finetune export benchmark)
 GRAPH_ALL=('●       ' '│   ●──┐' '│   ●  │' '├─●─┤  │' '│ ●─┘  │' '│ ●    │' '●─┘    │' '●──────┘')
 GRAPHC_ALL=('│       ' '│   │  │' '│   │  │' '│ │ │  │' '│ │    │' '│ │    │' '│      │')   # linee fra una voce e la successiva
+# Catene possibili, una per colonna nel menu degli step: una linea dal primo all'ultimo step, un pallino su ogni step
+# della catena (pieno se spuntato). Le colonne che non contengono tutti gli step spuntati si attenuano.
+CHAINS_ALL=("train provision export benchmark" "train provision lut select search finetune export benchmark"
+            "train provision lut search finetune export benchmark" "provision lut")
+CHAIN_NOMI=("baseline" "potatura guidata da select" "potatura del modello scelto" "solo LUT")
+CHAINS=()         # catene da disegnare nella checklist, se impostate
 DEPS_ALL=('' '' 'provision' 'train, lut' 'select, lut' 'search' 'train o finetune' 'export, provision')
 # Campi che si cambiano quasi sempre: la vista "parametri principali"
 ESSENZIALI=(target.fps target.pre_ms target.post_ms strategy.search.pit.latency.estimator strategy.search.epochs finetune.epochs
@@ -80,17 +86,19 @@ wt() {
         sep() { [[ -z ${tags[vis[$1]]} ]]; }   # la voce visibile $1 e' un separatore
         while ((cur < nv - 1)) && sep "$cur"; do ((cur++)); done
         cols=$(tput cols)
-        rows=$(($(tput lines) - $(printf '%b\n' "$text" | wc -l) - 7)); ((${#GRAPHC[@]})) && rows=$((rows / 2)); ((rows < 3)) && rows=3
+        rows=$(($(tput lines) - $(printf '%b\n' "$text" | wc -l) - 7)); ((${#GRAPHC[@]} + ${#CHAINS[@]})) && rows=$((rows / 2)); ((rows < 3)) && rows=3
         ((cur < top)) && top=$cur; ((cur >= top + rows)) && top=$((cur - rows + 1))
         { tput clear; printf '\e[1m%s\e[0m\n\n%b\n\n' "$T" "$text"
+          if ((${#CHAINS[@]})); then printf '      '; for ((j = 0; j < ${#CHAINS[@]}; j++)); do printf '%s ' "${LETTERE:j:1}"; done; echo; fi
           for ((j = top; j < nv && j < top + rows; j++)); do
             i=${vis[j]}
             [[ -z ${tags[i]} ]] && { printf '\n\e[2m  %s\e[0m\n' "${descs[i]}"; continue; }
             sel="  "; ((j == cur)) && sel="> "
             [[ $step == 3 ]] && { [[ ${on[i]} == ON ]] && sel+="[x] " || sel+="[ ] "; }
             ((j == cur)) && printf '\e[7m'
-            printf "%s%s%-${tw}s  %s\e[0m\n" "$sel" "${GRAPH[i]:+${GRAPH[i]}  }" "${tags[i]}" "${descs[i]:0:$((cols - tw - 10))}"
+            printf "%s%s%-${tw}s  %s\e[0m\n" "$sel" "${GRAPH[i]:+${GRAPH[i]}  }$( ((${#CHAINS[@]})) && catene "$i" nodo)" "${tags[i]}" "${descs[i]:0:$((cols - tw - 10))}"
             [[ -n ${GRAPHC[i]:-} && -z $filt ]] && printf '%*s%s\n' "$((2 + (step == 3 ? 4 : 0)))" "" "${GRAPHC[i]}"
+            ((${#CHAINS[@]})) && [[ -z $filt ]] && ((i < n - 1)) && printf '      %s\n' "$(catene "$i" linea)"
           done
           ((nv == 0)) && printf '  (nessuna voce con "%s")\n' "$filt"
           printf '\n\e[2m su/giu muovi  Invio/destra %s  sinistra/Esc indietro%s%s  lettere filtrano\e[0m' \
@@ -129,6 +137,26 @@ wt() {
       { tput clear; printf '\e[1m%s\e[0m\n\n%b\n\n\e[2m Invio/destra si   sinistra/Esc no\e[0m' "$T" "$text"; } >/dev/tty
       while :; do case $(key) in enter | right) return 0 ;; left | esc | bs) return 1 ;; esac; done ;;
   esac
+}
+
+LETTERE=ABCDEFGH
+catene() {  # catene RIGA nodo|linea: le colonne delle catene per la riga RIGA (o per la linea sotto); usa tags e on di wt
+  local c ch st=${tags[$1]} a b k out="" d acc
+  for ((c = 0; c < ${#CHAINS[@]}; c++)); do
+    ch=" ${CHAINS[c]} "; a=-1; b=-1; acc=1
+    for ((k = 0; k < ${#tags[@]}; k++)); do
+      if [[ $ch == *" ${tags[k]} "* ]]; then ((a < 0)) && a=$k; b=$k
+      elif [[ ${on[k]} == ON ]]; then acc=0; fi   # uno step spuntato fuori dalla catena: colonna attenuata
+    done
+    d=""; ((acc)) || d=$'\e[2m'
+    if [[ $2 == nodo ]]; then
+      if [[ $ch == *" $st "* ]]; then if [[ ${on[$1]} == ON ]]; then out+="$d●"; else out+="$d○"; fi
+      elif (($1 > a && $1 < b)); then out+="$d│"; else out+=" "; fi
+    elif (($1 >= a && $1 < b)); then out+="$d│"; else out+=" "; fi
+    out+=$'\e[0m'; [[ $2 == nodo && $1 == "${vis[cur]:-}" ]] && out+=$'\e[7m'   # riga del cursore: resta evidenziata
+    out+=' '
+  done
+  printf '%s ' "$out"
 }
 
 # ---------------------------------------------------------------- stato: step e override
@@ -225,10 +253,11 @@ menu_steps() {
     on=OFF; ha_step "$s" && on=ON
     args+=("$s" "$([[ -n ${DEPS_ALL[i]} ]] && echo "[dopo ${DEPS_ALL[i]}] ")$(stage_help "$s")" "$on")
   done
-  local GRAPH=("${GRAPH_ALL[@]}") GRAPHC=("${GRAPHC_ALL[@]}") HELPFN=stage_help
-  s=$(wt --checklist "Step da eseguire, dall'alto in basso; la catena si ferma al primo errore e ogni step riusa
-dalla cache il lavoro del precedente. Colonna centrale: solo strategie pit (con baseline si va da train a export).
-A destra board e LUT. Con select nella catena, gli step dopo usano il modello scelto da select." 0 0 0 "${args[@]}") || return
+  local CHAINS=("${CHAINS_ALL[@]}") HELPFN=stage_help leg="" c
+  for c in "${!CHAIN_NOMI[@]}"; do leg+="   ${LETTERE:c:1} ${CHAIN_NOMI[c]}"; done
+  s=$(wt --checklist "Step da eseguire, dall'alto in basso; la catena si ferma al primo errore e ogni step riusa dalla cache
+il lavoro del precedente. Ogni colonna e' una catena possibile: ● step spuntato, ○ step della catena non spuntato;
+le colonne che non contengono tutti gli step spuntati si attenuano.\n$leg" 0 0 0 "${args[@]}") || return
   STEPS=()
   for x in "${STEPS_ALL[@]}"; do [[ $s == *"\"$x\""* ]] && STEPS+=("$x"); done
   modificato
