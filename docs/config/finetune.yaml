@@ -13,7 +13,7 @@
 # `cache`, che non cambiano il risultato.
 
 epochs: 50
-batch: 16
+batch: 64
 workers: 12
   # Intero. Processi del dataloader. Fuori dal finetune_key.
 optimizer: SGD
