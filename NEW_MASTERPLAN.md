@@ -947,15 +947,15 @@ Non basta, perché le curve canali → latenza del PI non sono né lineari né a
 
 #### Strati potabili del nano e griglia
 
-Tolti C2PSA, PSABlock e Detect, il nano a 640×640 ha **66 conv potabili in 13 famiglie** (tipo, stride, mappa
-d'uscita; per le s2 l'ingresso è il doppio). `c_in` e `c_out` massimi del nano sono i limiti della LUT.
+Tolti C2PSA, PSABlock e Detect, il nano a 640×640 ha **66 conv potabili, cioè 74 strati da misurare** in 13 famiglie (tipo, stride, mappa
+d'uscita; per le s2 l'ingresso è il doppio). I 74 sono 66 più 8: nei C3k2 il `cv1` è diviso in due 1×1 (`cv1a`, `cv1b`), come in yolopit (`C3k2Split`). `c_in` e `c_out` massimi del nano sono i limiti della LUT.
 
 | famiglia | strati | coppie (c_in, c_out) massime | MAC del nano | punti a passo 2 |
 |---|---|---|---|---|
-| 1×1 s1 20×20 | 9 | (128,64) (128,128) (256,128) (256,256) (384,256) (512,256) | 10% | 33 153 |
-| 1×1 s1 40×40 | 15 | (64,32) (64,64) (128,128) (192,128) (384,128) | 13% | 12 545 |
-| 1×1 s1 80×80 | 7 | (32,16) (32,32) (64,64) (96,64) (96,128) (256,64) | 12% | 5 825 |
-| 1×1 s1 160×160 | 2 | (32,32) (48,64) | 5% | 825 |
+| 1×1 s1 20×20 | 11 | (128,64) (128,128) (256,128) (256,256) (384,256) (512,256) | 10% | 33 153 |
+| 1×1 s1 40×40 | 18 | (64,32) (64,64) (128,128) (192,128) (384,128) | 13% | 12 545 |
+| 1×1 s1 80×80 | 9 | (32,16) (32,32) (64,64) (96,64) (96,128) (256,64) | 12% | 5 825 |
+| 1×1 s1 160×160 | 3 | (32,32) (48,64) | 5% | 825 |
 | 3×3 s1 20×20 | 6 | (64,64) (64,128) (128,64) | 5% | 3 201 |
 | 3×3 s1 40×40 | 12 | (32,32) | 8% | 289 |
 | 3×3 s1 80×80 | 6 | (16,16) (16,32) (32,16) | 5% | 225 |
@@ -965,8 +965,11 @@ d'uscita; per le s2 l'ingresso è il doppio). `c_in` e `c_out` massimi del nano 
 | 3×3 s2 80×80 | 1 | (64,64) | 11% | 1 089 |
 | 3×3 s2 160×160 | 1 | (16,32) | 5% | 153 |
 | 3×3 s2 320×320 (stem) | 1 | (3,16), `c_in` fisso a 3 | 2% | 9 |
-| **totale** | **66** | | | **69 989** |
+| **totale** | **74** | | | **69 989** |
 
+- I punti del nano sono 69 989. Con le forme che B4-R aggiunge (D101, D170 e w0.09375) la LUT arriva a **71 328**:
+  +544 in `k3s1_40` (32×64 e 64×32), +512 in `k1s1_80` (128×128), +264 in `k1s1_160` (64×64), +19 in `k3s1_160`
+  (3 canali in ingresso).
 - Nessuna famiglia supera il 13% dei MAC: escluderne una per risparmiare misure vorrebbe dire non predire una parte
   reale della rete.
 - La griglia di una famiglia è l'unione, sugli strati, dei punti con `c_in, c_out ∈ {1, 2, 4, …, massimo}`.
@@ -1020,7 +1023,7 @@ quindi i rami paralleli (C3k2, FPN) non si sovrappongono e sommare gli strati è
    D170: 15 architetture), 50 per architettura più quella intera, 765 reti. Potatura con i vincoli di yolopit
    (`build_pit_model(n=2)`), rapporto indipendente per maschera, da circa il 10% alla rete intera; pesi casuali,
    export come nel deploy (IR fp16, one-to-one). Misura intera sul PI, 50 iterazioni, 3 ripetizioni.
-   Le forme che la LUT del nano non copre (D101, D170 e w0.09375, circa 2 500 punti) si aggiungono alla LUT prima
+   Le forme che la LUT del nano non copre (D101, D170 e w0.09375, 1 339 punti) si aggiungono alla LUT prima
    della misura. Larghezze 0.375, S e oltre solo in futuro: la LUT dovrebbe coprire fino a 4× i punti.
 2. Per la rete `j` e la famiglia `f`: `x_jf = Σ LUT_f(c_in, c_out)` sui suoi strati.
 3. **Ridge verso 1** con `a ≥ 0`: `min ‖y − C − X·a‖² + λ‖a − 1‖²`, `λ` con cross-validation a 5 fold di architetture intere (non di reti: con reti casuali il fit impara a memoria le architetture). Forma chiusa,
