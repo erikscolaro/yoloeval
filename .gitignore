@@ -37,3 +37,4 @@ experiments/**/runs/
 
 # run e risultati del progetto precedente
 .old/
+runs/

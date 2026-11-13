@@ -1,0 +1,179 @@
+#!/usr/bin/env bash
+# Configuratore e launcher degli esperimenti (whiptail). Costruisce solo la riga di comando di run.py o degli
+# script: opzioni da conf/<gruppo>/, help da docs/config/, nessuno YAML modificato. Ogni run va in runs/ con il comando.
+#   ./lab
+set -uo pipefail
+cd "$(dirname "$(readlink -f "$0")")"
+PY=.venv/bin/python
+RUNS=runs
+mkdir -p "$RUNS"
+STEPS_ALL=(select train search finetune export benchmark)
+STEPS=()          # step scelti, nell'ordine di STEPS_ALL
+OV=()             # override Hydra, chiave=valore
+T="yoloeval lab"
+
+wt() { whiptail --title "$T" "$@" 3>&1 1>&2 2>&3; }
+size() { H=$(($(tput lines) - 4)); W=$(($(tput cols) - 8)); L=$((H - 8)); }
+
+set_ov() {  # set_ov chiave valore: sostituisce l'override con la stessa chiave
+  local k=$1 v=$2 i out=()
+  for i in "${OV[@]}"; do [[ ${i%%=*} == "$k" ]] || out+=("$i"); done
+  [[ -n $v ]] && out+=("$k=$v")
+  OV=("${out[@]}")
+}
+
+stage_help() {  # riga di docs/config/stage.yaml: "#   train     -> ..."
+  grep -E "^  #   $1 +->" docs/config/stage.yaml | sed -E 's/^  #   [a-z]+ +-> //' | head -1
+}
+
+doc_help() {  # doc_help gruppo chiave: la riga della chiave e i commenti sotto, da docs/config/<gruppo>.yaml
+  local f=docs/config/$1.yaml k=${2##*.}
+  [[ -f $f ]] || f=docs/config/config.yaml
+  # shortcut: cerca solo l'ultimo pezzo della chiave; con due chiavi omonime nel file prende la prima
+  awk -v k="$k" '
+    f && /^[[:space:]]*#/ { sub(/^[[:space:]]*#[[:space:]]?/, ""); print; next }
+    f { exit }
+    $0 ~ "^[[:space:]]*" k ":" { f = 1 }' "$f"
+}
+
+menu_steps() {
+  local s args=() on
+  for s in "${STEPS_ALL[@]}"; do
+    on=OFF; [[ " ${STEPS[*]} " == *" $s "* ]] && on=ON
+    args+=("$s" "$(stage_help "$s" | cut -c1-70)" "$on")
+  done
+  size
+  s=$(wt --checklist "Step da eseguire, in quest'ordine (spazio per scegliere). La catena si ferma al primo errore;\nogni step riusa dalla cache quello che ha fatto il precedente." $H $W $L "${args[@]}") || return
+  STEPS=()
+  for x in "${STEPS_ALL[@]}"; do [[ $s == *"\"$x\""* ]] && STEPS+=("$x"); done
+}
+
+menu_gruppi() {
+  local g f d args=() o
+  while :; do
+    args=()
+    for d in conf/*/; do
+      g=$(basename "$d"); [[ $g == stage ]] && continue
+      o=$(printf '%s\n' "${OV[@]}" | sed -n "s/^$g=//p")
+      args+=("$g" "${o:-(default)}")
+    done
+    size
+    g=$(wt --menu "Gruppi di configurazione: un file per opzione in conf/<gruppo>/." $H $W $L "${args[@]}") || return
+    args=("-" "(default di conf/config.yaml)")
+    for f in conf/"$g"/*.yaml; do
+      o=$(basename "$f" .yaml)
+      args+=("$o" "$(grep -m1 -E '^#' "$f" | grep -v '@package' | sed 's/^# *//' | cut -c1-70)")
+    done
+    o=$(wt --menu "conf/$g/: scegli un'opzione." $H $W $L "${args[@]}") || continue
+    [[ $o == - ]] && o=""
+    set_ov "$g" "$o"
+  done
+}
+
+flat() {  # chiave<TAB>valore della config composta per il primo step scelto
+  "$PY" run.py "stage=${STEPS[0]:-train}" "${OV[@]}" --cfg job 2>/dev/null | "$PY" -c '
+import sys, yaml
+def w(n, p=""):
+    if isinstance(n, dict) and n:
+        for k, v in n.items():
+            yield from w(v, f"{p}{k}.")
+    else:
+        yield p[:-1], n
+for k, v in w(yaml.safe_load(sys.stdin)):
+    print(f"{k}\t{"null" if v is None else v}")'
+}
+
+menu_parametri() {
+  local cfg sez k v args h
+  cfg=$(flat) || true
+  [[ -z $cfg ]] && { wt --msgbox "La config non si compone: controlla gruppi e override.\n\n${OV[*]}" 12 70; return; }
+  while :; do
+    args=()
+    while read -r sez; do args+=("$sez" ""); done < <(cut -f1 <<<"$cfg" | cut -d. -f1 | awk '!s[$0]++')
+    size
+    sez=$(wt --menu "Sezioni della config composta (stage=${STEPS[0]:-train})." $H $W $L "${args[@]}") || return
+    while :; do
+      args=()
+      while IFS=$'\t' read -r k v; do args+=("$k" "${v:0:60}"); done < <(grep -E "^$sez(\.|$(printf '\t'))" <<<"$cfg")
+      k=$(wt --menu "$sez: scegli il campo da cambiare." $H $W $L "${args[@]}") || break
+      v=$(grep -P "^\Q$k\E\t" <<<"$cfg" | cut -f2-)
+      h=$(doc_help "$sez" "$k" | head -15)
+      v=$(wt --inputbox "$k\n\n${h:-(nessun help in docs/config/)}\n\nValore (vuoto = togli l'override):" $H $W "$v") || continue
+      set_ov "$k" "$v"
+      cfg=$(flat) || true
+    done
+  done
+}
+
+comandi() {  # una riga per step
+  local s
+  for s in "${STEPS[@]}"; do printf '%s run.py stage=%s %s\n' "$PY" "$s" "${OV[*]}"; done
+}
+
+lancia() {  # lancia NOME COMANDI: in background con nohup, log in runs/, poi lo segue
+  local log="$RUNS/$(date +%Y-%m-%d_%H-%M-%S)_$1.log"
+  { echo "# $(date -Is)"; sed 's/^/# CMD /' <<<"$2"; } >"$log"
+  nohup bash -c "set -e; $(sed 's/$/;/' <<<"$2")" >>"$log" 2>&1 &
+  echo "$!" >"$log.pid"
+  segui "$log"
+}
+
+segui() {
+  clear
+  echo "== $1   (Ctrl-C torna al menu, il run continua)"
+  trap 'true' INT
+  tail -n 200 -f "$1" --pid "$(cat "$1.pid" 2>/dev/null || echo 1)" || true
+  trap - INT
+  read -rp "Invio per tornare al menu... " _
+}
+
+avvio() {
+  [[ ${#STEPS[@]} -gt 0 ]] || { wt --msgbox "Nessuno step scelto." 8 40; return; }
+  local c; c=$(comandi)
+  size
+  wt --yesno "Comandi:\n\n$c\n\nAvvio?" $H $W || return
+  lancia "$(IFS=-; echo "${STEPS[*]}")" "$c"
+}
+
+strumenti() {
+  local f args=() a
+  for f in scripts/*.sh tools/*.py; do
+    args+=("$f" "$(sed -n '2,6p' "$f" | grep -m1 -E '^#' | sed 's/^# *//' | cut -c1-70)")
+  done
+  size
+  f=$(wt --menu "Script e strumenti (help: commento in testa al file)." $H $W $L "${args[@]}") || return
+  a=$(wt --inputbox "$(sed -n '1,12p' "$f" | grep -E '^#' | sed 's/^# *//')\n\nArgomenti:" $H $W "") || return
+  [[ $f == *.py ]] && f="$PY $f"
+  lancia "$(basename "${f##* }" | cut -d. -f1)" "$f $a"
+}
+
+storico() {
+  local args=() l a c
+  for l in $(ls -t "$RUNS"/*.log 2>/dev/null | head -40); do
+    args+=("$l" "$(grep -m1 '^# CMD' "$l" | cut -c7-70)")
+  done
+  [[ ${#args[@]} -gt 0 ]] || { wt --msgbox "Nessun run in $RUNS/." 8 40; return; }
+  size
+  l=$(wt --menu "Run, dal piu' recente." $H $W $L "${args[@]}") || return
+  a=$(wt --menu "$l" 12 60 3 log "segui il log" rilancia "ripeti gli stessi comandi" ferma "termina il run") || return
+  case $a in
+    log) segui "$l" ;;
+    rilancia) c=$(sed -n 's/^# CMD //p' "$l"); lancia "$(basename "$l" .log | cut -d_ -f3-)" "$c" ;;
+    ferma) kill "$(cat "$l.pid")" 2>/dev/null && wt --msgbox "Fermato." 8 30 ;;
+  esac
+}
+
+while :; do
+  size
+  s=$(wt --menu "Step: ${STEPS[*]:-nessuno}\nOverride: ${OV[*]:-nessuno}" $H $W $L \
+      step "scegli gli step (catena completa o parte)" \
+      gruppi "profilo, modello, strategia, ..." \
+      parametri "cambia un campo, con il suo help" \
+      avvio "anteprima dei comandi e avvio" \
+      strumenti "script e figure fuori da run.py" \
+      storico "run passati: log, rilancio, stop") || { clear; exit 0; }
+  case $s in
+    step) menu_steps ;; gruppi) menu_gruppi ;; parametri) menu_parametri ;;
+    avvio) avvio ;; strumenti) strumenti ;; storico) storico ;;
+  esac
+done
