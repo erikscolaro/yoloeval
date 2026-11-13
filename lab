@@ -7,7 +7,9 @@ cd "$(dirname "$(readlink -f "$0")")"
 PY=.venv/bin/python
 RUNS=runs
 mkdir -p "$RUNS"
-STEPS_ALL=(select train search finetune export benchmark)
+STEPS_ALL=(train select search finetune export benchmark)   # ordine di esecuzione
+GRAPH_ALL=('●  ' '├─●' '│ ●' '│ ●' '●─┘' '●  ')             # dipendenze: il ramo e' solo delle strategie pit
+GRAPH=()          # colonna del grafo nelle checklist, se impostata
 STEPS=()          # step scelti, nell'ordine di STEPS_ALL
 OV=()             # override Hydra, chiave=valore
 T="yoloeval lab"
@@ -43,7 +45,7 @@ wt() {
             sel="  "; ((i == cur)) && sel="> "
             [[ $step == 3 ]] && { [[ ${on[i]} == ON ]] && sel+="[x] " || sel+="[ ] "; }
             ((i == cur)) && printf '\e[7m'
-            printf '%s%-28s %s\e[0m\n' "$sel" "${tags[i]}" "${descs[i]:0:$(($(tput cols) - 40))}"
+            printf '%s%s  %-12s %s\e[0m\n' "$sel" "${GRAPH[i]:-}" "${tags[i]}" "${descs[i]:0:$(($(tput cols) - 30))}"
           done
           printf '\n\e[2m su/giu muovi   Invio/destra %s   sinistra/Esc indietro%s\e[0m' \
             "$([[ $step == 3 ]] && echo conferma || echo entra)" "$([[ $step == 3 ]] && echo '   spazio spunta')"
@@ -104,7 +106,8 @@ menu_steps() {
     args+=("$s" "$(stage_help "$s" | cut -c1-70)" "$on")
   done
   size
-  s=$(wt --checklist "Step da eseguire, in quest'ordine (spazio per scegliere). La catena si ferma al primo errore;\nogni step riusa dalla cache quello che ha fatto il precedente." $H $W $L "${args[@]}") || return
+  local GRAPH=("${GRAPH_ALL[@]}")
+  s=$(wt --checklist "Step da eseguire, dall'alto in basso (spazio per scegliere). La catena si ferma al primo errore;\nogni step riusa dalla cache quello che ha fatto il precedente. Il ramo a destra (select, search, finetune)\nserve solo alle strategie pit; con strategy=baseline si va da train a export." $H $W $L "${args[@]}") || return
   STEPS=()
   for x in "${STEPS_ALL[@]}"; do [[ $s == *"\"$x\""* ]] && STEPS+=("$x"); done
 }
@@ -224,6 +227,26 @@ storico() {
   esac
 }
 
+HELP='\e[1mCome si usa\e[0m
+Si sceglie cosa fare (step), con quale configurazione (gruppi, parametri), poi si avvia. Il launcher scrive solo
+la riga di comando di run.py: gli YAML in conf/ non cambiano mai, le modifiche sono override Hydra.
+
+\e[1mSezioni\e[0m
+  step        gli stadi della pipeline, in ordine di esecuzione, con il grafo delle dipendenze. Se ne sceglie
+              uno, una parte o la catena intera; la catena si ferma al primo errore.
+  gruppi      per ogni gruppo di conf/ (target, model, strategy, train, ...) quale file usare. target e\x27 il
+              profilo di deploy: fissa dispositivo, risoluzione, backend, precisione, budget e LUT insieme.
+  parametri   la config composta, sezione per sezione: si cambia un campo e si legge il suo help
+              (da docs/config/). Valore vuoto = torna al default.
+  avvio       mostra i comandi esatti e li lancia in background; il log scorre qui, Ctrl-C torna al menu
+              e il run continua.
+  strumenti   script di scripts/ e tools/ (LUT, figure, ...), con l\x27help del commento in testa al file.
+  storico     i run in runs/: seguire il log, rilanciare gli stessi comandi, fermare un run.
+
+\e[1mTasti\e[0m
+  su/giu muovono, Invio o destra entrano o scelgono, sinistra, Esc o Backspace tornano indietro,
+  spazio spunta gli step, Ctrl-D annulla la scrittura di un valore. Indietro dalla pagina principale esce.'
+
 while :; do
   size
   s=$(wt --menu "Step: ${STEPS[*]:-nessuno}\nOverride: ${OV[*]:-nessuno}" $H $W $L \
@@ -232,9 +255,10 @@ while :; do
       parametri "cambia un campo, con il suo help" \
       avvio "anteprima dei comandi e avvio" \
       strumenti "script e figure fuori da run.py" \
-      storico "run passati: log, rilancio, stop") || { clear; exit 0; }
+      storico "run passati: log, rilancio, stop" \
+      help "cosa fanno le sezioni e i tasti") || { clear; exit 0; }
   case $s in
     step) menu_steps ;; gruppi) menu_gruppi ;; parametri) menu_parametri ;;
-    avvio) avvio ;; strumenti) strumenti ;; storico) storico ;;
+    avvio) avvio ;; strumenti) strumenti ;; storico) storico ;; help) wt --msgbox "$HELP" ;;
   esac
 done
