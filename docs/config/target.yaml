@@ -15,9 +15,18 @@ compute_target: cpu_4
 target:
   name: rpi5_640
     # OBBLIGATORIO. Nome del file di uscita di stage=select: results/select/<name>.json.
-  budget_ms: null
-    # OBBLIGATORIO per stage=select e strategy=pit_latency. Il budget B in ms, nelle condizioni del
-    # profilo. pit_latency lo usa come target della ricerca.
+  fps: 30
+    # OBBLIGATORIO. Fotogrammi al secondo richiesti dall'applicazione: e' il dato di partenza.
+  budget_ms: ${ms_per_fps:${.fps}}
+    # Budget end-to-end in ms, 1000 / fps (resolver `ms_per_fps`): dal fotogramma uint8 alla risoluzione di deploy ai
+    # box finali. Si puo' scrivere a mano al posto della formula.
+  pre_ms: 1.8
+    # Pre-processing fuori dal grafo (uint8 -> float, /255, cambio di layout), misurato nelle condizioni del profilo.
+  post_ms: 0.9
+    # Post-processing fuori dal grafo (soglia di confidenza, box in coordinate dell'immagine).
+  model_budget_ms: ${meno:${.budget_ms},${.pre_ms},${.post_ms}}
+    # Budget del modello = budget_ms - pre_ms - post_ms (resolver `meno`, registrato in src/__init__.py). Lo usano
+    # stage=select e strategy=pit_latency come target. Si puo' scrivere a mano al posto della formula.
   floor_ratio: 0.85
     # Test del pavimento: un modello si pota solo se il pavimento sta sotto floor_ratio * B.
   tie: 0.01

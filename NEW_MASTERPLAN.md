@@ -775,7 +775,7 @@ la soglia dell'85% sono parametri per dispositivo. \<esempio>Sul PI `B` = 28 ms,
   il rumore tra seed) si prende quello con il pavimento più basso.
 - **Scelta manuale.** Il modello di partenza della regola si può forzare con un parametro per dispositivo; la
   scelta forzata va scritta con il motivo, e il test del pavimento resta come avviso.
-- **Implementazione.** `python run.py stage=select target=rpi5_640 target.budget_ms=<B>` (regola in
+- **Implementazione.** `python run.py stage=select target=rpi5_640` (regola in
   `src/selection.py`, risultato in `results/select/<profilo>.json`). Budget, soglia, pari merito, scelta manuale e LUT
   stanno nel profilo `conf/target/rpi5_640.yaml`.
 

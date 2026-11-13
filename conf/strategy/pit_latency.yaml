@@ -1,6 +1,6 @@
 # Ricerca PIT (yolopit) con DUCCIO sulla latenza del Raspberry Pi 5 stimata da LUT e fit (yolopit.latency:
 # C_arch + somma per famiglia di a_f * LUT_f). n = 2, il passo della LUT. Target in ms sul modello intero:
-#   python run.py stage=search strategy=pit_latency target=rpi5_640 target.budget_ms=28
+#   python run.py stage=search strategy=pit_latency target=rpi5_640
 # Budget e LUT vengono dal profilo di deploy (conf/target/).
 # La LUT e il fit cambiano la chiave della ricerca (hash dei file, src/cache.py).
 name: pit_latency
@@ -34,4 +34,4 @@ search:
     weight_decay: 0.0
   regularizer:
     mode: duccio
-    target: {latency: '${target.budget_ms}'}   # ms nelle condizioni del profilo
+    target: {latency: '${target.model_budget_ms}'}   # ms nelle condizioni del profilo

@@ -23,6 +23,8 @@ import sys
 import hydra
 from omegaconf import DictConfig, OmegaConf
 
+import src  # noqa: F401  registra i resolver della config (${meno:...})
+
 log = logging.getLogger("yolo-bench")
 
 #: flag dichiarati in conf/config.yaml con un default

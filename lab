@@ -16,11 +16,13 @@ mkdir -p "$RUNS" "$RICETTE"
 # colonna 2: il ramo delle strategie pit; colonna 3: board e LUT) e chi serve prima di ognuno.
 STEPS_ALL=(provision lut train select search finetune export benchmark)
 GRAPH_ALL=('    ●──┐' '    ●  │' '●   │  │' '├─●─┤  │' '│ ●─┘  │' '│ ●    │' '●─┘    │' '●──────┘')
+GRAPHC_ALL=('    │  │' '    │  │' '│   │  │' '│ │ │  │' '│ │    │' '│ │    │' '│      │')   # linee fra una voce e la successiva
 DEPS_ALL=('' 'provision' '' 'train, lut' 'select, lut' 'search' 'train o finetune' 'export, provision')
 # Campi che si cambiano quasi sempre: la vista "parametri principali"
-ESSENZIALI=(target.budget_ms strategy.search.pit.latency.estimator strategy.search.epochs finetune.epochs
+ESSENZIALI=(target.fps target.pre_ms target.post_ms strategy.search.pit.latency.estimator strategy.search.epochs finetune.epochs
             train.epochs seed dry_run force)
 GRAPH=()          # colonna del grafo nei menu, se impostata
+GRAPHC=()         # righe di collegamento del grafo fra una voce e la successiva
 HELPFN=""         # funzione che da' l'help della voce sotto il cursore (tasto ?)
 STEPS=()          # step scelti, nell'ordine di STEPS_ALL
 OV=()             # override Hydra, chiave=valore
@@ -67,7 +69,7 @@ wt() {
         sep() { [[ -z ${tags[vis[$1]]} ]]; }   # la voce visibile $1 e' un separatore
         while ((cur < nv - 1)) && sep "$cur"; do ((cur++)); done
         cols=$(tput cols)
-        rows=$(($(tput lines) - $(printf '%b\n' "$text" | wc -l) - 7)); ((rows < 3)) && rows=3
+        rows=$(($(tput lines) - $(printf '%b\n' "$text" | wc -l) - 7)); ((${#GRAPHC[@]})) && rows=$((rows / 2)); ((rows < 3)) && rows=3
         ((cur < top)) && top=$cur; ((cur >= top + rows)) && top=$((cur - rows + 1))
         { tput clear; printf '\e[1m%s\e[0m\n\n%b\n\n' "$T" "$text"
           for ((j = top; j < nv && j < top + rows; j++)); do
@@ -77,6 +79,7 @@ wt() {
             [[ $step == 3 ]] && { [[ ${on[i]} == ON ]] && sel+="[x] " || sel+="[ ] "; }
             ((j == cur)) && printf '\e[7m'
             printf "%s%s%-${tw}s  %s\e[0m\n" "$sel" "${GRAPH[i]:+${GRAPH[i]}  }" "${tags[i]}" "${descs[i]:0:$((cols - tw - 10))}"
+            [[ -n ${GRAPHC[i]:-} && -z $filt ]] && printf '%*s%s\n' "$((2 + (step == 3 ? 4 : 0)))" "" "${GRAPHC[i]}"
           done
           ((nv == 0)) && printf '  (nessuna voce con "%s")\n' "$filt"
           printf '\n\e[2m su/giu muovi  Invio/destra %s  sinistra/Esc indietro%s%s  lettere filtrano\e[0m' \
@@ -126,6 +129,13 @@ set_ov() {  # set_ov chiave valore: sostituisce l'override con la stessa chiave;
 }
 ov() { printf '%s\n' "${OV[@]}" | sed -n "s/^$1=//p" | tail -1; }   # valore di un override, vuoto se manca
 modificato() { [[ -n $RICETTA && $RICETTA != *" (modificata)" ]] && RICETTA+=" (modificata)"; }
+budget_riga() {  # "budget 33.3 ms - pre 1.8 - post 0.9 = modello 30.6 ms", dalla config composta
+  local f=$TMP/select.cfg; [[ -s $f ]] || f=$(ls "$TMP"/*.cfg 2>/dev/null | head -1)
+  [[ -n $f && -s $f ]] || return 0
+  LC_ALL=C awk -F'\t' '/^target\.(fps|pre_ms|post_ms)\t/{v[$1]=$2}
+    END{f=v["target.fps"]; p=v["target.pre_ms"]; q=v["target.post_ms"]
+        if (f != "" && f != "null") printf "   %s fps = %.1f ms - pre %s - post %s = modello %.1f ms", f, 1000/f, p, q, 1000/f-p-q}' "$f"
+}
 ha_step() { [[ " ${STEPS[*]} " == *" $1 "* ]]; }
 
 stage_help() {  # riga di docs/config/stage.yaml: "#   train     -> ..."
@@ -187,7 +197,7 @@ controlla() {  # compone la config di ogni step scelto (in parallelo) e cerca i 
     if [[ ! -s $TMP/$s.cfg ]]; then msg+="  ✗ $s: $(tail -1 "$TMP/$s.err")\n"; continue; fi
     if [[ $s == select ]] || { [[ $s == search ]] && grep -q $'^strategy.name\tpit_latency' "$TMP/$s.cfg"; }; then
       grep -q '^target\.' "$TMP/$s.cfg" || { msg+="  ✗ $s: manca il profilo (target)\n"; continue; }
-      grep -q $'^target.budget_ms\tnull' "$TMP/$s.cfg" && msg+="  ✗ $s: manca il budget (target.budget_ms)\n"
+      grep -qP '^target.(fps|budget_ms|model_budget_ms)\tnull' "$TMP/$s.cfg" && msg+="  ✗ $s: manca il budget (target.fps)\n"
     fi
     if [[ $s == search ]] && grep -q $'^strategy.method\tultralytics' "$TMP/$s.cfg"; then
       msg+="  ! search con strategy=baseline non fa niente\n"
@@ -204,7 +214,7 @@ menu_steps() {
     on=OFF; ha_step "$s" && on=ON
     args+=("$s" "$([[ -n ${DEPS_ALL[i]} ]] && echo "[dopo ${DEPS_ALL[i]}] ")$(stage_help "$s")" "$on")
   done
-  local GRAPH=("${GRAPH_ALL[@]}") HELPFN=stage_help
+  local GRAPH=("${GRAPH_ALL[@]}") GRAPHC=("${GRAPHC_ALL[@]}") HELPFN=stage_help
   s=$(wt --checklist "Step da eseguire, dall'alto in basso; la catena si ferma al primo errore e ogni step riusa
 dalla cache il lavoro del precedente. Colonna centrale: solo strategie pit (con baseline si va da train a export).
 A destra board e LUT. Con select nella catena, gli step dopo usano il modello scelto da select." 0 0 0 "${args[@]}") || return
@@ -491,7 +501,7 @@ while :; do
   testa="  ${D}ricetta  ${N}  ${RICETTA:-—}
   ${D}step     ${N}  $( ((${#STEPS[@]})) && echo "${STEPS[*]}" | sed 's/ / → /g' || echo —)
   ${D}modello  ${N}  $(dflt "$(modello)" "default (yolo26n)")$(ha_step select && ha_step search && echo '   (per gli step dopo select: lo sceglie select)')
-  ${D}profilo  ${N}  $(dflt "$(ov target)" "nessuno")$([[ -n $(ov target.budget_ms) ]] && echo "   budget $(ov target.budget_ms) ms")
+  ${D}profilo  ${N}  $(dflt "$(ov target)" "nessuno")$([[ -n $(ov target) ]] && budget_riga)
   ${D}strategia${N}  $(dflt "$(ov strategy)" "default (baseline)")
   ${D}override ${N}  ${#OV[@]}$( ((${#OV[@]})) && echo ": ${OV[*]}" | cut -c1-110)
   ${D}stato    ${N}  $STATO"
