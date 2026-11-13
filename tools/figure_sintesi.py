@@ -96,7 +96,7 @@ OPT, PRUNE = "#d9531e", "#8a5d00"
 
 def _frame():
     """Piccoli multipli a passo uguale in orizzontale e in verticale (aspetto 1:1 della griglia)."""
-    h = 0.08 + 0.13 * len(PRECS) * len(RL) / 3  # 0,13 per riga di pannelli con tre ingressi
+    h = 0.08 + 0.13 * max(len(PRECS) * len(RL), 3) / 3  # 0,13 per riga di pannelli con tre ingressi; minimo per titoli e assi
     fig, axs = plt.subplots(len(PRECS), len(DEPTHS), figsize=(WIDTH, h * WIDTH), sharex=True, sharey=True,
                             squeeze=False)
     for i, q in enumerate(PRECS):
