@@ -94,6 +94,9 @@ Queste regole valgono per tutta la tesi. Servono a rendere i confronti onesti e 
 - Pre-processing, post-processing e trasferimenti **non dipendono dal modello** (a parità di risoluzione): si
   misurano una volta e si sottraggono dal budget. Quello che resta è il **budget del modello**:
   `budget del modello = 33 ms − (pre + post + trasferimenti)`.
+- **Sul PI il percorso principale è a 640×640** (vedi "Risoluzione"). Il budget del modello a 640 è **da fissare**:
+  lo sceglie l'utente dalla tabella `reports/budget_latenza_rpi5_640` (misure in corso). Il valore 28 ms che compare
+  negli esempi è quello ottenuto a 480p: vale solo come esempio.
 
 ### Risoluzione
 
@@ -101,7 +104,10 @@ Queste regole valgono per tutta la tesi. Servono a rendere i confronti onesti e 
 
 - **Training**: tutti i modelli si allenano a **640×640**, la scala del dataset (nativo 640×512). Non si allena a
   nessun'altra risoluzione, e non si ingrandisce mai un'immagine (non aggiunge dettagli).
-- **Deploy**: camera **16:9** a tre risoluzioni. Il modello riceve il fotogramma intero; l'ingresso va arrotondato a
+- **Deploy principale: 640×640, risoluzione fittizia** (decisione dell'utente). È una scelta di comodo: LUT, B4-R,
+  pavimento e stimatore di latenza esistono solo a 640, e a 640 il fotogramma ha la stessa grandezza del training,
+  quindi il `val` standard basta. Tutte le decisioni (2c, 2d, fase 4) si prendono a 640 sul PI.
+- **Deploy a più risoluzioni (estensione, se abbiamo tempo)**: camera **16:9** a tre risoluzioni. Il modello riceve il fotogramma intero; l'ingresso va arrotondato a
   un multiplo di 32 (lo stride massimo della rete):
 
   | | fotogramma | ingresso del modello |
@@ -266,8 +272,8 @@ Si usa la famiglia **YOLO26** con la testa **one-to-one** (senza NMS). Nel train
 - la **larghezza** (quanti canali ha ogni strato);
 - la **profondità**, cioè il **numero di strati convoluzionali** della rete (definizione sotto).
 
-La **risoluzione** non si varia nel training (sempre 640×640): è la condizione di deploy (480p, 720p, 1080p, regole
-fisse), su cui si misurano latenza e mAP.
+La **risoluzione** non si varia nel training (sempre 640×640): è la condizione di deploy (640×640 principale; 480p, 720p, 1080p, regole
+fisse), su cui si misurano latenza e mAP. Il percorso principale è a 640×640; le tre risoluzioni di deploy sono un'estensione.
 
 **Sigle**: ogni modello ha una sigla = lettera della larghezza + segno della profondità. Lettere: F 0.0625, FP 0.09375,
 P 0.125, PN 0.1875, N 0.25, NS 0.375, S 0.5, SM 0.75, M 1.0 (le intermedie prendono le lettere delle due vicine). Segno:
@@ -344,7 +350,7 @@ di 16, e femto e 0.09375 hanno 9 conv sotto gli 8 canali. \<esempio>Su GPU e NPU
 larghezze rischiano di costare più delle potenze di 2 a parità di calcoli\</esempio>: la griglia di latenza della 2a lo misura,
 ed è un risultato da riportare.
 
-Le risoluzioni sono le tre di deploy: **480p, 720p, 1080p** (ingressi 864×480, 1280×736, 1920×1088; regole fisse),
+Le risoluzioni sono **640×640** (deploy principale, fittizio) e le tre dell'estensione: **480p, 720p, 1080p** (ingressi 864×480, 1280×736, 1920×1088; regole fisse),
 più i tre ritagli quadrati del tracking (**`crop128`, `crop256`, `crop512`**), per ora solo nella griglia di latenza.
 
 Ogni configurazione valutata (larghezza, profondità, risoluzione di deploy, precisione) è quindi **un modello che
@@ -393,7 +399,7 @@ Costruito e congelato nella repo `~/Desktop/vedetta`: l'ordine delle operazioni 
 
 ### Set di deploy
 
-Set di val alle risoluzioni di deploy (`val_480p`, `val_720p`, `val_1080p`), costruiti una volta su disco e uguali per
+A 640 il set di deploy è il `val` standard. Per l'estensione servono set di val alle risoluzioni di deploy (`val_480p`, `val_720p`, `val_1080p`), costruiti una volta su disco e uguali per
 tutti i modelli. Ogni fotogramma di deploy è un **mosaico**: un frame di val con il suo oggetto, in posizione casuale
 a seed fisso, e intorno frame di **solo sfondo dello stesso video** (oggetto cancellato con l'inpainting), così il
 cielo è lo stesso e non ci sono giunture fra cieli diversi. Per il 1080p: 3×2 frame da 640×512 (1920×1024) più una
@@ -501,7 +507,7 @@ uscite diversi, reti potate a caso) serve solo alla potatura, e si fa nel blocco
 | run | cosa misura | dove | cosa si varia |
 |---|---|---|---|
 | B1-0 | ripetibilità: lo stesso modello (N, pesi casuali) misurato 5 volte | PI fp16 | niente: è sempre la stessa misura |
-| B1-2 | pre-processing, post-processing e trasferimenti | PI | risoluzione di deploy: 480p, 720p, 1080p |
+| B1-2 | pre-processing, post-processing e trasferimenti | PI | risoluzione di deploy: 640×640 (principale), 480p, 720p, 1080p (estensione) |
 | B1-1 | costo minimo di uno strato: catene di strati identici e piccoli (conv 3×3, 16 canali, 54×30) | PI | numero di strati: 1, 2, 4, 8, 16, 32 |
 | P1-1 | probe ridotto: 8 conv 3×3 uguali, canali da 1 a 64 a passo 1 e da 72 a 128 a passo 8, mappe del deploy a passo 8 e 16 del 480p e del 1080p (108×60, 54×30, 240×136, 120×68), 3 passate | PI fp16 | numero di canali |
 | B1-3 | prestazioni massime reali: picco di calcolo e banda di memoria (roofline) | PI | precisioni del dispositivo |
@@ -628,7 +634,7 @@ comprende tutti i modelli della mappatura e tutte le candidate all'ottimo: è un
 senza bisogno di interpolare. \<esempio>Costo indicativo: sul Pi qualche ora per precisione\</esempio>. Per l'int8 i modelli si quantizzano con
 **la ricetta del dispositivo**: sul PI quella di X2 (onnxruntime, testa, ramo di classe e attention in float) (AGX e DX: sezione 16).
 Calibrazione su pesi casuali: per la latenza conta solo quali nodi sono quantizzati, non i valori. Già da qui si sa quali modelli stanno nel budget su ogni dispositivo, in ogni precisione e a ogni
-risoluzione di deploy (figura A, sezione 13). \<esempio>Sul Pi probabilmente solo a 480p: a 720p il fotogramma ha circa 2,3
+risoluzione di deploy (figura A, sezione 13). \<esempio>Sul Pi, nell'estensione, probabilmente nessun modello oltre i 640: a 720p il fotogramma ha circa 2,3
 volte i pixel di un 640×640, a 1080p circa 5 volte, e la latenza sul Pi segue i calcoli.\</esempio>
 
 | run | modelli | dove | precisioni |
@@ -655,7 +661,7 @@ estrapolare: non servono training "fuori asse". Tutti i training sono a **640×6
 training (regole fisse).
 
 **Il limite superiore lo fissa l'hardware.** La M (1.0) non si allena: sul PI, il dispositivo più stretto, in fp16 a
-480p la M D126 impiega 360 ms contro un budget di 28 (13 volte), e già la 0.75 ne impiega 246. Oltre la 0.75 non c'è
+480p (misura storica, non guida più le decisioni) la M D126 impiega 360 ms contro un budget di 28 (13 volte), e già la 0.75 ne impiega 246. Oltre la 0.75 non c'è
 nessun candidato da cercare. La latenza della M si misura comunque nella griglia della 2a, perché è il dato che lo
 dimostra. In più la precisione arriva a un plateau prima (dalla 0.375 il mAP50-95 sale di circa 1 punto in tutto).
 
@@ -681,7 +687,7 @@ trasforma in una scelta, in quattro passi, **per ogni dispositivo e per ogni ris
 
 **Passo 1 — Il tasso di cambio di ogni leva.** Per ogni dispositivo, risoluzione di deploy e leva (larghezza,
 profondità) si calcola quanta precisione si guadagna per ogni ms di latenza in più, fra punti vicini della griglia:
-`Δ mAP50-95 / Δ ms`. \<esempio>Esempio con numeri inventati, su PI a 480p:
+`Δ mAP50-95 / Δ ms`. \<esempio>Esempio con numeri inventati, su PI a 640:
 larghezza +2 punti ogni 10 ms, profondità +0,5. Vuol dire che su PI i ms conviene spenderli in larghezza.\</esempio> Il tasso si calcola su tutta la
 griglia, per vedere come cambia con la taglia. A parte si riporta **quanto costa salire di
 risoluzione di deploy**: quanti ms in più, e quanta mAP in più o in meno, da 480p a 720p a 1080p.
@@ -728,7 +734,7 @@ Se più dispositivi o risoluzioni hanno lo stesso ottimo, i suoi training si fan
 > le candidate nel budget con mAP predetta ≥ 0,452.\</esempio>
 
 **Cosa ci aspettiamo**: \<esempio>la mAP vera dell'ottimo entro circa 1 punto da quella predetta; un ottimo che cambia
-con la risoluzione di deploy (su PI un modello stretto e solo a 480p); l'ottimo migliore di qualunque taglia standard (F, P, N, S, M) che sta nel budget.\</esempio>
+con la risoluzione di deploy (su PI a 640 il budget è stretto; nell'estensione, a risoluzioni più alte, forse nessun modello); l'ottimo migliore di qualunque taglia standard (F, P, N, S, M) che sta nel budget.\</esempio>
 
 **Conoscenza che produciamo**: il tasso di cambio delle leve per dispositivo; la **ricetta** `(w, d)` ottima per
 dispositivo, risoluzione di deploy e budget; quanto costa salire di risoluzione; quanto è affidabile scegliere un
@@ -770,24 +776,28 @@ la soglia dell'85% sono parametri per dispositivo. \<esempio>Sul PI `B` = 28 ms,
 - Se il tetto non passa il test, si parte dal modello più preciso fra quelli che passano. A parità (differenza sotto
   il rumore tra seed) si prende quello con il pavimento più basso.
 
-Latenze a 640×640 sul PI (ms). L'intera è misurata; il pavimento è da LUT + fit, salvo dove indicato "misurato"
-(`experiments/pruning/pavimento_s`):
+Latenze a 640×640 sul PI (ms). Il pavimento è la stima con lo schema esatto della rete al minimo
+(`tools/figure_guadagno_latenza.py`; figura della tesi, cap. 8 "Decisione per dispositivo", `fig:ch8-guadagno-latenza`),
+salvo dove indicato "misurato" (`experiments/pruning/pavimento_s`). Con soglia 85% e `B` = 28 ms (esempio) il limite è
+23,8 ms: passano tutti fino a N compreso; non passano N+ e S.
 
-| arch | intera | pavimento | passa su PI |
-|---|---|---|---|
-| P (w0,125 D126) | 28,0 | 15,7 | sì |
-| PN (w0,1875 D126) | 44,6 | 18,9 | sì |
-| N- (w0,25 D101) | 53,2 | 22,2 | sì |
-| N (w0,25 D126) | 56,1 | 22,9 (misurato 22,3) | sì |
-| N+ (w0,25 D170) | 70,5 | 27,3 | no |
-| S (w0,5 D126) | 142,7 | 41,0 (misurato) | no |
+| arch | pavimento | arch | pavimento | arch | pavimento |
+|---|---|---|---|---|---|
+| F- | 12,1 | P- | 14,7 | N- | 21,3 |
+| F | 13,2 | P | 15,7 | N | 22,1 (misurato 22,3) |
+| F+ | 16,3 | P+ | 19,0 | N+ | 26,2 (non passa) |
+| FP- | 13,3 | PN- | 17,6 | S | 41,0 misurato (non passa) |
+| FP | 14,4 | PN | 18,5 | | |
+| FP+ | 17,6 | PN+ | 21,9 | | |
+
+Latenze intere misurate a 640 (ms): P 28,0; PN 44,6; N- 53,2; N 56,1; N+ 70,5; S 142,7.
 
 Osservazione: P intero fa già 28,0 ms, cioè sta esattamente nel budget a 640: è un candidato come baseline da
 battere.
 
 Si sceglie sempre il modello con la mAP migliore fra quelli che rispettano la latenza: la distanza di rilevamento non
-entra nelle scelte, si considera solo alla fine. \<esempio>Previsione: **PI stretto** (a 480p il pico ci sta, il nano
-no; a 720p forse nessuno).\</esempio>
+entra nelle scelte, si considera solo alla fine. \<esempio>Previsione: **PI stretto** (a 640 il pico sta nel budget da 28 ms, il nano
+no).\</esempio>
 
 ### 2e. Conferma con 3 seed
 
@@ -812,7 +822,7 @@ farli diventare un collo di bottiglia. Se il blocco 2 non si fa, restano punti d
 - La mAP ai set di deploy cambia poco con la risoluzione (regole fisse); la differenza fra modelli la fanno le
   detection multiple sullo stesso oggetto, più frequenti nei modelli piccoli.
 - Sotto il pico la precisione cala in fretta (canali interni minuscoli).
-- **PI**: nel budget stanno solo i modelli piccoli (circa fino al pico), e probabilmente solo a 480p.
+- **PI**: nel budget stanno solo i modelli piccoli (circa fino al pico) a 640; alle risoluzioni più alte dell'estensione, probabilmente nessuno.
 
 \</esempio>
 
@@ -899,8 +909,7 @@ Sugli altri non c'è niente da ottimizzare. Ha due parti: prima lo stimatore (4a
   ```
 
   con il tuning della board di `src/measure/board.py` e la metrica `median_ms`.
-- **Ingresso sempre 640×640, 4 classi.** Le risoluzioni di deploy (480p, 720p, 1080p) restano fuori: 640×640 basta a
-  dimostrare che il metodo funziona.
+- **Ingresso sempre 640×640, 4 classi.** Le risoluzioni di deploy diverse da 640 (480p, 720p, 1080p) restano fuori: 640×640 è la risoluzione di deploy principale.
 - **Modello da potare: N** (0.25, D126). Per la verifica si usano anche le architetture più piccole (B4-R).
 
 #### Cosa pota PIT (yolopit)
@@ -1254,7 +1263,7 @@ inventati: quando arrivano i dati veri si sostituiscono le funzioni `lat` (fase 
 | il tempo non basta per il blocco 2 | fine del blocco 1 | la tesi è il blocco 1; il test si fa alla data limite senza i potati |
 | aggiunte al dataset (uccelli e aerei grandi) non trovate o troppo lente da etichettare | fase 0 | **successo in parte**: aerei ed elicotteri trovati (DVIDS), uccelli in volo pochi (Open Images); uccelli e droni piccoli di val e test dichiarati come limite |
 | SAM 2 non rende aderenti i box degli oggetti minuscoli (sagome vuote o sbagliate) | fase 0 | **successo**: con il box come prompt SAM 2 restituiva il box stesso; box rifatti con contrasto locale e SAM 2 con un punto, poi revisione in CVAT di tutti i frame |
-| sul Pi non sta nessun modello a 720p e 1080p | 2a | sul Pi solo 480p: è un risultato |
+| sul Pi non sta nessun modello a 720p e 1080p | 2a | sul Pi nessun modello oltre i 640: è un risultato (estensione; a 480p la misura è storica) |
 
 ---
 
