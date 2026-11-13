@@ -1,0 +1,1 @@
+Prima prova del livello 1 (13/11, 30 epoche, batch 64, fit B4-R, forza DUCCIO di default): nessuna ricerca arriva a 28 ms (0,495). lut_adamw 0,581, lut_sgd 0,878, smooth_sgd ferma a ~0,9 all'epoca 24. Motivo per il moltiplicatore della forza.
