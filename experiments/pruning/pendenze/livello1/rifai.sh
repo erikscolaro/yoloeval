@@ -17,8 +17,9 @@ C="stage=search model=yolo26n strategy=pit_latency target=rpi5_640 target.model_
 for opt in ${OPTS:-adamw}; do   # OPTS="adamw sgd" per anche SGD
   O=""; [[ $opt == sgd ]] && O="strategy.search.nas.optimizer=SGD strategy.search.nas.lr0=${LR:-0.05}"
   [[ -n ${FORZA:-} ]] && O="$O strategy.search.regularizer.strength=$FORZA"
+  [[ -n ${SEED:-} ]] && O="$O strategy.search.seed=$SEED"   # secondo seed: log <stima>_<opt>_s<SEED>.log
   for e in ${STIME:-lut smooth best}; do
-    .venv/bin/python run.py $C $O strategy.search.pit.latency.estimator=$e > $D/runs/${e}_$opt.log 2>&1
+    .venv/bin/python run.py $C $O strategy.search.pit.latency.estimator=$e > $D/runs/${e}_$opt${SEED:+_s$SEED}.log 2>&1
   done
 done
 grep -h "ricerca\|latenza\|Error" $D/runs/*.log | tail -20
