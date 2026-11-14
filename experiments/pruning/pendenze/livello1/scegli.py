@@ -20,7 +20,7 @@ for log in sorted(D.glob(f"{TAG}_*.log")):
     if not re.fullmatch(TAG + r"(_s\d+)?_[a-z]+", log.stem):
         continue
     e = log.stem.split("_")[-1]
-    m = re.search(r"(?:artifacts/finetune/|in cache: |completato: )([^ ,/]+)", log.read_text(errors="ignore"))
+    m = re.search(r"(?:artifacts/finetune/|in cache: |completato: )([^\s,/]+)", log.read_text(errors="ignore"))
     res = ROOT / "artifacts/finetune" / m.group(1) / "run/results.csv" if m else None
     if not res or not res.exists():
         continue
@@ -29,7 +29,7 @@ for log in sorted(D.glob(f"{TAG}_*.log")):
     if int(float(last["epoch"])) < EPOCHS:
         continue
     pi = D / f"pi_{log.name}"
-    rec = re.findall(r"record ([0-9a-f]+)", pi.read_text(errors="ignore")) if pi.exists() else []
+    rec = re.findall(r"\b([0-9a-f]{12})\b (?:non conforme|gia' completata)", pi.read_text(errors="ignore")) if pi.exists() else []
     ms = json.load(open(ROOT / "results" / f"{rec[-1]}.json"))["latency"]["median_ms"] if rec else None
     rows.setdefault(e, []).append((float(last["metrics/mAP50-95(B)"]), ms))
 tab = {e: (sum(a for a, _ in v) / len(v), max((m for _, m in v if m), default=None), len(v)) for e, v in rows.items()}
