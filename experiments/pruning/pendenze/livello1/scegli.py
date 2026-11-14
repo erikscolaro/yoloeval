@@ -3,7 +3,7 @@ TAG=ft10 (default) il finetuning corto, TAG=ft100 quello intero, TAG=scratch da 
 scratch: misura l'architettura da sola, senza i pesi usciti dalla ricerca (Liu et al. 2019; DARTS, FBNet, ProxylessNAS
 riaddestrano da zero); il finetuning resta come dato secondario.
 Regole (README): fuori chi misura sul Pi piu' del target con il margine della ricerca (5% della parte PIT: 28,85 ms);
-a meno di 0,4 punti dalla migliore vince smooth.
+vince chi misura piu' vicino al target (28 ms, media sui seed); entro 0,5 ms di differenza vince la mAP piu' alta.
 
     .venv/bin/python experiments/pruning/pendenze/livello1/scegli.py            # tabella
     .venv/bin/python experiments/pruning/pendenze/livello1/scegli.py top2       # le due migliori (per il secondo seed)
@@ -39,10 +39,10 @@ mode = sys.argv[1] if len(sys.argv) > 1 else ""
 if mode == "top2":
     print(" ".join(ok[:2]))
 elif mode == "vincitore":
-    w = ok[0] if ok else "smooth"
-    if "smooth" in ok and tab[w][0] - tab["smooth"][0] < 0.004:
-        w = "smooth"
-    print(w)
+    # vince chi misura piu' vicino al target; entro 0,5 ms di differenza decide la mAP
+    dist = {e: abs(sum(m for _, m in rows[e] if m) / max(1, sum(1 for _, m in rows[e] if m)) - 28.0) for e in ok}
+    vicino = min(dist.values(), default=0)
+    print(max((e for e in ok if dist[e] - vicino <= 0.5), key=lambda e: tab[e][0], default="smooth"))
 else:
     for e in sorted(tab, key=lambda e: -tab[e][0]):
         a, ms, n = tab[e]
