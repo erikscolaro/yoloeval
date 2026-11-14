@@ -773,6 +773,9 @@ la soglia dell'85% sono parametri per dispositivo. \<esempio>Sul PI `B` = 28 ms,
   nemmeno potata al massimo, quindi l'estensione della LUT a S/SM non serve per il PI.
 - Se il tetto non passa il test, si parte dal modello più preciso fra quelli che passano. A parità (differenza sotto
   il rumore tra seed) si prende quello con il pavimento più basso.
+- **Prova con pavimento più basso (approvata il 14/11).** La regola dà N- (pavimento 21,6 ms su `B` = 30,3 ms). Si
+  ripete la stessa ricerca da PN- (pavimento 18,0 ms): perde 0,009 di mAP50-95 da intero, ma lascia più latenza agli
+  strati potabili. Catena `scripts/catena_pn.sh`, dopo `catena_notte.sh`. Se PN- vince, la regola va cambiata.
 - **Scelta manuale.** Il modello di partenza della regola si può forzare con un parametro per dispositivo; la
   scelta forzata va scritta con il motivo, e il test del pavimento resta come avviso.
 - **Implementazione.** `python run.py stage=select target=rpi5_640` (regola in
