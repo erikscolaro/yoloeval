@@ -6,6 +6,7 @@ hydra-core>=1.3
 omegaconf>=2.3
 numpy<2.3
 onnxruntime               # build CPU aarch64, disponibile da PyPI
+ncnn                      # mAP degli export ncnn (benchncnn lo compila il provision)
 openvino                  # plugin CPU ARM + benchmark_app; wheel manylinux_2_35 (Bookworm ha glibc 2.36)
 pyyaml
 opencv-python-headless
