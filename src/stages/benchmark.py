@@ -445,7 +445,9 @@ def _accuracy(conn, cfg, backend, artifact, export_dir: Path, ct, timer) -> dict
     significherebbe farlo girare per ore su una CPU ARM, quindi si fa sulla
     workstation.
     """
-    acc_path = export_dir / "accuracy.json"
+    # eval.map_on_target: mAP sulla board anche per gli artefatti portabili (fp16 ARM, int8 ncnn), con cache a parte
+    on_target = backend.builds_on_target or bool(cfg.eval.get("map_on_target", False))
+    acc_path = export_dir / ("accuracy_target.json" if on_target else "accuracy.json")
     cached = read_json(acc_path)
     if cached:
         return cached
@@ -457,7 +459,7 @@ def _accuracy(conn, cfg, backend, artifact, export_dir: Path, ct, timer) -> dict
         # deploy sugli export (fase 3) chiede un val proprio
         return {"status": "skipped", "reason": f"val di Ultralytics solo quadrato, ingresso {h}x{w}"}
 
-    if backend.builds_on_target:
+    if on_target:
         target_conn = conn
         model_path = artifact
         device = MAP_DEVICE.get(ct.get("device"))
