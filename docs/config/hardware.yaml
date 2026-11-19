@@ -148,6 +148,11 @@ freq:
       # /sys/devices/system/cpu/cpu0/cpufreq/scaling_available_frequencies;
       # uno fuori lista viene arrotondato in silenzio, e nel risultato trovi
       # freq_requested_khz e freq_actual_khz separati apposta.
+    boot: {arm_freq: 3000, gpu_freq: 1000, over_voltage_delta: 50000}
+      # Solo rpi5, facoltativo: profilo di overclock. Sono parametri di
+      # config.txt, che il firmware applica all'avvio: scripts/rpi5_oc.sh on
+      # li scrive in tryboot.txt e riavvia per un solo avvio. La cella fallisce
+      # se cpuinfo_max_freq non vale arm_freq (Pi avviato normale).
     cores_online: 8
       # Descrittivo: quanti core porta online questo profilo. Il numero vero
       # viene riletto a ogni cella e finisce in runtime_state.cores_online.

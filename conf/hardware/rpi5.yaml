@@ -23,6 +23,9 @@ freq:
   max: {khz: 2400000, governor: performance}
   mid: {khz: 2000000, governor: userspace}
   low: {khz: 1500000, governor: powersave}   # minimo del Pi 5 (frequenze da 1.5 a 2.4 GHz): powersave ci va da solo
+  # Overclock, CPU e GPU al massimo (experiments/benchmark/overclock_rpi5: -16% di latenza a 3,0 GHz, la GPU non conta).
+  # Vale solo se il Pi e' avviato con questi parametri: scripts/rpi5_oc.sh on (tryboot, per un solo avvio).
+  oc: {khz: 3000000, governor: performance, boot: {arm_freq: 3000, gpu_freq: 1000, over_voltage_delta: 50000}}
 
 compute:                       # nessun requires_freq: i 4 core sono sempre online
   cpu_1: {device: cpu, n_cores: 1}

@@ -42,6 +42,8 @@ class RPi5Controller(BoardController):
     def apply_state(self, conn, cfg) -> dict:
         fq = resolve_freq(cfg)
         governor = fq.get("governor", "performance")
+        if fq.get("boot"):   # overclock: lo fissa il firmware all'avvio, cpufreq non puo' alzarlo
+            self._require_boot(conn, int(fq.boot.arm_freq) * 1000)
         self._require_governor(conn, governor)
         self.set_governor(conn, governor)
         if governor == "userspace" and fq.get("khz"):
@@ -89,6 +91,14 @@ class RPi5Controller(BoardController):
         raw = _out(conn.run(f"cat {CPUFREQ.format(cpu=0)}/scaling_setspeed",
                             hide=True, warn=True))
         return int(raw) if raw and raw.isdigit() else None
+
+    def _require_boot(self, conn, khz: int) -> None:
+        raw = _out(conn.run(f"cat {CPUFREQ.format(cpu=0)}/cpuinfo_max_freq", hide=True, warn=True))
+        if not raw or int(raw) != khz:
+            raise RuntimeError(
+                f"freq_target={self.cfg.freq_target} vuole il Pi avviato a {khz} kHz, cpuinfo_max_freq e' {raw}: "
+                f"prima scripts/rpi5_oc.sh on"
+            )
 
     def _require_governor(self, conn, governor: str) -> None:
         raw = _out(conn.run(
