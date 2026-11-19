@@ -16,7 +16,7 @@ filtrata, detection deboli (--lo <= conf < --hi) tenute solo se confermano un tr
 l'ID, quelle grezze del modello sottili e grigie. Con --kalman il modello gira a conf --lo, e --conf non conta.
 --kalman-crop: versione con il crop adattativo (src/crop_tracker.py): il fotogramma intero (--imgsz, fit) solo in SCAN,
 poi un crop --crop-size per ogni track centrato sulla predizione del Kalman, re-scan ogni --rescan fotogrammi e dopo un
-miss. I crop sono i riquadri bianchi; in alto lo stato e il tempo del passo (modello + crop + tracker).
+miss, fotogramma intero anche con piu' di --max-crops track. I crop sono i riquadri bianchi; in alto lo stato e il tempo del passo (modello + crop + tracker).
 """
 import argparse
 import time
@@ -76,7 +76,7 @@ def un_video(model, src: Path, a) -> bool:
     conf = a.lo if a.kalman else a.conf
     ct = CropTracker(yolo_detect(model), len(model.names), Params(**{k: getattr(a, k) for k in KF}),
                      scan_imgsz=a.imgsz if len(a.imgsz) == 2 else a.imgsz[0], crop=a.crop_size,
-                     rescan=a.rescan) if a.kalman_crop else None
+                     rescan=a.rescan, max_crops=a.max_crops) if a.kalman_crop else None
     fps, t0 = 0.0, time.perf_counter()
     while True:
         ok, frame = cap.read()
@@ -153,6 +153,7 @@ def main():
     p.add_argument("--kalman", action="store_true")
     p.add_argument("--kalman-crop", action="store_true")
     p.add_argument("--crop-size", type=int, default=256), p.add_argument("--rescan", type=int, default=30)
+    p.add_argument("--max-crops", type=int, default=4, help="kalman-crop: con piu' track confermati, fotogramma intero")
     d = Params()
     for k in KF:
         p.add_argument(f"--{k.replace('_', '-')}", dest=k, type=type(getattr(d, k)), default=getattr(d, k))

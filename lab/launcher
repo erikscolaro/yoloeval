@@ -513,7 +513,7 @@ print("classi:", spec.get("names"))
 PY
 }
 predict_video() {  # yolo predict con le box dal vivo: modello dalla lista, video o cartella di video, soglia
-  local args=() d m src conf out imgsz mode kf vedi
+  local args=() d m src conf out imgsz mode kf vedi mc
   for d in artifacts/weights/*_e[1-9]*_*/ artifacts/finetune/*/; do   # i training veri (non e0, pesi casuali) e le potate
     [[ -f $d/best.pt ]] || continue
     m=$(grep -o '"map50_95": [0-9.]*' "$d/meta.json" 2>/dev/null | head -1 | grep -o '[0-9.]*$' | cut -c1-5)
@@ -536,13 +536,17 @@ predict_video() {  # yolo predict con le box dal vivo: modello dalla lista, vide
       kalman "Kalman: classe a voto, box filtrate, detection deboli se confermano un track (parametri: tools/predict_video.py --help)" \
       kalman-crop "Kalman con crop adattativo: fotogramma intero solo in SCAN, poi un crop 256 per track") || return
   conf=$(wt --inputbox "Soglia di confidenza (P-: F1 massimo a 0,37, per i droni 0,07):" 0 0 "0.25") || return
-  [[ $kf == kalman-crop ]] && conf="$conf --kalman-crop"   # l'ingresso scelto vale per lo SCAN
+  if [[ $kf == kalman-crop ]]; then   # l'ingresso scelto vale per lo SCAN
+    mc=$(wt --inputbox "Kalman con crop: numero massimo di crop per fotogramma (con piu' track, fotogramma intero):" 0 0 "4") || return
+    [[ $mc =~ ^[1-9][0-9]*$ ]] || { wt --msgbox "Numero massimo di crop: un intero da 1 in su."; return; }
+    conf="$conf --kalman-crop --max-crops $mc"
+  fi
   [[ $kf == kalman ]] && conf="$conf --kalman"   # con --kalman il modello gira a --lo e la soglia non conta
   vedi=$(wt --menu "Durante il predict:" 0 0 0 mostra "finestra dal vivo e video salvato" \
       salva "niente finestra, salva solo i video (piu' veloce)") || return
   [[ $vedi == salva ]] && conf="$conf --no-show"
   out=$PWD/predict/risultati   # predict/ non e' versionata
-  lancia predict "$PY -m tools.predict_video $PWD/$m/best.pt $(printf %q "$src") --conf $conf --imgsz $imgsz --mode $mode --out $(printf %q "$out/$(basename "$m")_${imgsz/,/x}_$mode${kf/no/}")"
+  lancia predict "$PY -m tools.predict_video $PWD/$m/best.pt $(printf %q "$src") --conf $conf --imgsz $imgsz --mode $mode --out $(printf %q "$out/$(basename "$m")_${imgsz/,/x}_$mode${kf/no/}${mc:+_max$mc}")"
 }
 pulizia_hydra() {  # cartelle di runs/hydra dei run finiti (non la cwd di un run.py vivo)
   local d p att=() via=()
