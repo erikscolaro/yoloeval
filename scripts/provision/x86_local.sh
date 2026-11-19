@@ -63,6 +63,8 @@ if [[ "${BENCH_ORT_CUDA:-1}" != 0 ]] && nvidia-smi >/dev/null 2>&1; then
   ORT_ENV+=(ORT_CUDA_HOME="$CUDA_HOME" ORT_CUDNN_HOME="$CUDNN_HOME" ORT_CUDA_ARCHS="$ARCH")
 fi
 env "${ORT_ENV[@]}" bash "$WORKDIR/scripts/remote/build_ort_perf_test.sh"
+# ncnn2table/ncnn2int8 per l'export int8 di backend=ncnn (e benchncnn)
+NCNN_VENV="$VENV" bash "$WORKDIR/scripts/remote/build_ncnn.sh"
 
 # Dataset sulla workstation; le board lo ricevono da sync.py al primo uso. Il dataset
 # unico si costruisce nella repo ~/Desktop/vedetta (VEDETTA) e va messo in data/air-detection/ (nome storico).

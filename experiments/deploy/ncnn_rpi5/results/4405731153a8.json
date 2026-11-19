@@ -1,0 +1,532 @@
+{
+  "schema_version": 1,
+  "cell_id": "4405731153a8",
+  "status": "ok",
+  "timestamp": "2026-11-16T16:31:06+01:00",
+  "order_index": 1,
+  "axes": {
+    "model": "yolo26p_D126",
+    "deploy": "640",
+    "strategy": "baseline",
+    "training_key": "59d8534a",
+    "weights_key": "59d8534a",
+    "quantization": "int8",
+    "backend": "ncnn",
+    "board": "rpi5",
+    "arch": "aarch64",
+    "freq_target": "max",
+    "compute_target": "cpu_4",
+    "rep": 1
+  },
+  "env": {
+    "ultralytics": "8.4.193",
+    "torch": "2.15.0+cpu",
+    "onnx": null,
+    "onnxruntime": "1.31.1",
+    "tensorrt": null,
+    "cuda": null,
+    "jetpack": null,
+    "openvino": "2026.4.1",
+    "executorch": null,
+    "axelera_sdk": null,
+    "metis_dkms": "1.7.16",
+    "git_sha": "0ce7f79-dirty",
+    "python": "3.13.5",
+    "os": "Debian GNU/Linux 13 (trixie)",
+    "kernel": "6.18.50+rpt-rpi-2712",
+    "arch": "aarch64",
+    "hostname": "pi",
+    "collected_on": "pi.local"
+  },
+  "config": {
+    "stage": {
+      "name": "benchmark",
+      "thermal": {
+        "threshold_c": 50,
+        "timeout_s": 300,
+        "poll_s": 10
+      },
+      "scheduling": {
+        "rt_priority": 80,
+        "drop_caches": true,
+        "swap_off": true
+      }
+    },
+    "model": {
+      "name": "yolo26p_D126",
+      "width": 0.125,
+      "depth": "D126",
+      "nc": 4
+    },
+    "deploy": {
+      "name": "640",
+      "imgsz": [
+        640,
+        640
+      ]
+    },
+    "train": {
+      "epochs": 300,
+      "patience": 200,
+      "close_mosaic": 10,
+      "batch": 64,
+      "workers": 12,
+      "imgsz": 640,
+      "optimizer": "MuSGD",
+      "lr0": 0.01,
+      "lrf": 0.01,
+      "momentum": 0.937,
+      "weight_decay": 0.0005,
+      "warmup_epochs": 3,
+      "seed": 0,
+      "mosaic": 0.90863,
+      "mixup": 0.01216,
+      "scale": 0.56232,
+      "hsv_h": 0.01373,
+      "hsv_s": 0.64481,
+      "hsv_v": 0.56565,
+      "degrees": 1.11032,
+      "shear": 1.46386,
+      "translate": 0.07105,
+      "perspective": 0.00011,
+      "flipud": 0.05854,
+      "fliplr": 0.60571,
+      "bgr": 0.10567,
+      "cutmix": 0.1,
+      "augmentations": [
+        {
+          "transform": {
+            "__class_fullname__": "MotionBlur",
+            "blur_limit": [
+              3,
+              5
+            ],
+            "p": 0.1
+          }
+        },
+        {
+          "transform": {
+            "__class_fullname__": "GaussianBlur",
+            "blur_limit": [
+              3,
+              5
+            ],
+            "p": 0.1
+          }
+        },
+        {
+          "transform": {
+            "__class_fullname__": "GaussNoise",
+            "std_range": [
+              0.02,
+              0.06
+            ],
+            "p": 0.1
+          }
+        },
+        {
+          "transform": {
+            "__class_fullname__": "ImageCompression",
+            "quality_range": [
+              50,
+              95
+            ],
+            "p": 0.2
+          }
+        }
+      ],
+      "nms": false
+    },
+    "dataset": {
+      "subset": "all",
+      "name": "air_detection_all",
+      "local_path": "/home/scolaroe/Desktop/yoloeval/data/air-detection/all",
+      "yaml": "/home/scolaroe/Desktop/yoloeval/data/air-detection/all/dataset.yaml",
+      "nc": 4,
+      "names": [
+        "drone",
+        "airplane",
+        "helicopter",
+        "bird"
+      ]
+    },
+    "pretrain_dataset": {
+      "subset": "all",
+      "name": "air_detection_all",
+      "local_path": "/home/scolaroe/Desktop/yoloeval/data/air-detection/all",
+      "yaml": "/home/scolaroe/Desktop/yoloeval/data/air-detection/all/dataset.yaml",
+      "nc": 4,
+      "names": [
+        "drone",
+        "airplane",
+        "helicopter",
+        "bird"
+      ]
+    },
+    "quantization": {
+      "name": "int8",
+      "precision": "int8",
+      "method": "ptq",
+      "calibration": {
+        "n_samples": 512,
+        "source": "calib",
+        "shuffle_seed": 42,
+        "cache": true
+      },
+      "validation": {
+        "max_abs_diff": 0.05,
+        "min_match_rate": 0.9,
+        "max_score_diff": 0.1,
+        "map50_drop_tolerance": 0.02
+      },
+      "backend_args": {
+        "tensorrt": [
+          "--int8"
+        ],
+        "onnxruntime": {
+          "calibration_method": "minmax",
+          "calibration_options": {
+            "CalibMovingAverage": true,
+            "CalibMovingAverageConstant": 0.01
+          },
+          "quantize_op_types": [
+            "Conv",
+            "Gemm",
+            "MatMul"
+          ]
+        },
+        "openvino": {
+          "preset": "performance"
+        }
+      }
+    },
+    "backend": {
+      "name": "ncnn",
+      "export_format": "ncnn",
+      "supports_gpu": false,
+      "requires": {
+        "arch": [
+          "x86_64",
+          "aarch64"
+        ]
+      },
+      "build": {
+        "on_target": false,
+        "from_format": "pt"
+      },
+      "benchmark": {
+        "tool": "benchncnn",
+        "cmd": "benchncnn {iters} {threads} 0 -1 0 param={param} shape={shape}",
+        "iters": 200,
+        "warmup_iters": 8,
+        "parse": "benchncnn",
+        "scope": "end_to_end_with_transfers",
+        "metrics": [
+          "mean_ms",
+          "min_ms",
+          "max_ms",
+          "throughput_qps"
+        ]
+      }
+    },
+    "hardware": {
+      "board": "rpi5",
+      "arch": "aarch64",
+      "os": "raspbian12",
+      "cpu": "cortex_a76",
+      "n_cores_total": 4,
+      "shared_clock_domain": true,
+      "trt_available": false,
+      "axelera_available": false,
+      "power_sensors": false,
+      "controller": "rpi5",
+      "remote": {
+        "host": "rpi5",
+        "workdir": "/home/bench/bench",
+        "python": "/home/bench/bench/.venv/bin/python"
+      },
+      "provision": {
+        "script": "scripts/provision/rpi5.sh",
+        "requirements": "scripts/requirements/aarch64-rpi5.txt",
+        "container": false
+      },
+      "freq": {
+        "max": {
+          "khz": 2400000,
+          "governor": "performance"
+        },
+        "mid": {
+          "khz": 2000000,
+          "governor": "userspace"
+        },
+        "low": {
+          "khz": 1500000,
+          "governor": "powersave"
+        }
+      },
+      "compute": {
+        "cpu_1": {
+          "device": "cpu",
+          "n_cores": 1
+        },
+        "cpu_2": {
+          "device": "cpu",
+          "n_cores": 2
+        },
+        "cpu_4": {
+          "device": "cpu",
+          "n_cores": 4
+        }
+      }
+    },
+    "eval": {
+      "map_conf": 0.001,
+      "map_iou": 0.7,
+      "bench_conf": 0.25,
+      "bench_iou": 0.45,
+      "max_det": 64,
+      "map_on_target": true
+    },
+    "logging": {
+      "backend": "local",
+      "wandb": null
+    },
+    "strategy": {
+      "name": "baseline",
+      "method": "ultralytics"
+    },
+    "finetune": {
+      "epochs": 100,
+      "batch": 64,
+      "workers": 12,
+      "optimizer": "MuSGD",
+      "lr0": 0.005,
+      "lrf": 0.01,
+      "cos_lr": false,
+      "momentum": 0.937,
+      "weight_decay": 0.0005,
+      "warmup_epochs": 0,
+      "patience": 100,
+      "close_mosaic": 25,
+      "seed": 42,
+      "mosaic": 0.90863,
+      "mixup": 0.01216,
+      "hsv_h": 0.01373,
+      "hsv_s": 0.64481,
+      "hsv_v": 0.56565,
+      "degrees": 1.11032,
+      "shear": 1.46386,
+      "translate": 0.07105,
+      "perspective": 0.00011,
+      "flipud": 0.05854,
+      "fliplr": 0.60571,
+      "bgr": 0.10567,
+      "cutmix": 0.1,
+      "augmentations": [
+        {
+          "transform": {
+            "__class_fullname__": "MotionBlur",
+            "blur_limit": [
+              3,
+              5
+            ],
+            "p": 0.1
+          }
+        },
+        {
+          "transform": {
+            "__class_fullname__": "GaussianBlur",
+            "blur_limit": [
+              3,
+              5
+            ],
+            "p": 0.1
+          }
+        },
+        {
+          "transform": {
+            "__class_fullname__": "GaussNoise",
+            "std_range": [
+              0.02,
+              0.06
+            ],
+            "p": 0.1
+          }
+        },
+        {
+          "transform": {
+            "__class_fullname__": "ImageCompression",
+            "quality_range": [
+              50,
+              95
+            ],
+            "p": 0.2
+          }
+        }
+      ],
+      "nms": false
+    },
+    "freq_target": "max",
+    "compute_target": "cpu_4",
+    "seed": 42,
+    "rep": 1,
+    "project_root": "/home/scolaroe/Desktop/yoloeval/.claude/worktrees/esplora-edge",
+    "artifacts_dir": "/home/scolaroe/Desktop/yoloeval/artifacts",
+    "results_dir": "/home/scolaroe/Desktop/yoloeval/.claude/worktrees/esplora-edge/experiments/deploy/ncnn_rpi5/results",
+    "training_key_fields": [
+      "model",
+      "train",
+      "pretrain_dataset"
+    ],
+    "cell_key_fields": [
+      "model",
+      "deploy",
+      "train",
+      "dataset",
+      "quantization",
+      "backend",
+      "hardware",
+      "freq_target",
+      "compute_target",
+      "eval",
+      "rep"
+    ],
+    "skip_invalid": true,
+    "continue_on_error": true,
+    "export_max_det": 64,
+    "force": false,
+    "retry_failed": true,
+    "force_retrain": false,
+    "force_search": false,
+    "force_finetune": false,
+    "force_reexport": false,
+    "dry_run": false,
+    "allow_reboot": false,
+    "target": {
+      "name": "rpi5_640",
+      "fps": 30,
+      "budget_ms": 33.3,
+      "pre_ms": 3.0,
+      "post_ms": 0.01,
+      "model_budget_ms": 30.3,
+      "floor_ratio": 0.85,
+      "tie": 0.01,
+      "seed_noise": 0.004,
+      "start_model": null,
+      "start_reason": null,
+      "lut_dir": "artifacts/lut/rpi5",
+      "latency_csv": null
+    }
+  },
+  "latency": {
+    "mean_ms": 30.57,
+    "median_ms": null,
+    "p90_ms": null,
+    "p95_ms": null,
+    "p99_ms": null,
+    "min_ms": 30.23,
+    "max_ms": 31.3,
+    "throughput_qps": 32.71180896303566,
+    "gpu_compute_ms": null,
+    "iters": 200,
+    "warmup_ms": null,
+    "warmup_iters": 8,
+    "scope": "end_to_end_with_transfers",
+    "tool": "benchncnn"
+  },
+  "runtime_state": {
+    "freq_requested_khz": 2400000,
+    "freq_actual_khz": 2400000,
+    "governor": "performance",
+    "nvpmodel_id": null,
+    "cores_online": 4,
+    "omp_num_threads": 4,
+    "temp_start_c": 32.55,
+    "temp_end_c": 39.15,
+    "throttled": null,
+    "swap_off": null,
+    "load_avg": 2.07,
+    "isolation": "none",
+    "post_reboot": false,
+    "rt_scheduling": true,
+    "state_before": {
+      "governor": "performance",
+      "freq_khz": 2400000,
+      "setspeed_khz": null,
+      "swap_off": null
+    },
+    "state_after_restore": {
+      "governor": "performance",
+      "freq_khz": 2400000,
+      "setspeed_khz": null,
+      "swap_off": null
+    }
+  },
+  "complexity": {
+    "macs": 734860800,
+    "weight_elems": 619836,
+    "act_elems": 21468800,
+    "params": 661868,
+    "compute_layers": 106,
+    "imgsz": [
+      640,
+      640
+    ],
+    "weights_key": "59d8534a",
+    "source": "onnx fp32, Ultralytics export",
+    "precision": "int8",
+    "bytes": 22088636,
+    "intensity_mac_per_byte": 33.26872695987203
+  },
+  "model_info": {
+    "strategy": "baseline",
+    "pit_n": null
+  },
+  "accuracy": {
+    "map50": 0.8180750904148756,
+    "map50_95": 0.5362388306722584,
+    "precision": 0.8224210737127735,
+    "recall": 0.7358225249570791,
+    "imgsz": 640,
+    "conf": 0.001,
+    "iou": 0.7,
+    "split": "val",
+    "max_det": 64,
+    "wall_s": 277.546,
+    "source": "ultralytics_val",
+    "measured_on": "rpi5"
+  },
+  "validation": {
+    "max_abs_diff_vs_fp32": 145.67974853515625,
+    "mean_abs_diff_vs_fp32": 1.4295070171356201,
+    "cosine_similarity": 0.9996596574783325,
+    "n_images": 8,
+    "ref_shape": [
+      1,
+      8,
+      8400
+    ],
+    "target_shape": [
+      1,
+      8,
+      8400
+    ],
+    "status": "degraded",
+    "reason": "max_abs_diff 145.67975 > soglia 0.05",
+    "requested_e2e": true,
+    "actual_e2e": false,
+    "head": "one_to_many",
+    "map50_delta": null
+  },
+  "timing": {
+    "wall_s": 33.335,
+    "compute_s": 6.706,
+    "started_at": "2026-11-16T16:30:49+01:00",
+    "ended_at": "2026-11-16T16:31:23+01:00",
+    "device": "rpi5",
+    "phase_s": {
+      "setup_s": 8.389,
+      "compute_s": 6.706
+    }
+  }
+}

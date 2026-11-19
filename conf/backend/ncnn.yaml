@@ -1,0 +1,21 @@
+name: ncnn
+export_format: ncnn
+supports_gpu: false          # niente Vulkan nella build (scripts/remote/build_ncnn.sh)
+requires:
+  arch: [x86_64, aarch64]
+
+build:
+  on_target: false
+  from_format: pt              # pnnx parte dal .pt (export di Ultralytics)
+
+benchmark:
+  tool: benchncnn
+  # loop thread powersave gpu_device cooling_down: powersave 0 = tutti i core, gpu -1 = CPU,
+  # cooling 0 = il raffreddamento lo gestisce lo stadio. Warmup interno di benchncnn (8 giri).
+  # fp16 storage/aritmetica e int8 sempre accesi: niente fp32 su ARM, e' piu' lento (deciso il 16/11).
+  cmd: benchncnn {iters} {threads} 0 -1 0 param={param} shape={shape}
+  iters: 200
+  warmup_iters: 8
+  parse: benchncnn
+  scope: end_to_end_with_transfers
+  metrics: [mean_ms, min_ms, max_ms, throughput_qps]

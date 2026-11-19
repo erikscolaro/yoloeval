@@ -408,9 +408,9 @@ def locate_artifact(export_dir_: str | Path, export_format: str) -> Path:
         matches = sorted(d.glob(f"*{suffix}"))
         if matches:
             return matches[0]
-    # OpenVINO esporta una directory
+    # OpenVINO e ncnn esportano una directory <nome>_<formato>_model
     for sub in sorted(p for p in d.iterdir() if p.is_dir()):
-        if sub.name.endswith("_openvino_model") and export_format == "openvino":
+        if sub.name.endswith(f"_{export_format}_model"):
             return sub
     raise MissingArtifact(
         f"nessun artefatto {export_format} in {d} "

@@ -30,6 +30,8 @@ def _split_dirs(cfg, split: str) -> list[Path]:
     spec = yaml.safe_load(Path(cfg.dataset.yaml).read_text(encoding="utf-8"))
     root = Path(spec.get("path") or cfg.dataset.local_path)
     entry = spec.get(split)
+    if entry is None and (root / "images" / split).is_dir():
+        entry = f"images/{split}"   # il data yaml di VEDETTA non elenca calib, la cartella c'e' (stesso nome dello split)
     if entry is None:
         # Nessun ripiego su `val`: un nome sbagliato calibrerebbe sui dati
         # di valutazione senza che nessuno se ne accorga.

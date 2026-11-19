@@ -13,6 +13,8 @@ onnxruntime-gpu             # CPU-only: onnxruntime
 opencv-python-headless      # preprocessing per la calibrazione
 albumentations==2.0.8       # augmentation di degrado camera nelle ricette di training
 openvino                    # backend openvino, include benchmark_app
+ncnn                        # backend ncnn (ncnn2table/ncnn2int8 li compila build_ncnn.sh)
+pnnx                        # export ncnn di Ultralytics
 nncf                        # quantizzazione INT8 di OpenVINO
 # TensorRT Python, serve a Ultralytics per caricare l'engine in validazione.
 # Il wheel diretto, non il meta-pacchetto `tensorrt` (e' un sdist che scarica

@@ -104,5 +104,5 @@ def compute_map(conn, cfg, model_path, device: str | None = None) -> dict:
         )
     payload = parse_marker(r.stdout)
     payload["source"] = "ultralytics_val"
-    payload["measured_on"] = cfg.hardware.board
+    payload["measured_on"] = "workstation" if is_local_conn(conn) else cfg.hardware.board
     return payload

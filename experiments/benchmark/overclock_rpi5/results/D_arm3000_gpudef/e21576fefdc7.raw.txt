@@ -1,0 +1,6 @@
+loop_count = 200
+num_threads = 4
+powersave = 0
+gpu_device = -1
+cooling_down = 0
+/home/bench/bench/exports/yolo26n_D126_9dca8d15_640_fp16_ncnn_aarch64/yolo26n_D126_fp16_ncnn_model/model.ncnn.param  min =   53.97  max =   55.48  avg =   54.35

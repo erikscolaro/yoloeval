@@ -28,3 +28,16 @@ Le due **procedure** (LUT e B4-R) non sono più codice dell'esperimento: stanno 
 esperimento ha un `rifai.sh` che le richiama con i parametri di allora e scrive nella sua `results/` (o in una
 cartella indicata). Gli **studi chiusi** (separability, warmup, transient, bimodal, check_fusion) restano script
 dell'esperimento.
+
+## deploy
+
+| cartella | scopo | stato |
+|---|---|---|
+| [`deploy/ncnn_rpi5`](deploy/ncnn_rpi5) | backend NCNN sul Pi 5 contro OpenVINO, fp16 e int8, latenza e mAP sul Pi (P e N D126) | chiuso il 16/11: NCNN fp16 -8% su P, pari su N; int8 più lento dell'fp16 e -0,03 di mAP. Backend in `src/backends/ncnn.py` |
+| [`deploy/tiling_rpi5`](deploy/tiling_rpi5) | tiling dei primi strati (parallelismo sull'ingresso, 4 stream da 1 thread) contro OpenVINO a 4 thread | chiuso il 16/11: utile solo sullo strato 0 (fino a 1,14x, -0,4 ms), dallo strato 2 peggiora per l'halo; OpenVINO divide già ogni strato con efficienza 80-90% |
+
+## benchmark
+
+| cartella | scopo | stato |
+|---|---|---|
+| [`benchmark/overclock_rpi5`](benchmark/overclock_rpi5) | overclock di CPU (2400-3000 MHz) e GPU sul Pi 5, OpenVINO fp16 e NCNN, con `tryboot` | chiuso il 16/11: 3000 MHz stabile, -16% di latenza; la GPU non conta (<1%); NCNN scala peggio e a 3000 MHz non conviene più |

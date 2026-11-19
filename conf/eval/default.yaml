@@ -4,3 +4,6 @@ bench_conf: 0.25       # operativo, IDENTICO in tutte le celle di latenza
 bench_iou: 0.45
 # max_det uguale a export_max_det: la mAP si misura con le stesse 64 uscite degli export.
 max_det: ${export_max_det}
+# true: mAP sulla board anche per gli artefatti portabili (ONNX, IR, ncnn), che su ARM calcolano in fp16
+# o con kernel int8 diversi da quelli x86. Default false: sulla workstation, molto piu' veloce.
+map_on_target: false

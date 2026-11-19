@@ -36,6 +36,7 @@ def available() -> list[str]:
 def _load_all() -> None:
     from . import (  # noqa: F401
         axelera,
+        ncnn,
         onnxruntime,
         onnxruntime_py,
         openvino,
