@@ -533,8 +533,10 @@ predict_video() {  # yolo predict con le box dal vivo: modello dalla lista, vide
   [[ $imgsz =~ ^[0-9]+(,[0-9]+)?$ ]] && ! (( ${imgsz%,*} % 32 || ${imgsz#*,} % 32 )) \
     || { wt --msgbox "imgsz: multipli di 32, un numero o ALTEZZA,LARGHEZZA."; return; }
   kf=$(wt --menu "Tracker sulle detection:" 0 0 0 no "nessuno, le box del modello" \
-      kalman "Kalman: classe a voto, box filtrate, detection deboli se confermano un track (parametri: tools/predict_video.py --help)") || return
+      kalman "Kalman: classe a voto, box filtrate, detection deboli se confermano un track (parametri: tools/predict_video.py --help)" \
+      kalman-crop "Kalman con crop adattativo: fotogramma intero solo in SCAN, poi un crop 256 per track") || return
   conf=$(wt --inputbox "Soglia di confidenza (P-: F1 massimo a 0,37, per i droni 0,07):" 0 0 "0.25") || return
+  [[ $kf == kalman-crop ]] && conf="$conf --kalman-crop"   # l'ingresso scelto vale per lo SCAN
   [[ $kf == kalman ]] && conf="$conf --kalman"   # con --kalman il modello gira a --lo e la soglia non conta
   out=$PWD/predict/risultati   # predict/ non e' versionata
   lancia predict "$PY -m tools.predict_video $PWD/$m/best.pt $(printf %q "$src") --conf $conf --imgsz $imgsz --mode $mode --out $(printf %q "$out/$(basename "$m")_${imgsz/,/x}_$mode${kf/no/}")"
