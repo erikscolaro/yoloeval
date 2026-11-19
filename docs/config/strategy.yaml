@@ -78,6 +78,13 @@ search:
       # Epoche con le maschere ferme prima della ricerca.
     ema: false
       # true | false. EMA dei pesi durante la ricerca (spenta: si valida il modello corrente).
+    select: last
+      # best | last. Checkpoint della ricerca da cui si taglia la rete: la migliore mAP entro il
+      # budget o l'ultima epoca.
+    temperature: 0.1
+      # null | numero > 0. T0 delle maschere soft nel forward di training: la maschera di un blocco
+      # e' sigmoid((|alpha| - 0,5)/T), T scende da T0 a 0,001, ultime 3 epoche nette. Costo,
+      # validazione ed export restano netti. null: maschere nette (soglia) per tutta la ricerca.
     discrete_cost: true
       # true | false. DUCCIO sul costo delle maschere binarizzate (come l'export) invece che su
       # quello soft: con il costo soft e N piccolo la rete resta sopra il target.

@@ -20,19 +20,21 @@ search:
     remainder: true
     warmup_epochs: 0
     ema: false
+    select: last            # con la temperatura l'architettura e' ferma: last = best
+    temperature: 0.1        # T0 delle maschere soft nel forward di training (experiments/pruning/maschere_lr)
     discrete_cost: true     # DUCCIO sul costo delle maschere binarizzate (come l'export): con il costo soft e n piccolo la rete resta sopra il target
     latency:
       arch: null            # null: dal modello, w<larghezza>_<profondita'> (deve avere un C in fit.json)
-      estimator: smooth
+      estimator: best       # pendenza scelta in experiments/pruning/pendenze
       lut_dir: ${target.lut_dir}           # relativi alla root del progetto
       fit: ${target.lut_dir}/fit.json
   nas:
-    optimizer: AdamW
+    optimizer: SGD
     lr0: 0.01
-    lrf: 1.0
-    cos_lr: false
+    lrf: 0.01
+    cos_lr: true
     weight_decay: 0.0
   regularizer:
     mode: duccio
     target: {latency: '${target.model_budget_ms}'}   # ms nelle condizioni del profilo
-    strength: 1.0           # moltiplicatore della forza di DUCCIO (yolopit); >1 se la ricerca si ferma sopra il target
+    strength: 2.0           # moltiplicatore della forza di DUCCIO (yolopit); >1 se la ricerca si ferma sopra il target

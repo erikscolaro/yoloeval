@@ -206,7 +206,7 @@ def _lut(d, fit="{}"):
 def test_latency_path_relativi_alla_root_e_arch_dal_modello(tmp_path):
     lat = latency_conf(make_cfg("strategy=pit_latency", "target=rpi5_640", "model=yolo26", "model.width=0.09375",
                                 "model.depth=D101", project_root=str(tmp_path)))
-    assert lat == {"arch": "w0.09375_D101", "estimator": "smooth",
+    assert lat == {"arch": "w0.09375_D101", "estimator": "best",
                    "lut_dir": str(tmp_path / "artifacts/lut/rpi5"),
                    "fit": str(tmp_path / "artifacts/lut/rpi5/fit.json")}
     cfg = make_cfg("strategy=pit_latency", "target=rpi5_640", "strategy.search.pit.latency.arch=w0.25_D170",
