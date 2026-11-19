@@ -512,6 +512,21 @@ for split in ("train", "val", "test", "calib"):
 print("classi:", spec.get("names"))
 PY
 }
+predict_video() {  # yolo predict con le box dal vivo: modello dalla lista, video o cartella di video, soglia
+  local args=() d m src conf out
+  for d in artifacts/weights/*_e[1-9]*_*/ artifacts/finetune/*/; do   # i training veri (non e0, pesi casuali) e le potate
+    [[ -f $d/best.pt ]] || continue
+    m=$(grep -o '"map50_95": [0-9.]*' "$d/meta.json" 2>/dev/null | head -1 | grep -o '[0-9.]*$' | cut -c1-5)
+    args+=("${d%/}" "mAP50-95 ${m:-?}")
+  done
+  ((${#args[@]})) || { wt --msgbox "Nessun best.pt in artifacts/weights/ o artifacts/finetune/."; return; }
+  m=$(wt --menu "Modello per il predict (mAP50-95 del training)." 0 0 0 "${args[@]}") || return
+  src=$(wt --inputbox "Video o cartella di video:" 0 0 "$PWD/predict") || return
+  [[ -e $src ]] || { wt --msgbox "$src non esiste."; return; }
+  conf=$(wt --inputbox "Soglia di confidenza (P-: F1 massimo a 0,37, per i droni 0,07):" 0 0 "0.25") || return
+  out=$PWD/predict/risultati   # predict/ non e' versionata
+  lancia predict "$PY -m tools.predict_video $PWD/$m/best.pt $(printf %q "$src") --conf $conf --imgsz 640 --out $(printf %q "$out/$(basename "$m")")"
+}
 pulizia_hydra() {  # cartelle di runs/hydra dei run finiti (non la cwd di un run.py vivo)
   local d p att=() via=()
   for p in $(pgrep -f '^[^ ]*python[^ ]* run[.]py' || true); do att+=("$(readlink -f /proc/"$p"/cwd)"); done
@@ -533,6 +548,7 @@ help_utilita() {
     artefatti|artefatto|prune) echo "tools/artifacts.py: elenco, dettaglio, artefatti non usati da nessuna misura." ;;
     split) echo "Immagini ed etichette per split del dataset della config attuale." ;;
     val) echo "yolo detect val di un best.pt sul dataset della config, in background." ;;
+    predict) echo "tools/predict_video.py su un video o una cartella di video: box dal vivo con risoluzione, ingresso, inferenza e FPS (q salta il video, Esc chiude); i video annotati vanno in predict/risultati/<modello> (predict/ non è versionata)." ;;
     pulizia) echo "Cancella le cartelle di runs/hydra/ dei run finiti (config risolta e run.log)." ;;
   esac
 }
@@ -544,7 +560,7 @@ utilita() {
         "" "misure" riepilogo "misure per esito" falliti "misure fallite e perche'" saltati "misure saltate e perche'" \
         cella "dettaglio di una misura" aggrega "tabella di tutte le misure" report "genera il report" \
         "" "artefatti" artefatti "elenco" artefatto "dettaglio di uno" prune "artefatti non usati" \
-        "" "dataset" split "immagini per split" val "validazione di un modello" \
+        "" "dataset" split "immagini per split" val "validazione di un modello" predict "box dal vivo su un video" \
         "" "pulizia" pulizia "log di Hydra dei run finiti") || return
     case $u in
       stato) mostra stato_macchina ;;
@@ -560,6 +576,7 @@ utilita() {
       split) mostra split_dataset ;;
       val) x=$(wt --inputbox "best.pt da validare:" 0 0 "artifacts/finetune/") || continue
            lancia val "$PWD/.venv/bin/yolo detect val model=$x data=$(data_yaml) split=val imgsz=640 plots=False project=$PWD/runs/val exist_ok=True" ;;
+      predict) predict_video ;;
       pulizia) pulizia_hydra ;;
     esac
   done
