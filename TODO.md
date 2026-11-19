@@ -28,6 +28,8 @@ Stato al 19/11/2026 (pomeriggio). Il piano di riferimento è `NEW_MASTERPLAN.md`
 
 ## Decisioni in sospeso
 
+- [ ] **Tracker con predittore di Kalman** e crop guidato: piano in `docs/tracker.md`, non avviato. Partenza proposta:
+  livello B, 1–2 giorni.
 - [ ] Rendere potabili i canali dentro C2PSA, PSABlock e Detect in yolopit: solo proposta, non autorizzata.
 
 ## Documentazione
