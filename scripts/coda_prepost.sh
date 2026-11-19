@@ -4,7 +4,7 @@
 set -uo pipefail
 cd "$(dirname "$0")/.."
 experiments/latenza/pre_post_rpi5/rifai.sh || echo "pre_post fallita"
-.venv/bin/python tools/figure_sintesi.py reports/budget_latenza_rpi5 --risultati results --board rpi5 --precisioni fp16 --tesi || echo "figura fallita"
-[[ -f reports/budget_latenza_rpi5_640/latenza_640.csv ]] && mv reports/budget_latenza_rpi5_640/latenza_640.csv reports/budget_latenza_rpi5/
-[[ -f reports/budget_latenza_rpi5/A_budget_dettaglio.png ]] && rm -rf reports/budget_latenza_rpi5_4nov reports/budget_latenza_rpi5_640
+.venv/bin/python tools/figure_sintesi.py experiments/latenza/griglia_rpi5/report --risultati results --board rpi5 --precisioni fp16 --tesi || echo "figura fallita"
+[[ -f experiments/latenza/griglia_rpi5/report_640/latenza_640.csv ]] && mv experiments/latenza/griglia_rpi5/report_640/latenza_640.csv experiments/latenza/griglia_rpi5/report/
+[[ -f experiments/latenza/griglia_rpi5/report/A_budget_dettaglio.png ]] && rm -rf experiments/latenza/griglia_rpi5/report_4nov experiments/latenza/griglia_rpi5/report_640
 echo "coda finita $(date -Is)"

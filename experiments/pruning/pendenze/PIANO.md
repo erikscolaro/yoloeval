@@ -1,6 +1,6 @@
 # Validazione delle pendenze dello stimatore di latenza
 
-Modalità a confronto: `lut`, `smooth`, `secant`, `best` (vedi `reports/stimatore-latenza.md`, "Come la ricerca
+Modalità a confronto: `lut`, `smooth`, `secant`, `best` (vedi `docs/stimatore-latenza.md`, "Come la ricerca
 usa la pendenza dello stimatore").
 
 Prova: nano D126 → 28 ms a 640. Pavimento N = 22,3 ms (80 % di 28 ms): N supera il test dell'85 %.

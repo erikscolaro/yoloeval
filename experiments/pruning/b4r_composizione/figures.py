@@ -4,7 +4,7 @@
   python figures.py mac       # measured latency against MACs of every net, with C + beta*MAC (results/raw.csv)
   python figures.py fit       # predicted vs measured, a_f per family, error vs latency (results/fit.json, predictions.csv)
   python figures.py all
-  python figures.py fit --dummy   # same figure from made-up data, watermarked, in reports/stimatore_latenza/
+  python figures.py fit --dummy   # same figure from made-up data, watermarked, in report/
 """
 from __future__ import annotations
 
@@ -164,7 +164,7 @@ def fit(dummy: bool = False):
     _panel(ax, "c", "correzione per famiglia")
     if dummy:
         fig.text(0.5, 0.5, "DATI FITTIZI", ha="center", va="center", fontsize=28, color=GRAY, alpha=0.25, rotation=20)
-    save(fig, ROOT / "reports" / "stimatore_latenza" / "fit_fittizio" if dummy else FIG / "fit")
+    save(fig, Path(__file__).resolve().parent / "report" / "fit_fittizio" if dummy else FIG / "fit")
 
 
 if __name__ == "__main__":

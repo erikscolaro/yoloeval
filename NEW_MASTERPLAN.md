@@ -95,7 +95,7 @@ Queste regole valgono per tutta la tesi. Servono a rendere i confronti onesti e 
   misurano una volta e si sottraggono dal budget. Quello che resta è il **budget del modello**:
   `budget del modello = 33 ms − (pre + post + trasferimenti)`.
 - **Sul PI il percorso principale è a 640×640** (vedi "Risoluzione"). Il budget del modello a 640 è **da fissare**:
-  lo sceglie l'utente dalla tabella `reports/budget_latenza_rpi5` (`experiments/latenza/griglia_rpi5/rifai.sh`). Il valore 28 ms che compare
+  lo sceglie l'utente dalla tabella `experiments/latenza/griglia_rpi5/report` (`experiments/latenza/griglia_rpi5/rifai.sh`). Il valore 28 ms che compare
   negli esempi è quello ottenuto a 480p: vale solo come esempio.
 
 ### Risoluzione
@@ -1073,7 +1073,7 @@ Implementata in yolopit (`yolopit/latency.py`, `search.py`, `config.py`), con 13
   più in basso). Servono perché la latenza va a gradini (ogni 32 canali di uscita) e la ricerca sente solo la pendenza
   nel punto in cui sta.
 
-**Da provare** (dettagli in `reports/stimatore-latenza.md`, sezione 9):
+**Da provare** (dettagli in `docs/stimatore-latenza.md`, sezione 9):
 
 1. Confronto delle quattro pendenze: stessa ricerca, stesso target in ms, cambia solo `estimator`. Si guardano mAP,
    latenza misurata sul PI e distanza dalla stima.
@@ -1096,7 +1096,7 @@ Implementata in yolopit (`yolopit/latency.py`, `search.py`, `config.py`), con 13
 **4,1%** (obiettivo 5%), contro 12,9% della somma della LUT e 31,4% dei MAC. Mediana 0,9%, p95 3,0%, massimo 5,2%,
 bias +0,2%: la mediana è pari al rumore fra due misure della stessa rete (1%). I MAC sbagliano sempre nella stessa
 direzione per architettura: sottostimano del 20–25% le reti larghe 0,25. Gli `a_f` stanno fra 0,76 (1×1 a 160×160) e
-1,51 (1×1 a 80×80), con `λ` = 1. `γ` non è servito. Dettagli in `reports/stimatore-latenza.md`.
+1,51 (1×1 a 80×80), con `λ` = 1. `γ` non è servito. Dettagli in `docs/stimatore-latenza.md`.
 
 **Aggiornamento del 13/11 (reti PIT nel fit).** Sulle reti prodotte da PIT (canali molto bassi, anche 2) il fit di sole B4-R
 sottostimava di 0,75 ms (−2,8%, p99 4,0%). Il fit ora usa anche 108 reti PIT del nano e di tre architetture vicine, misurate sul Pi

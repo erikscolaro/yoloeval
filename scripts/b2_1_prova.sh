@@ -1,7 +1,7 @@
 #!/bin/bash
 # Run di prova B2-1 (griglia discreta di latenza sul PI, fp16 OpenVINO, pesi casuali), 13/10/2026.
 # Lanciata il 13/10 da ~/Desktop/yoloeval_prova, spostata in repo il 14/10: risultati in results/, artefatti in
-# artifacts/, multirun in runs/hydra/multirun/, log e figure in reports/b2_1_prova/.
+# artifacts/, multirun in runs/hydra/multirun/, log e figure in lab/reports/b2_1_prova/.
 # Il confronto numerico dopo l'export vuole una cartella di immagini, in I (default il calib del dataset, 511 immagini).
 # I entra nella chiave delle celle: con una cartella diversa da quella del 13/10 (data/b2_1_prova/immagini, tolta il
 # 28/10) le celle non si saltano e la griglia si rifà.
@@ -13,7 +13,7 @@
 set -u
 cd ~/Desktop/yoloeval
 R=.venv/bin/python
-F="$R tools/figure_sintesi.py reports/b2_1_prova --risultati results --board rpi5 --precisioni fp16"
+F="$R tools/figure_sintesi.py lab/reports/b2_1_prova --risultati results --board rpi5 --precisioni fp16"
 if [ "${1:-}" = figure ]; then $F; exit; fi
 W=${W:-0.0625,0.09375,0.125,0.1875,0.25,0.375,0.5,0.75,1.0}
 A="model=yolo26 model.width=$W model.depth=D101,D126,D170"

@@ -3,7 +3,7 @@
 
     python -m tools.report [--target rpi5_640] [--budget MS] [--no-html]
 
-Una cartella datata `reports/<data_ora>/`, autoconsistente e spostabile (`reports/latest` punta all'ultima):
+Una cartella datata `lab/reports/<data_ora>/`, autoconsistente e spostabile (`lab/reports/latest` punta all'ultima):
 `report.md` (e `report.html` con pandoc) da `lab/report.md.j2`, le figure in PNG e PDF, le tabelle in CSV e
 `data.parquet` con tutte le misure. Sezioni:
 
@@ -300,7 +300,7 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--results", default=Path("results"), type=Path)
     ap.add_argument("--extra", default=EXTRA_PRUNED, help="glob delle results/ degli esperimenti (solo reti potate)")
-    ap.add_argument("--reports", default=Path("reports"), type=Path)
+    ap.add_argument("--reports", default=ROOT / "lab" / "reports", type=Path)
     ap.add_argument("--target", default="rpi5_640", help="profilo di deploy (conf/target/) per il budget")
     ap.add_argument("--deploy", default="640", help="risoluzione di deploy delle misure da confrontare")
     ap.add_argument("--budget", type=float, default=None, help="budget del modello in ms; default dal profilo")
@@ -332,7 +332,7 @@ def main(argv=None) -> int:
     if not a.no_html:
         to_html(md)
     update_latest(a.reports, out_dir)
-    print(f"report in {out_dir} (reports/latest aggiornato)")
+    print(f"report in {out_dir} (latest aggiornato)")
     return 0
 
 

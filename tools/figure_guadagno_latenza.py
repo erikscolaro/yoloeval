@@ -36,7 +36,7 @@ def ordine(a):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("out", nargs="?", default=str(ROOT / "reports/guadagno_latenza_640"))
+    ap.add_argument("out", nargs="?", default=str(ROOT / "lab/reports/guadagno_latenza_640"))
     ap.add_argument("--budget", type=float, help="ms; senza, niente linee del budget")
     ap.add_argument("--latency", help="csv (arch, ms) con le latenze a 640: sostituisce o estende quelle disponibili")
     ap.add_argument("--weights", default=str(ROOT / "artifacts/weights"))

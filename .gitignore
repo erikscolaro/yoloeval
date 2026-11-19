@@ -3,8 +3,10 @@ artifacts/**
 !artifacts/.gitkeep
 results/**
 !results/.gitkeep
-reports/**
-!reports/.gitkeep
+lab/reports/
+# pesanti, rigenerabili: predizioni e fogli dell'analisi degli errori del 1/11
+docs/errori_comuni_p_s_1nov/fogli/
+*.pkl
 *.parquet
 
 # ambienti

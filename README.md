@@ -133,7 +133,7 @@ Stessi override per `finetune`, `export` e `benchmark`.
 ```bash
 python run.py -m stage=roofline_edge hardware=rpi5 freq_target=max quantization=fp32,int8
 # ... export e benchmark dei modelli ...
-python -m tools.roofline                     # reports/roofline/: roofline.csv + un PNG per gruppo
+python -m tools.roofline                     # lab/reports/roofline/: roofline.csv + un PNG per gruppo
 ```
 
 Per ogni board × compute target × precisione × backend: intensità aritmetica (MAC/byte),
@@ -186,9 +186,9 @@ roofline: misure in parallelo sullo stesso hardware non valgono niente.
 
 ```bash
 lab/launcher                                        # launcher: ricette, step, run, utilità
-python -m tools.report                              # reports/<data>/ e reports/latest
+python -m tools.report                              # lab/reports/<data>/ e lab/reports/latest
 python -m tools.results riepilogo | falliti         # misure per esito, fallite e perché
-python -m tools.aggregate                           # reports/data.parquet con tutte le misure
+python -m tools.aggregate                           # lab/reports/data.parquet con tutte le misure
 python -m tools.roofline                            # roofline e confronto con la baseline
 python -m tools.artifacts ls | prune [--apply]      # cache degli artefatti
 ```

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Roofline dei modelli misurati: efficienza e confronto baseline / modelli potati.
 
-    python -m tools.roofline [--results results] [--out reports/roofline]
+    python -m tools.roofline [--results results] [--out lab/reports/roofline]
 
 Legge le celle `ok` del benchmark (results/*.json, con i blocchi `complexity` e
 `model_info` scritti dall'export) e i tetti misurati da `stage=roofline`
@@ -166,7 +166,7 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--results", default=Path("results"), type=Path)
-    ap.add_argument("--out", default=Path("reports/roofline"), type=Path)
+    ap.add_argument("--out", default=Path("lab/reports/roofline"), type=Path)
     args = ap.parse_args(argv)
 
     roofs = load_roofs(args.results)

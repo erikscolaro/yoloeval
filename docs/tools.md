@@ -12,14 +12,14 @@ python -m tools.<nome> [opzioni]
 
 Da un'altra cartella Python non trova il pacchetto
 `tools` (`No module named 'tools'`), e i path di default (`results`,
-`artifacts`, `reports`) sono relativi alla cartella corrente.
+`artifacts`, `lab/reports`) sono relativi alla cartella corrente.
 
 | tool | legge | scrive | a cosa serve |
 |---|---|---|---|
-| [`aggregate`](#toolsaggregate) | `results/*.json` | `reports/data.parquet` | una tabella con tutte le celle |
+| [`aggregate`](#toolsaggregate) | `results/*.json` | `lab/reports/data.parquet` | una tabella con tutte le celle |
 | `results` | `results/*.json` | niente | misure per esito, fallite e saltate con il motivo, dettaglio di una (`riepilogo`, `falliti`, `saltati`, `cella ID`) |
-| [`report`](#toolsreport) | `results/*.json`, `artifacts/weights`, `artifacts/finetune` | `reports/<data>/` | griglia, reti potate, varianti, fallite |
-| [`roofline`](#toolsroofline) | `results/*.json`, `results/roofline/*.json` | `reports/roofline/` | efficienza dei modelli e confronto con la baseline |
+| [`report`](#toolsreport) | `results/*.json`, `artifacts/weights`, `artifacts/finetune` | `lab/reports/<data>/` | griglia, reti potate, varianti, fallite |
+| [`roofline`](#toolsroofline) | `results/*.json`, `results/roofline/*.json` | `lab/reports/roofline/` | efficienza dei modelli e confronto con la baseline |
 | [`artifacts`](#toolsartifacts) | `artifacts/`, `results/` | niente (tranne `prune --apply`) | vedere e ripulire la cache di pesi ed export |
 
 Tre script si lanciano invece come file (`python tools/<nome>.py`), ognuno con l'uso scritto nella docstring:
@@ -44,13 +44,13 @@ Raccoglie tutti i risultati in un'unica tabella, una riga per cella, da leggere 
 utilità, aggrega.
 
 ```bash
-python -m tools.aggregate [--results-dir results] [--out reports/data.parquet] [--csv]
+python -m tools.aggregate [--results-dir results] [--out lab/reports/data.parquet] [--csv]
 ```
 
 | opzione | default | |
 |---|---|---|
 | `--results-dir` | `results` | cartella con i JSON delle celle |
-| `--out` | `reports/data.parquet` | file Parquet di uscita |
+| `--out` | `lab/reports/data.parquet` | file Parquet di uscita |
 | `--csv` | spento | scrive anche un CSV accanto al Parquet |
 
 **Input.** Solo `results/*.json`. Entrano tutte le celle, anche `failed` e
@@ -79,7 +79,7 @@ Le righe sono ordinate per `board`, `backend`, `quantization`, `model`. A fine
 esecuzione stampa quante celle ci sono per stato:
 
 ```
-45 celle -> reports/data.parquet
+45 celle -> lab/reports/data.parquet
   failed: 22, skipped: 15, ok: 7
 ```
 
@@ -100,7 +100,7 @@ python -m tools.report [--target rpi5_640] [--deploy 640] [--budget MS] [--run N
 |---|---|---|
 | `--results` | `results` | cartella con i JSON delle misure |
 | `--extra` | `experiments/*/*/results` | results/ degli esperimenti: ne entrano solo le reti potate |
-| `--reports` | `reports` | dove creare la cartella del report |
+| `--reports` | `lab/reports` | dove creare la cartella del report |
 | `--target` | `rpi5_640` | profilo di `conf/target/` da cui si legge il budget del modello (risolto da Hydra) |
 | `--deploy` | `640` | risoluzione delle misure da confrontare; le altre contano come storiche |
 | `--budget` | dal profilo | budget del modello in ms, se si vuole forzarlo |
@@ -128,10 +128,10 @@ Il template è `lab/report.md.j2`. Non serve lanciare prima `aggregate`: rilegge
 Le mAP confrontate sono tutte del training, sullo stesso val: la mAP sul dispositivo non c'è per ogni rete della
 griglia.
 
-**Output**, in `reports/<data_ora>/`:
+**Output**, in `lab/reports/<data_ora>/`:
 
 ```
-reports/2026-11-19_12-00-00/
+lab/reports/2026-11-19_12-00-00/
 ├── data.parquet          tutte le misure di results/ (come tools.aggregate)
 ├── report.md             dal template lab/report.md.j2
 ├── report.html           autoconsistente, immagini incluse (serve pandoc)
@@ -141,7 +141,7 @@ reports/2026-11-19_12-00-00/
 └── tables/               griglia.csv, potate.csv, varianti.csv, fallite.csv
 ```
 
-`reports/latest` è un link simbolico all'ultima cartella generata. L'HTML richiede `pandoc`
+`lab/reports/latest` è un link simbolico all'ultima cartella generata. L'HTML richiede `pandoc`
 (`sudo apt install pandoc`); se manca, il report viene generato lo stesso e l'HTML viene saltato con un avviso.
 
 ---
@@ -153,13 +153,13 @@ dal tetto raggiungibile, se e' limitato dalla memoria o dal calcolo, e quanto
 guadagna un modello potato rispetto alla baseline.
 
 ```bash
-python -m tools.roofline [--results results] [--out reports/roofline]
+python -m tools.roofline [--results results] [--out lab/reports/roofline]
 ```
 
 | opzione | default | |
 |---|---|---|
 | `--results` | `results` | cartella con i JSON delle celle e la sottocartella `roofline/` |
-| `--out` | `reports/roofline` | dove scrivere CSV e grafici |
+| `--out` | `lab/reports/roofline` | dove scrivere CSV e grafici |
 
 **Cosa serve prima**, in quest'ordine:
 
@@ -205,10 +205,10 @@ misurato con lo stesso backend, si usa quello di un altro backend sulla stessa
 combinazione, e la colonna `roof_backend` dice quale. Se ce ne sono piu' d'uno,
 vince il piu' recente.
 
-**Output**, in `reports/roofline/`:
+**Output**, in `lab/reports/roofline/`:
 
 ```
-reports/roofline/
+lab/reports/roofline/
 ├── roofline.csv                          una riga per cella, tutte le colonne
 └── <board>_<compute>_<precisione>_<backend>.png   un grafico per gruppo
 ```
@@ -280,7 +280,7 @@ Non c'e' un tool che cancelli tutto. Per ripartire da zero, dalla root e con
 nessuno sweep in esecuzione (`pgrep -f run.py`):
 
 ```bash
-rm -rf artifacts/* results/* reports/* runs/hydra/ \
+rm -rf artifacts/* results/* lab/reports/ runs/hydra/ \
        data.parquet benchmark_report.csv yolo26*.pt
 ```
 

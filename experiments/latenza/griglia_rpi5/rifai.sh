@@ -19,4 +19,4 @@ mkdir -p $D/runs
 .venv/bin/python run.py -m stage=train $A 2>&1 | tee $D/runs/train.log
 .venv/bin/python run.py -m stage=export $A $M 2>&1 | tee $D/runs/export.log
 .venv/bin/python run.py -m stage=benchmark rep=0,1,2 $A $M 2>&1 | tee $D/runs/benchmark.log
-.venv/bin/python tools/figure_sintesi.py reports/budget_latenza_rpi5 --risultati results --board rpi5 --precisioni fp16 --tesi
+.venv/bin/python tools/figure_sintesi.py experiments/latenza/griglia_rpi5/report --risultati results --board rpi5 --precisioni fp16 --tesi

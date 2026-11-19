@@ -527,8 +527,8 @@ help_utilita() {
     stato) echo "GPU, run.py in esecuzione con la loro cwd, Pi libero o occupato, spazio delle cartelle." ;;
     test) echo "pytest su tests/, in background con il log in runs/." ;;
     riepilogo|falliti|saltati|cella) echo "tools/results.py $1 sulle misure di results/." ;;
-    aggrega) echo "tools/aggregate.py: results/*.json in una tabella, reports/data.parquet e .csv." ;;
-    report) echo "tools/report.py: report in reports/<data>/ (html e md), reports/latest punta all'ultimo." ;;
+    aggrega) echo "tools/aggregate.py: results/*.json in una tabella, lab/reports/data.parquet e .csv." ;;
+    report) echo "tools/report.py: report in lab/reports/<data>/ (html e md), lab/reports/latest punta all'ultimo." ;;
     artefatti|artefatto|prune) echo "tools/artifacts.py: elenco, dettaglio, artefatti non usati da nessuna misura." ;;
     split) echo "Immagini ed etichette per split del dataset della config attuale." ;;
     val) echo "yolo detect val di un best.pt sul dataset della config, in background." ;;
