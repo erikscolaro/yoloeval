@@ -121,8 +121,8 @@ Il template è `lab/report.md.j2`. Non serve lanciare prima `aggregate`: rilegge
    entro il budget.
 2. **Griglia** larghezza × profondità: per ogni architettura la latenza fp16 OpenVINO (mediana delle misure), la
    mAP50-95 del training (miglior epoca sul val, da `artifacts/weights/*/run/results.csv`), la mAP sul dispositivo
-   dove c'è, e se sta nel budget. Due figure: latenza per larghezza e profondità, e latenza / mAP50-95 con il fronte
-   della griglia, le reti potate e il budget.
+   dove c'è, e se sta nel budget. Tre figure: latenza per larghezza e profondità, e latenza / mAP50-95 e latenza / mAP50 con il
+   fronte della griglia, le reti potate e il budget. La mAP50 è della stessa epoca della migliore mAP50-95.
 3. **Reti potate** (`strategy=pit_latency`, anche dagli esperimenti): latenza, mAP del training (da
    `artifacts/finetune/*/run/results.csv`) e sul dispositivo, la rete della griglia con la mAP più alta fra quelle non
    più lente (`griglia_pari`) e la differenza di mAP (`delta_mAP`, positiva se la potatura rende).
@@ -143,7 +143,8 @@ lab/reports/2026-11-19_12-00-00/
 ├── report.html           autoconsistente, immagini incluse (serve pandoc)
 ├── figures/              PNG (per il markdown) e PDF (per LaTeX)
 │   ├── latenza_griglia.*      latenza per larghezza, una linea per profondità, con il budget
-│   └── pareto.*               latenza / mAP50-95: griglia, fronte, reti potate, budget
+│   ├── pareto.*               latenza / mAP50-95: griglia, fronte, reti potate, budget
+│   └── pareto_map50.*         lo stesso con la mAP50
 └── tables/               griglia.csv, potate.csv, varianti.csv, fallite.csv
 ```
 

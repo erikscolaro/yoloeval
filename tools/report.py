@@ -55,14 +55,16 @@ def sigla(model: str) -> str:
     return LETTERA.get(a[0], str(a[0])) + SEGNO.get(a[1], a[1]) if a else str(model)
 
 
-def best_map(run: Path) -> float | None:
-    """mAP50-95 della miglior epoca di un training Ultralytics (run/results.csv), None se manca."""
+def best_map(run: Path) -> tuple[float, float] | None:
+    """(mAP50, mAP50-95) della miglior epoca per mAP50-95 di un training Ultralytics (run/results.csv, la fitness
+    di Ultralytics 8.4): tutte e due della stessa epoca, cioe' della stessa rete. None se manca."""
     f = run / "results.csv"
-    if not f.exists():
+    rows = list(csv.DictReader(open(f))) if f.exists() else []
+    col = {c.strip(): c for c in rows[0]} if rows else {}
+    if "metrics/mAP50-95(B)" not in col or "metrics/mAP50(B)" not in col:
         return None
-    rows = list(csv.DictReader(open(f)))
-    k = next((c for c in rows[0] if c.strip() == "metrics/mAP50-95(B)"), None) if rows else None
-    return max(float(r[k]) for r in rows) if k else None
+    b = max(rows, key=lambda r: float(r[col["metrics/mAP50-95(B)"]]))
+    return round(float(b[col["metrics/mAP50(B)"]]), 4), round(float(b[col["metrics/mAP50-95(B)"]]), 4)
 
 
 def grid_weights(w: float, d: str) -> Path | None:
@@ -114,10 +116,11 @@ def grid(ok, deploy: str, budget: float):
     rows = []
     for (w, d), grp in g.groupby(g["model"].map(arch)):
         wd = grid_weights(w, d)
+        bm = best_map(wd / "run") if wd else None
         m = grp["acc_map50_95"].dropna()
         rows.append({"rete": sigla(grp["model"].iloc[0]), "larghezza": w, "profondita": d,
                      "latenza_ms": round(float(grp["lat_median_ms"].median()), 2),
-                     "mAP50_95": round(best_map(wd / "run"), 4) if wd and best_map(wd / "run") else None,
+                     "mAP50": bm[0] if bm else None, "mAP50_95": bm[1] if bm else None,
                      "mAP50_95_disp": round(float(m.iloc[-1]), 4) if len(m) else None,
                      "misure": len(grp)})
     t = pd.DataFrame(rows)
@@ -134,15 +137,19 @@ def pruned(ok, grid_t):
     rows = []
     for _, r in p.iterrows():
         ft = next(iter(sorted(FINETUNE.glob(f"*_{r['weights_key']}"))), None)
-        m_train = best_map(ft / "run") if ft else None
+        bm = best_map(ft / "run") if ft else None
+        m_train, m50 = (bm[1], bm[0]) if bm else (None, None)
         ref = grid_t[(grid_t["latenza_ms"] <= r["lat_median_ms"]) & grid_t["mAP50_95"].notna()] if len(grid_t) else grid_t
         top = ref.loc[ref["mAP50_95"].idxmax()] if len(ref) else None
+        top50 = ref.loc[ref["mAP50"].idxmax()] if len(ref) else None
         rows.append({"partenza": sigla(r["model"]), "finetune": r["weights_key"],
                      "latenza_ms": round(float(r["lat_median_ms"]), 2),
-                     "mAP50_95": round(m_train, 4) if m_train else None,
+                     "mAP50": m50, "mAP50_95": m_train,
                      "mAP50_95_disp": round(float(r["acc_map50_95"]), 4) if pd.notna(r.get("acc_map50_95")) else None,
                      "griglia_pari": f"{top['rete']} ({top['latenza_ms']} ms)" if top is not None else None,
                      "delta_mAP": round(m_train - float(top["mAP50_95"]), 4) if m_train and top is not None else None,
+                     "griglia_pari50": f"{top50['rete']} ({top50['latenza_ms']} ms)" if top50 is not None else None,
+                     "delta_mAP50": round(m50 - float(top50["mAP50"]), 4) if m50 and top50 is not None else None,
                      "fonte": r["fonte"], "data": str(r["timestamp"])[:10]})
     return pd.DataFrame(rows).sort_values("latenza_ms").reset_index(drop=True) if rows else pd.DataFrame()
 
@@ -193,40 +200,42 @@ def figures(grid_t, pruned_t, budget: float, out_dir: Path) -> dict:
     save(fig, out_dir / "figures" / "latenza_griglia")
     made["latenza_griglia"] = "figures/latenza_griglia.png"
 
-    # latenza / mAP50-95: griglia per profondita', potate a stella, budget e fronte della griglia
-    pts = grid_t.dropna(subset=["mAP50_95"])
-    if not pts.empty:
+    # latenza / mAP (50-95 e 50): griglia per profondita', potate a stella, budget e fronte della griglia
+    for col, lab, name in (("mAP50_95", "mAP50-95", "pareto"), ("mAP50", "mAP50", "pareto_map50")):
+        pts = grid_t.dropna(subset=[col])
+        if pts.empty:
+            continue
         fig, ax = plt.subplots(figsize=(WIDTH, 0.7 * WIDTH))
         for j, (d, g) in enumerate(pts.groupby("profondita")):
-            ax.scatter(g["latenza_ms"], g["mAP50_95"], marker=marks.get(d, "o"), color=color(d, j), s=26, label=d)
+            ax.scatter(g["latenza_ms"], g[col], marker=marks.get(d, "o"), color=color(d, j), s=26, label=d)
             for _, r in g.iterrows():
-                ax.annotate(r["rete"], (r["latenza_ms"], r["mAP50_95"]), fontsize=6, xytext=(3, 2),
+                ax.annotate(r["rete"], (r["latenza_ms"], r[col]), fontsize=6, xytext=(3, 2),
                             textcoords="offset points")
-        fr = front(pts)
-        ax.plot(fr["latenza_ms"], fr["mAP50_95"], "-", color=GRAY, lw=0.8, label="fronte della griglia")
-        pp = pruned_t.dropna(subset=["mAP50_95"]) if not pruned_t.empty else pruned_t
+        fr = front(pts, col)
+        ax.plot(fr["latenza_ms"], fr[col], "-", color=GRAY, lw=0.8, label="fronte della griglia")
+        pp = pruned_t.dropna(subset=[col]) if not pruned_t.empty else pruned_t
         if not pp.empty:
-            ax.scatter(pp["latenza_ms"], pp["mAP50_95"], marker="*", s=70, color="#e34948", label="potate", zorder=3)
+            ax.scatter(pp["latenza_ms"], pp[col], marker="*", s=70, color="#e34948", label="potate", zorder=3)
         ax.axvline(budget, ls="--", color=GRAY, lw=1, label=f"budget {budget:.1f} ms")
         ax.set_xscale("log")
         ax.xaxis.set_major_formatter(matplotlib.ticker.ScalarFormatter())
         ax.xaxis.set_minor_formatter(matplotlib.ticker.ScalarFormatter())
         ax.tick_params(axis="x", which="minor", labelsize=6)
         ax.set_xlabel("latenza mediana [ms]")
-        ax.set_ylabel("mAP50-95 (val)")
+        ax.set_ylabel(f"{lab} (val)")
         ax.legend(fontsize=7)
-        save(fig, out_dir / "figures" / "pareto")
-        made["pareto"] = "figures/pareto.png"
+        save(fig, out_dir / "figures" / name)
+        made[name] = f"figures/{name}.png"
     return made
 
 
-def front(pts):
+def front(pts, col="mAP50_95"):
     """Reti non dominate: nessun'altra piu' veloce e piu' precisa."""
     best, keep = -1.0, []
     for i, r in pts.sort_values("latenza_ms").iterrows():
-        if r["mAP50_95"] > best:
+        if r[col] > best:
             keep.append(i)
-            best = r["mAP50_95"]
+            best = r[col]
     return pts.loc[keep]
 
 

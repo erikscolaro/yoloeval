@@ -4,8 +4,8 @@ Generato il {{ generated_at }} da `python -m tools.report` (template `lab/report
 autoconsistente: immagini e tabelle hanno percorsi relativi, `data.parquet` contiene tutte le misure.
 
 Risoluzione di deploy **{{ facts.deploy }}**, budget del modello **{{ facts.budget }} ms** (profilo
-`conf/target/{{ facts.target }}.yaml`: budget end-to-end meno pre e post-processing). Le mAP50-95 confrontate sono
-quelle del training (miglior epoca sul val, sulla workstation); la colonna `_disp` è la mAP misurata sul
+`conf/target/{{ facts.target }}.yaml`: budget end-to-end meno pre e post-processing). Le mAP confrontate sono
+quelle del training (miglior epoca per mAP50-95 sul val, sulla workstation; la mAP50 è della stessa epoca); la colonna `_disp` è la mAP misurata sul
 dispositivo, dove c'è.
 
 ## Sintesi
@@ -26,6 +26,7 @@ Latenza fp16 (OpenVINO) sul dispositivo, mediana delle misure ripetute; `nel_bud
 {% if figures.latenza_griglia %}![Latenza della griglia]({{ figures.latenza_griglia }})
 {% endif %}
 {% if figures.pareto %}![Latenza e mAP50-95: griglia e reti potate]({{ figures.pareto }})
+{% endif %}{% if figures.pareto_map50 %}![Latenza e mAP50: griglia e reti potate]({{ figures.pareto_map50 }})
 {% endif %}
 {{ tables.griglia or "_Nessuna misura della griglia a questa risoluzione._" }}
 
@@ -33,7 +34,8 @@ Latenza fp16 (OpenVINO) sul dispositivo, mediana delle misure ripetute; `nel_bud
 
 Ricerche `pit_latency` riaddestrate e misurate sul dispositivo, da `results/` e dalle `results/` degli
 esperimenti. `griglia_pari` è la rete della griglia con la mAP più alta fra quelle non più lente della potata;
-`delta_mAP` è la differenza di mAP50-95 rispetto a lei (positiva: la potatura rende).
+`delta_mAP` è la differenza di mAP50-95 rispetto a lei (positiva: la potatura rende); `griglia_pari50` e
+`delta_mAP50` sono lo stesso confronto sulla mAP50, che può scegliere un'altra rete della griglia.
 
 {{ tables.potate or "_Nessuna rete potata misurata._" }}
 
