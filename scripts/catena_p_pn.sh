@@ -10,7 +10,7 @@ passo() { echo "[$(date '+%F %T')] $*" >> $L; }
 pi() { flock runs/.pi.lock bash -c "for s in export benchmark; do $PY run.py stage=\$s $* || break; done"; }
 R="strategy=pit_latency target=rpi5_640 logging=local strategy.search.nas.optimizer=SGD strategy.search.nas.lr0=0.01
    strategy.search.regularizer.strength=2 strategy.search.pit.latency.estimator=best"
-uno() { local n=$1 X; X=$(echo "model=yolo26 $2 $R")
+uno() { local n=$1 X; X=$(echo model=yolo26 $2 $R)   # senza virgolette: toglie l a capo di R, che spezzerebbe bash -c in pi()
   passo "$n: ricerca"
   if $PY run.py stage=search $X > runs/${n}_search.log 2>&1; then
     passo "$n: da zero 300 epoche"
