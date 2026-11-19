@@ -10,14 +10,15 @@ Si lanciano come moduli, **dalla root del progetto**:
 python -m tools.<nome> [opzioni]
 ```
 
-Da un'altra cartella (per esempio `notebooks/`) Python non trova il pacchetto
+Da un'altra cartella Python non trova il pacchetto
 `tools` (`No module named 'tools'`), e i path di default (`results`,
 `artifacts`, `reports`) sono relativi alla cartella corrente.
 
 | tool | legge | scrive | a cosa serve |
 |---|---|---|---|
-| [`aggregate`](#toolsaggregate) | `results/*.json` | `data.parquet` | una tabella con tutte le celle |
-| [`report`](#toolsreport) | `results/*.json` | `reports/<data>/` | figure, tabelle e report |
+| [`aggregate`](#toolsaggregate) | `results/*.json` | `reports/data.parquet` | una tabella con tutte le celle |
+| `results` | `results/*.json` | niente | misure per esito, fallite e saltate con il motivo, dettaglio di una (`riepilogo`, `falliti`, `saltati`, `cella ID`) |
+| [`report`](#toolsreport) | `results/*.json`, `artifacts/weights`, `artifacts/finetune` | `reports/<data>/` | griglia, reti potate, varianti, fallite |
 | [`roofline`](#toolsroofline) | `results/*.json`, `results/roofline/*.json` | `reports/roofline/` | efficienza dei modelli e confronto con la baseline |
 | [`artifacts`](#toolsartifacts) | `artifacts/`, `results/` | niente (tranne `prune --apply`) | vedere e ripulire la cache di pesi ed export |
 
@@ -31,7 +32,7 @@ Tre script si lanciano invece come file (`python tools/<nome>.py`), ognuno con l
 
 `order.py` e `plots.py` sono moduli di supporto (ordinamento naturale dei nomi, stile dei grafici).
 
-Le figure di tutti i tool, degli esperimenti e dei notebook usano
+Le figure di tutti i tool e degli esperimenti usano
 `tools/thesis.mplstyle` e `tools/plots.py` (`save`, `color`, `WIDTH`): stesso
 stile, stesso colore per la stessa entità, PNG e PDF per LaTeX.
 
@@ -39,18 +40,17 @@ stile, stesso colore per la stessa entità, PNG e PDF per LaTeX.
 
 ## `tools.aggregate`
 
-Raccoglie tutti i risultati in un'unica tabella, una riga per cella. E' il
-file che leggono `notebooks/01_analysis.ipynb` e `02_figures`, e che produce
-la cella "Aggregazione" di `00_sweep`.
+Raccoglie tutti i risultati in un'unica tabella, una riga per cella, da leggere con pandas. Dal launcher:
+utilità, aggrega.
 
 ```bash
-python -m tools.aggregate [--results-dir results] [--out data.parquet] [--csv]
+python -m tools.aggregate [--results-dir results] [--out reports/data.parquet] [--csv]
 ```
 
 | opzione | default | |
 |---|---|---|
 | `--results-dir` | `results` | cartella con i JSON delle celle |
-| `--out` | `data.parquet` (nella cartella corrente) | file Parquet di uscita |
+| `--out` | `reports/data.parquet` | file Parquet di uscita |
 | `--csv` | spento | scrive anche un CSV accanto al Parquet |
 
 **Input.** Solo `results/*.json`. Entrano tutte le celle, anche `failed` e
@@ -79,7 +79,7 @@ Le righe sono ordinate per `board`, `backend`, `quantization`, `model`. A fine
 esecuzione stampa quante celle ci sono per stato:
 
 ```
-45 celle -> data.parquet
+45 celle -> reports/data.parquet
   failed: 22, skipped: 15, ok: 7
 ```
 
@@ -89,59 +89,60 @@ Esce con codice 1 se `results/` e' vuota, 2 se manca pandas.
 
 ## `tools.report`
 
-Genera un report completo in una cartella datata, autoconsistente e
-spostabile (i riferimenti alle immagini sono relativi).
+Report delle misure sul dispositivo del profilo di deploy, in una cartella datata autoconsistente e spostabile
+(immagini e tabelle con percorsi relativi). Si lancia anche dal launcher: `lab/launcher`, utilità, report.
 
 ```bash
-python -m tools.report [--results results] [--reports reports] [--run <timestamp>] [--no-html]
+python -m tools.report [--target rpi5_640] [--deploy 640] [--budget MS] [--run NOME] [--no-html]
 ```
 
 | opzione | default | |
 |---|---|---|
-| `--results` | `results` | cartella con i JSON delle celle |
+| `--results` | `results` | cartella con i JSON delle misure |
+| `--extra` | `experiments/*/*/results` | results/ degli esperimenti: ne entrano solo le reti potate |
 | `--reports` | `reports` | dove creare la cartella del report |
-| `--run` | adesso, `%Y-%m-%d_%H-%M-%S` | nome della cartella; con un nome esistente la riscrive |
+| `--target` | `rpi5_640` | profilo di `conf/target/` da cui si legge il budget del modello (risolto da Hydra) |
+| `--deploy` | `640` | risoluzione delle misure da confrontare; le altre contano come storiche |
+| `--budget` | dal profilo | budget del modello in ms, se si vuole forzarlo |
+| `--run` | data e ora, `%Y-%m-%d_%H-%M-%S` | nome della cartella; con un nome esistente la riscrive |
 | `--no-html` | spento | salta la conversione in HTML |
 
-Non serve lanciare prima `aggregate`: rilegge `results/` da solo, con la
-stessa funzione.
+Il template è `lab/report.md.j2`. Non serve lanciare prima `aggregate`: rilegge `results/` da solo.
 
-**Output**, in `reports/<timestamp>/`:
+**Contenuto.**
+
+1. **Sintesi**: misure per esito, quante a risoluzioni storiche, migliore rete della griglia e migliore potata
+   entro il budget.
+2. **Griglia** larghezza × profondità: per ogni architettura la latenza fp16 OpenVINO (mediana delle misure), la
+   mAP50-95 del training (miglior epoca sul val, da `artifacts/weights/*/run/results.csv`), la mAP sul dispositivo
+   dove c'è, e se sta nel budget. Due figure: latenza per larghezza e profondità, e latenza / mAP50-95 con il fronte
+   della griglia, le reti potate e il budget.
+3. **Reti potate** (`strategy=pit_latency`, anche dagli esperimenti): latenza, mAP del training (da
+   `artifacts/finetune/*/run/results.csv`) e sul dispositivo, la rete della griglia con la mAP più alta fra quelle non
+   più lente (`griglia_pari`) e la differenza di mAP (`delta_mAP`, positiva se la potatura rende).
+4. **Altre precisioni e backend**: ogni misura diversa da fp16 OpenVINO, con la latenza dello stesso modello e pesi
+   in fp16 e il rapporto.
+5. **Misure fallite** non rifatte dopo con successo, con la prima riga dell'errore.
+6. **Condizioni di misura**: throttling, temperatura massima, ore macchina.
+
+Le mAP confrontate sono tutte del training, sullo stesso val: la mAP sul dispositivo non c'è per ogni rete della
+griglia.
+
+**Output**, in `reports/<data_ora>/`:
 
 ```
-reports/2026-09-28_15-00-00/
-├── data.parquet          lo stesso dataframe di tools.aggregate
-├── report.md             dal template templates/report.md.j2
+reports/2026-11-19_12-00-00/
+├── data.parquet          tutte le misure di results/ (come tools.aggregate)
+├── report.md             dal template lab/report.md.j2
 ├── report.html           autoconsistente, immagini incluse (serve pandoc)
-├── figures/              ogni figura in PNG (per il markdown) e PDF (per LaTeX)
-│   ├── latency_by_backend.*   latenza mediana per backend e quantizzazione
-│   ├── pareto.*               latenza / mAP@50 con il fronte di Pareto
-│   ├── pareto_map50_95.*      latenza / mAP@50-95 con il fronte di Pareto
-│   ├── map50_95_by_quantization.*  mAP@50-95 per modello e backend, una barra per precisione
-│   └── order_drift.*          latenza rispetto all'ordine di esecuzione
-└── tables/
-    ├── celle_ok.csv           le celle misurate, con latenza, mAP@50, mAP@50-95, energia
-    ├── stato_celle.csv        quante celle per stato
-    ├── celle_saltate.csv      le celle skipped, raggruppate per motivo
-    ├── artefatti.csv          esito della validazione numerica degli export
-    ├── machine_hours.csv      ore macchina per dispositivo
-    └── celle_throttled.csv    celle in cui la board ha fatto throttling
+├── figures/              PNG (per il markdown) e PDF (per LaTeX)
+│   ├── latenza_griglia.*      latenza per larghezza, una linea per profondità, con il budget
+│   └── pareto.*               latenza / mAP50-95: griglia, fronte, reti potate, budget
+└── tables/               griglia.csv, potate.csv, varianti.csv, fallite.csv
 ```
 
-`reports/latest` e' un link simbolico all'ultima cartella generata.
-
-Le figure e `celle_ok` usano solo le celle `ok`; una figura o una tabella
-senza dati non viene prodotta. `order_drift` serve a vedere se il termico ha
-inquinato la misura: se la latenza cresce con l'ordine di esecuzione, le celle
-in fondo allo sweep sono state misurate su una macchina piu' calda.
-
-Nel report ci sono anche alcuni numeri riassuntivi: celle per stato, la cella
-piu' veloce, lo speedup di FP16 e INT8 rispetto a FP32 per ogni backend, e
-quante celle hanno fatto throttling, hanno una validazione `degraded` o sono
-ricadute sulla testa one-to-many.
-
-L'HTML richiede `pandoc` (`sudo apt install pandoc`); se manca, il report
-viene generato lo stesso e l'HTML viene saltato con un avviso.
+`reports/latest` è un link simbolico all'ultima cartella generata. L'HTML richiede `pandoc`
+(`sudo apt install pandoc`); se manca, il report viene generato lo stesso e l'HTML viene saltato con un avviso.
 
 ---
 

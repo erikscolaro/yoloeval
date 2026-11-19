@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # Configuratore e launcher degli esperimenti (TUI in bash puro). Costruisce solo righe di comando di run.py o degli
-# script: opzioni da conf/<gruppo>/, help da docs/config/, ricette in ricette/, nessuno YAML modificato.
+# script: opzioni da conf/<gruppo>/, help da docs/config/, ricette in lab/ricette/, nessuno YAML modificato.
 # Ogni run va in runs/ con i suoi comandi in testa.
-#   ./lab
+#   lab/launcher
 set -uo pipefail
-cd "$(dirname "$(readlink -f "$0")")"
+cd "$(dirname "$(readlink -f "$0")")/.."   # root del progetto
 PY=.venv/bin/python
 RUNS=runs
-RICETTE=ricette
+RICETTE=lab/ricette
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 mkdir -p "$RUNS" "$RICETTE"
@@ -376,8 +376,8 @@ menu_override() {  # gli override attivi: Invio ne toglie uno
 }
 
 # ---------------------------------------------------------------- ricette
-# File ricette/<nome>.ricetta: prima riga "# descrizione", poi "step a b c" e una riga "set chiave=valore" per override.
-help_ricetta() { echo "ricette/$1.ricetta"; echo; cat "$RICETTE/$1.ricetta"; }
+# File lab/ricette/<nome>.ricetta: prima riga "# descrizione", poi "step a b c" e una riga "set chiave=valore" per override.
+help_ricetta() { echo "lab/ricette/$1.ricetta"; echo; cat "$RICETTE/$1.ricetta"; }
 
 carica_ricetta() {
   local f=$RICETTE/$1.ricetta l
@@ -402,13 +402,13 @@ menu_ricette() {
 salva_ricetta() {
   local n d o
   ((${#STEPS[@]})) || { wt --msgbox "Scegli prima gli step."; return; }
-  n=$(wt --inputbox "Nome della ricetta (file ricette/<nome>.ricetta):" 0 0 "${RICETTA%% *}") || return
+  n=$(wt --inputbox "Nome della ricetta (file lab/ricette/<nome>.ricetta):" 0 0 "${RICETTA%% *}") || return
   n=${n// /_}; [[ -n $n ]] || return
-  [[ -f $RICETTE/$n.ricetta ]] && ! wt --yesno "ricette/$n.ricetta esiste: la sovrascrivo?" && return
+  [[ -f $RICETTE/$n.ricetta ]] && ! wt --yesno "lab/ricette/$n.ricetta esiste: la sovrascrivo?" && return
   d=$(wt --inputbox "Descrizione in una riga:" 0 0 "$([[ -f $RICETTE/$n.ricetta ]] && head -1 "$RICETTE/$n.ricetta" | sed 's/^# *//')") || return
   { echo "# $d"; echo "step ${STEPS[*]}"; for o in "${OV[@]}"; do echo "set $o"; done; } >"$RICETTE/$n.ricetta"
   RICETTA=$n
-  wt --msgbox "Salvata: ricette/$n.ricetta"
+  wt --msgbox "Salvata: lab/ricette/$n.ricetta"
 }
 
 # ---------------------------------------------------------------- avvio e run
@@ -478,6 +478,92 @@ strumenti() {
   lancia "$(basename "$(dirname "${f##* }")")_$(basename "${f##* }" | cut -d. -f1)" "$f $a"
 }
 
+# ---------------------------------------------------------------- utilità (prima nei notebook)
+mostra() {  # mostra COMANDO...: lo esegue qui e ne mostra l'output in less (q torna al menu)
+  clear; { echo "\$ $*"; echo; "$@" 2>&1; echo; echo "# exit $?"; } | less -R
+}
+stato_macchina() {
+  nvidia-smi --query-gpu=name,utilization.gpu,memory.used,memory.total,temperature.gpu --format=csv 2>/dev/null \
+    || echo "nvidia-smi non disponibile"
+  echo; local p pids; pids=$(pgrep -f '^[^ ]*python[^ ]* run[.]py' || true)
+  [[ -z $pids ]] && echo "nessun run.py in esecuzione"
+  for p in $pids; do echo "PID $p  dal $(ps -o lstart= -p "$p")"; echo "  $(tr '\0' ' ' </proc/"$p"/cmdline)"
+    echo "  cwd $(readlink /proc/"$p"/cwd)"; done
+  echo; [[ -f $RUNS/.pi.lock ]] && { flock -n "$RUNS/.pi.lock" true && echo "Pi libero" || echo "Pi occupato (runs/.pi.lock)"; }
+  echo; du -sh artifacts results reports runs data 2>/dev/null
+}
+data_yaml() { "$PY" run.py stage=train "${OV[@]}" --cfg job --resolve -p dataset.yaml 2>/dev/null | tail -1; }
+split_dataset() {  # immagini ed etichette per split del dataset della config
+  $PY - "$(data_yaml)" <<'PY'
+import sys, yaml
+from pathlib import Path
+y = Path(sys.argv[1]); spec = yaml.safe_load(y.read_text()); root = Path(spec.get("path") or y.parent)
+IMG = {".jpg", ".jpeg", ".png", ".bmp", ".webp", ".tif", ".tiff"}
+print(y)
+for split in ("train", "val", "test", "calib"):
+    d = root / (spec.get(split) or f"images/{split}")
+    if not d.is_dir():
+        continue
+    lbl = Path(str(d).replace("/images", "/labels"))
+    n_img = sum(1 for p in d.rglob("*") if p.suffix.lower() in IMG)
+    n_lbl = sum(1 for _ in lbl.rglob("*.txt")) if lbl.exists() else 0
+    print(f"{split:6s} {n_img:7d} immagini {n_lbl:7d} etichette  ({d.relative_to(root)})")
+print("classi:", spec.get("names"))
+PY
+}
+pulizia_hydra() {  # cartelle di runs/hydra dei run finiti (non la cwd di un run.py vivo)
+  local d p att=() via=()
+  for p in $(pgrep -f '^[^ ]*python[^ ]* run[.]py' || true); do att+=("$(readlink -f /proc/"$p"/cwd)"); done
+  for d in runs/hydra/outputs/*/ runs/hydra/multirun/*/; do
+    [[ -d $d ]] || continue; d=$(readlink -f "$d")
+    [[ " ${att[*]} " == *" $d"* ]] || via+=("$d")
+  done
+  ((${#via[@]})) || { wt --msgbox "Niente da cancellare in runs/hydra/."; return; }
+  wt --yesno "Cancello ${#via[@]} cartelle di runs/hydra/ (config e run.log dei run finiti)?\n\nLe misure stanno in results/ e artifacts/: non si toccano." || return
+  rm -rf "${via[@]}"; wt --msgbox "Cancellate ${#via[@]} cartelle."
+}
+help_utilita() {
+  case $1 in
+    stato) echo "GPU, run.py in esecuzione con la loro cwd, Pi libero o occupato, spazio delle cartelle." ;;
+    test) echo "pytest su tests/, in background con il log in runs/." ;;
+    riepilogo|falliti|saltati|cella) echo "tools/results.py $1 sulle misure di results/." ;;
+    aggrega) echo "tools/aggregate.py: results/*.json in una tabella, reports/data.parquet e .csv." ;;
+    report) echo "tools/report.py: report in reports/<data>/ (html e md), reports/latest punta all'ultimo." ;;
+    artefatti|artefatto|prune) echo "tools/artifacts.py: elenco, dettaglio, artefatti non usati da nessuna misura." ;;
+    split) echo "Immagini ed etichette per split del dataset della config attuale." ;;
+    val) echo "yolo detect val di un best.pt sul dataset della config, in background." ;;
+    pulizia) echo "Cancella le cartelle di runs/hydra/ dei run finiti (config risolta e run.log)." ;;
+  esac
+}
+utilita() {
+  local u x HELPFN=help_utilita
+  while :; do
+    u=$(wt --menu "Utilità. ? mostra cosa fa la voce." 0 0 0 \
+        stato "macchina: GPU, run attivi, Pi, spazio" test "test della repo" \
+        "" "misure" riepilogo "misure per esito" falliti "misure fallite e perche'" saltati "misure saltate e perche'" \
+        cella "dettaglio di una misura" aggrega "tabella di tutte le misure" report "genera il report" \
+        "" "artefatti" artefatti "elenco" artefatto "dettaglio di uno" prune "artefatti non usati" \
+        "" "dataset" split "immagini per split" val "validazione di un modello" \
+        "" "pulizia" pulizia "log di Hydra dei run finiti") || return
+    case $u in
+      stato) mostra stato_macchina ;;
+      test) lancia test "$PY -m pytest -q tests" ;;
+      riepilogo|falliti|saltati) mostra $PY -m tools.results "$u" ;;
+      cella) x=$(wt --inputbox "cell_id (il nome del file in results/, senza .json):" 0 0 "") && mostra $PY -m tools.results cella "$x" ;;
+      aggrega) mostra $PY -m tools.aggregate --csv ;;
+      report) lancia report "$PY -m tools.report" ;;
+      artefatti) mostra $PY -m tools.artifacts ls ;;
+      artefatto) x=$(wt --inputbox "Cartella dell'artefatto (come in elenco):" 0 0 "") && mostra $PY -m tools.artifacts show "$x" ;;
+      prune) mostra $PY -m tools.artifacts prune
+             wt --yesno "Cancello davvero gli artefatti elencati (prune --apply)?" && mostra $PY -m tools.artifacts prune --apply ;;
+      split) mostra split_dataset ;;
+      val) x=$(wt --inputbox "best.pt da validare:" 0 0 "artifacts/finetune/") || continue
+           lancia val "$PWD/.venv/bin/yolo detect val model=$x data=$(data_yaml) split=val imgsz=640 plots=False project=$PWD/runs/val exist_ok=True" ;;
+      pulizia) pulizia_hydra ;;
+    esac
+  done
+}
+
 help_run() { cat "$1" | grep '^# ' | head -20; echo; echo "Esito: $(esito "$1")"; echo; tail -5 "$1"; }
 
 storico() {
@@ -518,9 +604,10 @@ HELP='\e[1mIn tre passi\e[0m
   tutti i parametri     la config composta di uno step, sezione per sezione, ogni campo con il suo help.
   gruppi                quale file usare per ogni gruppo di conf/.
   override attivi       cosa e'"'"' cambiato rispetto ai default; Invio toglie un override.
-  salva ricetta         salva step e override in ricette/<nome>.ricetta, da ricaricare o versionare.
+  salva ricetta         salva step e override in lab/ricette/<nome>.ricetta, da ricaricare o versionare.
   storico               i run in runs/ con l'"'"'esito: log, rilancio, ricarica della configurazione, stop.
   strumenti             script, figure e rifai.sh degli esperimenti.
+  utilità               stato della macchina, misure fallite, report, artefatti, dataset, pulizia dei log.
 
 \e[1mTasti\e[0m
   su/giu muovono, Invio o destra scelgono, sinistra o Esc tornano indietro, spazio spunta gli step.
@@ -530,7 +617,7 @@ HELP='\e[1mIn tre passi\e[0m
 help_home() {
   case $1 in
     avvia) echo "Mostra i comandi esatti e li lancia in background (nohup): il run sopravvive se chiudi il launcher." ;;
-    ricette) echo "Carica una ricetta da ricette/: step e override in un colpo. Si possono cambiare dopo." ;;
+    ricette) echo "Carica una ricetta da lab/ricette/: step e override in un colpo. Si possono cambiare dopo." ;;
     step) echo "Quali stadi eseguire. Ordine fisso, quello della pipeline; la catena si ferma al primo errore." ;;
     modello) echo "Il modello da allenare, potare o misurare: le taglie di conf/model/ o una variante della griglia." ;;
     profilo) echo "Il profilo di deploy (conf/target/): fissa dispositivo, risoluzione, backend, precisione, budget e LUT." ;;
@@ -568,13 +655,14 @@ while :; do
       "" "run e strumenti" \
       storico "run passati: esito, log, rilancio" \
       strumenti "script, figure, rifai.sh degli esperimenti" \
+      utilita "stato, misure, report, artefatti, dataset, pulizia" \
       help "guida") || { clear; exit 0; }
   HELPFN=""
   case $s in
     avvia) avvio ;; ricette) menu_ricette ;; step) menu_steps ;;
     modello) scegli_gruppo model ;; profilo) scegli_gruppo target ;;
     principali) menu_principali ;; tutti) menu_parametri ;; gruppi) menu_gruppi ;;
-    override) menu_override ;; salva) salva_ricetta ;; storico) storico ;; strumenti) strumenti ;;
+    override) menu_override ;; salva) salva_ricetta ;; storico) storico ;; strumenti) strumenti ;; utilita) utilita ;;
     help) wt --msgbox "$HELP" ;;
   esac
 done

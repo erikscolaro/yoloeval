@@ -1,4 +1,4 @@
-"""Stile e salvataggio comuni a tutti i grafici (report, esperimenti, notebook).
+"""Stile e salvataggio comuni a tutti i grafici (report, tool, esperimenti).
 
     import matplotlib.pyplot as plt
     from tools.plots import STYLE, WIDTH, color, save

@@ -185,11 +185,11 @@ roofline: misure in parallelo sullo stesso hardware non valgono niente.
 ## Risultati
 
 ```bash
-python -m tools.aggregate --out data.parquet        # un DataFrame con tutte le celle
-python -m tools.roofline                            # roofline e confronto con la baseline
-jupyter lab notebooks/01_analysis.ipynb             # tabelle, probe, roofline
-jupyter lab notebooks/02_figures.ipynb              # figure PNG + PDF per la tesi
+lab/launcher                                        # launcher: ricette, step, run, utilità
 python -m tools.report                              # reports/<data>/ e reports/latest
+python -m tools.results riepilogo | falliti         # misure per esito, fallite e perché
+python -m tools.aggregate                           # reports/data.parquet con tutte le misure
+python -m tools.roofline                            # roofline e confronto con la baseline
 python -m tools.artifacts ls | prune [--apply]      # cache degli artefatti
 ```
 
@@ -225,7 +225,7 @@ src/stages/  train, search, finetune, probe, roofline, export, benchmark
 src/probe/   reti dummy e scelta di N
 src/backends/, src/remote/, src/measure/, src/validation/
 tools/       aggregate, roofline, report, artifacts
-notebooks/   analisi e figure
+lab/         launcher (lab/launcher), ricette, template del report
 ```
 
 ## Test

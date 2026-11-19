@@ -1,269 +1,291 @@
 #!/usr/bin/env python3
-"""Generazione del report.
+"""Report dello stato delle misure sul dispositivo del profilo di deploy (default rpi5_640).
 
-    python -m tools.report [--results results] [--no-html]
+    python -m tools.report [--target rpi5_640] [--budget MS] [--no-html]
 
-Produce una cartella datata sotto `reports/`, autoconsistente e spostabile:
-`report.md` con riferimenti **relativi** alle immagini, le figure in PNG e PDF,
-le tabelle in CSV e il dataframe aggregato. Il PDF serve per LaTeX, dove una
-figura vettoriale resta nitida a qualsiasi zoom.
+Una cartella datata `reports/<data_ora>/`, autoconsistente e spostabile (`reports/latest` punta all'ultima):
+`report.md` (e `report.html` con pandoc) da `lab/report.md.j2`, le figure in PNG e PDF, le tabelle in CSV e
+`data.parquet` con tutte le misure. Sezioni:
 
-Il timestamp in formato `%Y-%m-%d_%H-%M-%S` ordina lessicograficamente come
-cronologicamente, senza spazi ne' due punti.
+1. misure per esito, e le fallite con il motivo;
+2. griglia: ogni architettura allenata, latenza fp16 sul dispositivo alla risoluzione di deploy, mAP50-95 del
+   training (miglior epoca sul val) e, dove c'e', quella misurata sul dispositivo; chi sta nel budget;
+3. reti potate (strategy pit_latency, anche dagli esperimenti): latenza, mAP, differenza con la migliore rete della
+   griglia che non e' piu' lenta;
+4. altre precisioni e backend rispetto allo stesso modello in fp16;
+5. condizioni di misura: throttling, temperatura, ore macchina.
+
+Le mAP che si confrontano sono tutte del training (stesso val, sulla workstation): la griglia non ha la mAP sul
+dispositivo per ogni rete.
 """
 
 from __future__ import annotations
 
 import argparse
+import csv
+import re
 import shutil
 import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
 
-TEMPLATE = "templates/report.md.j2"
+ROOT = Path(__file__).resolve().parents[1]
+TEMPLATE = ROOT / "lab" / "report.md.j2"
+WEIGHTS = ROOT / "artifacts" / "weights"
+FINETUNE = ROOT / "artifacts" / "finetune"
+#: risultati delle reti potate negli esperimenti (experiments/<area>/<nome>/results)
+EXTRA_PRUNED = "experiments/*/*/results"
 
 
-def _load(results_dir: Path, out_dir: Path):
+# ------------------------------------------------------------------ nomi e mAP del training
+def arch(model: str) -> tuple[float, str] | None:
+    """'yolo26w0.125_D101' -> (0.125, 'D101'); 'yolo26n_D126' -> (0.25, 'D126'); altrimenti None."""
+    from src.selection import SIZE
+    if m := re.fullmatch(r"yolo26w([\d.]+)_(D\d+)", str(model)):
+        return float(m[1]), m[2]
+    if (m := re.fullmatch(r"yolo26([nps])_(D\d+)", str(model))) and m[1] in SIZE:
+        return SIZE[m[1]], m[2]
+    return None
+
+
+def sigla(model: str) -> str:
+    from src.selection import LETTERA, SEGNO
+    a = arch(model)
+    return LETTERA.get(a[0], str(a[0])) + SEGNO.get(a[1], a[1]) if a else str(model)
+
+
+def best_map(run: Path) -> float | None:
+    """mAP50-95 della miglior epoca di un training Ultralytics (run/results.csv), None se manca."""
+    f = run / "results.csv"
+    if not f.exists():
+        return None
+    rows = list(csv.DictReader(open(f)))
+    k = next((c for c in rows[0] if c.strip() == "metrics/mAP50-95(B)"), None) if rows else None
+    return max(float(r[k]) for r in rows) if k else None
+
+
+def grid_weights(w: float, d: str) -> Path | None:
+    """Il training da 300 epoche dell'architettura (i primi pico, nano e small come in figure_griglia)."""
+    from src.selection import SIZE
+    old = {(0.125, "D126"): "yolo26p_D126_air_detection_all_e300_59d8534a",
+           (0.25, "D126"): "yolo26n_D126_air_detection_all_e300_9dca8d15",
+           (0.5, "D126"): "yolo26s_D126_air_detection_all_e300_9ada3b33"}
+    if (w, d) in old and (WEIGHTS / old[w, d]).exists():
+        return WEIGHTS / old[w, d]
+    names = [f"yolo26w{w:g}_{d}"] + [f"yolo26{k}_{d}" for k, v in SIZE.items() if v == w]
+    found = [p for n in names for p in sorted(WEIGHTS.glob(f"{n}_air_detection_all_e300_*")) if (p / "meta.json").exists()]
+    return found[0] if found else None
+
+
+# ------------------------------------------------------------------ dati
+def load(dirs: list[Path]):
     import pandas as pd
 
-    from .aggregate import load
+    from .aggregate import load as load_dir
+    frames = []
+    for d in dirs:
+        rows = load_dir(d)
+        if rows:
+            f = pd.DataFrame(rows)
+            f["fonte"] = str(d.relative_to(ROOT) if d.is_absolute() and d.is_relative_to(ROOT) else d)
+            frames.append(f)
+    if not frames:
+        return None
+    return pd.concat(frames, ignore_index=True).drop_duplicates("cell_id")
 
-    rows = load(results_dir)
-    if not rows:
-        raise SystemExit(f"nessun risultato in {results_dir}")
-    df = pd.DataFrame(rows)
-    out_dir.mkdir(parents=True, exist_ok=True)
-    df.to_parquet(out_dir / "data.parquet", index=False)
-    return df
+
+def model_budget(target: str) -> float:
+    """target.model_budget_ms del profilo, risolto da Hydra (budget - pre - post)."""
+    r = subprocess.run([sys.executable, "run.py", f"target={target}", "--cfg", "job", "--resolve", "-p",
+                        "target.model_budget_ms"], cwd=ROOT, capture_output=True, text=True)
+    try:
+        return float(r.stdout.strip().splitlines()[-1])
+    except (ValueError, IndexError):
+        raise SystemExit(f"budget del profilo {target} non risolto: {r.stderr.strip()[-300:]}") from None
 
 
-def _figures(df, out_dir: Path) -> dict:
+def grid(ok, deploy: str, budget: float):
+    """Una riga per architettura: latenza fp16 (mediana delle misure), mAP del training e sul dispositivo."""
+    import pandas as pd
+    g = ok[(ok["strategy"] == "baseline") & (ok["deploy"] == deploy) & (ok["quantization"] == "fp16")
+           & (ok["backend"] == "openvino")]
+    g = g[g["model"].map(arch).notna()]
+    rows = []
+    for (w, d), grp in g.groupby(g["model"].map(arch)):
+        wd = grid_weights(w, d)
+        m = grp["acc_map50_95"].dropna()
+        rows.append({"rete": sigla(grp["model"].iloc[0]), "larghezza": w, "profondita": d,
+                     "latenza_ms": round(float(grp["lat_median_ms"].median()), 2),
+                     "mAP50_95": round(best_map(wd / "run"), 4) if wd and best_map(wd / "run") else None,
+                     "mAP50_95_disp": round(float(m.iloc[-1]), 4) if len(m) else None,
+                     "misure": len(grp)})
+    t = pd.DataFrame(rows)
+    if t.empty:
+        return t
+    t["nel_budget"] = (t["latenza_ms"] <= budget).map({True: "sì", False: ""})
+    return t.sort_values(["profondita", "larghezza"]).reset_index(drop=True)
+
+
+def pruned(ok, grid_t):
+    """Reti potate: latenza e mAP, confronto con la migliore della griglia entro la stessa latenza."""
+    import pandas as pd
+    p = ok[ok["strategy"] == "pit_latency"].sort_values("timestamp").drop_duplicates("weights_key", keep="last")
+    rows = []
+    for _, r in p.iterrows():
+        ft = next(iter(sorted(FINETUNE.glob(f"*_{r['weights_key']}"))), None)
+        m_train = best_map(ft / "run") if ft else None
+        ref = grid_t[(grid_t["latenza_ms"] <= r["lat_median_ms"]) & grid_t["mAP50_95"].notna()] if len(grid_t) else grid_t
+        top = ref.loc[ref["mAP50_95"].idxmax()] if len(ref) else None
+        rows.append({"partenza": sigla(r["model"]), "finetune": r["weights_key"],
+                     "latenza_ms": round(float(r["lat_median_ms"]), 2),
+                     "mAP50_95": round(m_train, 4) if m_train else None,
+                     "mAP50_95_disp": round(float(r["acc_map50_95"]), 4) if pd.notna(r.get("acc_map50_95")) else None,
+                     "griglia_pari": f"{top['rete']} ({top['latenza_ms']} ms)" if top is not None else None,
+                     "delta_mAP": round(m_train - float(top["mAP50_95"]), 4) if m_train and top is not None else None,
+                     "fonte": r["fonte"], "data": str(r["timestamp"])[:10]})
+    return pd.DataFrame(rows).sort_values("latenza_ms").reset_index(drop=True) if rows else pd.DataFrame()
+
+
+def variants(ok, deploy: str):
+    """Precisioni e backend diversi da fp16/openvino, rispetto allo stesso modello e pesi in fp16 openvino."""
+    import pandas as pd
+    d = ok[ok["deploy"] == deploy]
+    ref = d[(d["quantization"] == "fp16") & (d["backend"] == "openvino")].groupby("weights_key")["lat_median_ms"].median()
+    v = d[~((d["quantization"] == "fp16") & (d["backend"] == "openvino"))]
+    rows = [{"rete": sigla(r["model"]), "strategia": r["strategy"], "precisione": r["quantization"],
+             "backend": r["backend"], "latenza_ms": round(float(r["lat_median_ms"]), 2),
+             "fp16_ms": round(float(ref[r["weights_key"]]), 2) if r["weights_key"] in ref else None,
+             "mAP50_95_disp": round(float(r["acc_map50_95"]), 4) if pd.notna(r.get("acc_map50_95")) else None,
+             "fonte": r["fonte"]} for _, r in v.iterrows()]
+    t = pd.DataFrame(rows)
+    if not t.empty:
+        t["rapporto"] = (t["latenza_ms"] / t["fp16_ms"]).round(2)
+    return t
+
+
+# ------------------------------------------------------------------ figure
+def figures(grid_t, pruned_t, budget: float, out_dir: Path) -> dict:
     import matplotlib
-
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
+    import matplotlib.ticker
 
     from .plots import GRAY, STYLE, WIDTH, color, save
-
     plt.style.use(STYLE)
-    figures_dir = out_dir / "figures"
     made = {}
-
-    def _save(fig, name):
-        save(fig, figures_dir / name)
-        made[name] = f"figures/{name}.png"
-
-    def _bars(pivot, ax, **kw):
-        pivot.plot.bar(ax=ax, color=[color(c, i) for i, c in enumerate(pivot.columns)],
-                       **kw)
-    ok = df[df["status"] == "ok"].copy()
-    if ok.empty:
+    if grid_t.empty:
         return made
+    marks = {"D101": "o", "D126": "s", "D170": "^"}
 
-    # latenza mediana per backend e quantizzazione
-    if {"lat_median_ms", "backend", "quantization"} <= set(ok.columns):
-        pivot = ok.pivot_table(
-            index="backend", columns="quantization", values="lat_median_ms",
-            aggfunc="median",
-        )
-        fig, ax = plt.subplots()
-        _bars(pivot, ax)
-        ax.set_ylabel("latenza mediana [ms]")
-        ax.set_xlabel("")
-        ax.set_title("Latenza mediana per backend e quantizzazione")
-        _save(fig, "latency_by_backend")
+    # latenza per larghezza, una linea per profondita', con il budget
+    fig, ax = plt.subplots(figsize=(WIDTH, 0.55 * WIDTH))
+    for j, (d, g) in enumerate(grid_t.groupby("profondita")):
+        ax.plot(g["larghezza"], g["latenza_ms"], marker=marks.get(d, "o"), color=color(d, j), label=d)
+    ax.axhline(budget, ls="--", color=GRAY, lw=1, label=f"budget {budget:.1f} ms")
+    ax.set_xscale("log", base=2)
+    ax.set_yscale("log")
+    ax.yaxis.set_major_formatter(matplotlib.ticker.ScalarFormatter())
+    ax.set_xticks(sorted(grid_t["larghezza"].unique()), [f"{w:g}" for w in sorted(grid_t["larghezza"].unique())])
+    ax.set_xlabel("larghezza")
+    ax.set_ylabel("latenza mediana [ms]")
+    ax.legend()
+    save(fig, out_dir / "figures" / "latenza_griglia")
+    made["latenza_griglia"] = "figures/latenza_griglia.png"
 
-    # fronte di Pareto latenza / accuratezza, per entrambe le mAP
-    for metric, label, name in (("acc_map50", "mAP@50", "pareto"),
-                                ("acc_map50_95", "mAP@50-95", "pareto_map50_95")):
-        if not {"lat_median_ms", metric} <= set(ok.columns):
-            continue
-        pts = ok.dropna(subset=["lat_median_ms", metric])
-        if pts.empty:
-            continue
+    # latenza / mAP50-95: griglia per profondita', potate a stella, budget e fronte della griglia
+    pts = grid_t.dropna(subset=["mAP50_95"])
+    if not pts.empty:
         fig, ax = plt.subplots(figsize=(WIDTH, 0.7 * WIDTH))
-        for i, (key, grp) in enumerate(pts.groupby("backend")):
-            ax.scatter(grp["lat_median_ms"], grp[metric], label=key, s=28,
-                       color=color(key, i))
-        front = _pareto(pts, metric)
-        ax.plot(front["lat_median_ms"], front[metric], "--", color=GRAY, lw=1,
-                label="fronte di Pareto")
+        for j, (d, g) in enumerate(pts.groupby("profondita")):
+            ax.scatter(g["latenza_ms"], g["mAP50_95"], marker=marks.get(d, "o"), color=color(d, j), s=26, label=d)
+            for _, r in g.iterrows():
+                ax.annotate(r["rete"], (r["latenza_ms"], r["mAP50_95"]), fontsize=6, xytext=(3, 2),
+                            textcoords="offset points")
+        fr = front(pts)
+        ax.plot(fr["latenza_ms"], fr["mAP50_95"], "-", color=GRAY, lw=0.8, label="fronte della griglia")
+        pp = pruned_t.dropna(subset=["mAP50_95"]) if not pruned_t.empty else pruned_t
+        if not pp.empty:
+            ax.scatter(pp["latenza_ms"], pp["mAP50_95"], marker="*", s=70, color="#e34948", label="potate", zorder=3)
+        ax.axvline(budget, ls="--", color=GRAY, lw=1, label=f"budget {budget:.1f} ms")
+        ax.set_xscale("log")
+        ax.xaxis.set_major_formatter(matplotlib.ticker.ScalarFormatter())
+        ax.xaxis.set_minor_formatter(matplotlib.ticker.ScalarFormatter())
+        ax.tick_params(axis="x", which="minor", labelsize=6)
         ax.set_xlabel("latenza mediana [ms]")
-        ax.set_ylabel(label)
-        ax.set_title(f"Latenza / {label}")
-        ax.legend()
-        _save(fig, name)
-
-    # mAP@50-95 per modello, backend e quantizzazione: quanto costa quantizzare.
-    # Per modello e backend, perche' la mediana fra yolo26n e yolo26m non
-    # significa niente; la mAP non dipende dal compute target, e le celle che
-    # differiscono solo per quello danno lo stesso valore.
-    if {"acc_map50_95", "model", "backend", "quantization"} <= set(ok.columns):
-        pts = ok.dropna(subset=["acc_map50_95"])
-        if not pts.empty:
-            pivot = pts.pivot_table(
-                index=["model", "backend"], columns="quantization",
-                values="acc_map50_95", aggfunc="median",
-            )
-            pivot = pivot[[q for q in ("fp32", "fp16", "int8")
-                           if q in pivot.columns]]
-            pivot.index = [f"{m}\n{b}" for m, b in pivot.index]
-            fig, ax = plt.subplots(figsize=(max(WIDTH, 0.9 * len(pivot)), 3.6))
-            _bars(pivot, ax, rot=0)
-            ax.set_ylabel("mAP@50-95")
-            ax.set_xlabel("")
-            ax.set_title("mAP@50-95 per modello, backend e quantizzazione")
-            _save(fig, "map50_95_by_quantization")
-
-    # latenza vs ordine di esecuzione: se correla, il termico ha inquinato
-    if {"order_index", "lat_median_ms"} <= set(ok.columns):
-        pts = ok.dropna(subset=["order_index", "lat_median_ms"])
-        pts = pts[pts["order_index"] >= 0]
-        if len(pts) > 3:
-            fig, ax = plt.subplots()
-            ax.scatter(pts["order_index"], pts["lat_median_ms"], s=20)
-            ax.set_xlabel("indice di esecuzione nello sweep")
-            ax.set_ylabel("latenza mediana [ms]")
-            ax.set_title("Latenza rispetto all'ordine di esecuzione")
-            _save(fig, "order_drift")
+        ax.set_ylabel("mAP50-95 (val)")
+        ax.legend(fontsize=7)
+        save(fig, out_dir / "figures" / "pareto")
+        made["pareto"] = "figures/pareto.png"
     return made
 
 
-def _pareto(df, metric="acc_map50"):
-    """Celle non dominate: piu' veloci a parita' di mAP, o piu' accurate."""
-    pts = df.sort_values("lat_median_ms")
-    best, rows = -1.0, []
-    for _, row in pts.iterrows():
-        if row[metric] > best:
-            rows.append(row)
-            best = row[metric]
+def front(pts):
+    """Reti non dominate: nessun'altra piu' veloce e piu' precisa."""
+    best, keep = -1.0, []
+    for i, r in pts.sort_values("latenza_ms").iterrows():
+        if r["mAP50_95"] > best:
+            keep.append(i)
+            best = r["mAP50_95"]
+    return pts.loc[keep]
+
+
+# ------------------------------------------------------------------ fatti e uscita
+def facts(df, grid_t, pruned_t, budget: float, target: str, deploy: str) -> dict:
+    from collections import Counter
+    f = {"target": target, "deploy": deploy, "budget": round(budget, 2), "n_total": int(len(df)),
+         "esiti": dict(Counter(df["status"])), "n_storiche": int((df["deploy"] != deploy).sum())}
+    inb = grid_t[(grid_t["nel_budget"] == "sì") & grid_t["mAP50_95"].notna()] if len(grid_t) else grid_t
+    if len(inb):
+        b = inb.loc[inb["mAP50_95"].idxmax()]
+        f["migliore_griglia"] = {"rete": b["rete"], "latenza_ms": b["latenza_ms"], "mAP50_95": b["mAP50_95"]}
+    pin = pruned_t[(pruned_t["latenza_ms"] <= budget) & pruned_t["mAP50_95"].notna()] if len(pruned_t) else pruned_t
+    if len(pin):
+        b = pin.loc[pin["mAP50_95"].idxmax()]
+        f["migliore_potata"] = {"partenza": b["partenza"], "finetune": b["finetune"], "latenza_ms": b["latenza_ms"],
+                                "mAP50_95": b["mAP50_95"]}
+    ok = df[df["status"] == "ok"]
+    if "rt_throttled" in ok:
+        f["n_throttled"] = int((ok["rt_throttled"] == True).sum())  # noqa: E712
+    if "rt_temp_end_c" in ok and ok["rt_temp_end_c"].notna().any():
+        f["temp_max"] = round(float(ok["rt_temp_end_c"].max()), 1)
+    if "time_wall_s" in df:
+        f["ore"] = {str(k): round(v / 3600, 1) for k, v in df.groupby("time_device")["time_wall_s"].sum().items()}
+    return f
+
+
+def failed(df):
+    """Fallite e non rifatte: nessuna misura ok dopo, per la stessa rete, risoluzione, precisione e backend."""
     import pandas as pd
-
-    return pd.DataFrame(rows)
-
-
-def _tables(df, out_dir: Path) -> dict:
-    tables_dir = out_dir / "tables"
-    tables_dir.mkdir(parents=True, exist_ok=True)
-    made = {}
-
-    def dump(name, frame):
-        if frame is None or frame.empty:
-            return
-        frame.to_csv(tables_dir / f"{name}.csv", index=False)
-        made[name] = frame
-
-    ok = df[df["status"] == "ok"]
-    cols = [c for c in ("model", "quantization", "backend", "board",
-                        "freq_target", "compute_target", "lat_median_ms",
-                        "lat_p99_ms", "acc_map50", "acc_map50_95",
-                        "energy_mean_power_w",
-                        "rt_throttled") if c in df.columns]
-    dump("celle_ok", ok[cols])
-
-    if "status" in df.columns:
-        dump("stato_celle", df["status"].value_counts().rename_axis("status")
-             .reset_index(name="n"))
-    if "reason" in df.columns:
-        skipped = df[df["status"] == "skipped"]
-        if not skipped.empty:
-            dump("celle_saltate", skipped.groupby("reason").size()
-                 .rename("n").reset_index())
-    if "val_status" in df.columns:
-        vcols = [c for c in ("model", "quantization", "backend", "val_status",
-                             "val_max_abs_diff_vs_fp32", "val_match_rate",
-                             "val_max_score_diff", "val_map50_delta",
-                             "val_requested_e2e", "val_actual_e2e",
-                             "val_e2e_fallback_reason") if c in df.columns]
-        # Le celle saltate non hanno un artefatto: includerle riempirebbe la
-        # tabella di righe vuote che sembrano validazioni mancanti.
-        dump("artefatti",
-             df[df["val_status"].notna()][vcols].drop_duplicates())
-    if {"time_wall_s", "time_device"} <= set(df.columns):
-        hours = (df.groupby("time_device")["time_wall_s"].sum() / 3600).round(2)
-        dump("machine_hours", hours.rename("wall_h").reset_index())
-    if "rt_throttled" in df.columns:
-        thr = df[df["rt_throttled"] == True]  # noqa: E712
-        tcols = [c for c in ("cell_id", "board", "freq_target", "compute_target",
-                             "rt_temp_end_c") if c in df.columns]
-        dump("celle_throttled", thr[tcols])
-    return made
+    k = ["model", "deploy", "quantization", "backend", "strategy"]
+    last_ok = df[df["status"] == "ok"].groupby(k)["timestamp"].max()
+    x = df[df["status"] == "failed"]
+    x = x[[not (tuple(r[c] for c in k) in last_ok.index and last_ok[tuple(r[c] for c in k)] > r["timestamp"])
+           for _, r in x.iterrows()]]
+    return pd.DataFrame({"cell_id": x["cell_id"], "rete": x["model"].map(sigla), "precisione": x["quantization"],
+                         "backend": x["backend"], "errore": x["error"].astype(str).str.split("\n").str[0].str[:120],
+                         "data": x["timestamp"].astype(str).str[:10]})
 
 
-def _facts(df) -> dict:
-    ok = df[df["status"] == "ok"]
-    facts = {
-        "n_total": int(len(df)),
-        "n_ok": int((df["status"] == "ok").sum()),
-        "n_skipped": int((df["status"] == "skipped").sum()),
-        "n_failed": int((df["status"] == "failed").sum()),
-    }
-    if "lat_median_ms" in ok.columns and not ok.empty:
-        best = ok.loc[ok["lat_median_ms"].idxmin()] if ok["lat_median_ms"].notna().any() \
-            else None
-        if best is not None:
-            facts["fastest"] = {
-                k: best.get(k) for k in ("model", "quantization", "backend",
-                                         "board", "compute_target")
-            }
-            facts["fastest"]["lat_median_ms"] = round(
-                float(best["lat_median_ms"]), 3
-            )
-    # guadagno della quantizzazione, per backend
-    gains = {}
-    if {"quantization", "backend", "lat_median_ms"} <= set(ok.columns):
-        pivot = ok.pivot_table(index="backend", columns="quantization",
-                               values="lat_median_ms", aggfunc="median")
-        for backend, row in pivot.iterrows():
-            if "fp32" in row and row.get("fp32") and row.notna().any():
-                for q in ("fp16", "int8"):
-                    if q in row and row.get(q):
-                        gains[f"{backend}/{q}"] = round(row["fp32"] / row[q], 3)
-    facts["speedup_vs_fp32"] = gains
-    if "rt_throttled" in df.columns:
-        facts["n_throttled"] = int((df["rt_throttled"] == True).sum())  # noqa: E712
-    if "val_status" in df.columns:
-        facts["n_degraded"] = int((df["val_status"] == "degraded").sum())
-    if {"val_requested_e2e", "val_actual_e2e"} <= set(df.columns):
-        facts["n_e2e_fallback"] = int(
-            ((df["val_requested_e2e"] == True) &  # noqa: E712
-             (df["val_actual_e2e"] == False)).sum()  # noqa: E712
-        )
-    return facts
-
-
-def render(df, figures: dict, tables: dict, facts: dict, project_root: Path,
-           out_dir: Path) -> Path:
+def render(tables: dict, figs: dict, f: dict, out_dir: Path) -> Path:
     from jinja2 import Template
-
-    template = Template(
-        (project_root / TEMPLATE).read_text(encoding="utf-8"),
-        keep_trailing_newline=True,
-    )
-    body = template.render(
-        generated_at=datetime.now().isoformat(timespec="seconds"),
-        figures=figures,
-        tables={k: v.to_markdown(index=False) for k, v in tables.items()},
-        facts=facts,
-    )
+    t = Template(TEMPLATE.read_text(encoding="utf-8"), keep_trailing_newline=True)
+    md = {k: v.astype(object).where(v.notna(), None).to_markdown(index=False, missingval="–")
+          for k, v in tables.items() if v is not None and not v.empty}
     path = out_dir / "report.md"
-    path.write_text(body, encoding="utf-8")
+    path.write_text(t.render(generated_at=datetime.now().isoformat(timespec="seconds"), figures=figs, tables=md,
+                             facts=f), encoding="utf-8")
     return path
 
 
 def to_html(md_path: Path) -> Path | None:
     """HTML autoconsistente, immagini incluse in base64."""
     if not shutil.which("pandoc"):
-        print("pandoc non installato: salto l'HTML "
-              "(sudo apt install pandoc)", file=sys.stderr)
+        print("pandoc non installato: salto l'HTML (sudo apt install pandoc)", file=sys.stderr)
         return None
     out = md_path.with_suffix(".html")
-    subprocess.run(
-        ["pandoc", md_path.name, "-o", out.name, "--embed-resources",
-         "--standalone"],
-        cwd=md_path.parent, check=True,
-    )
+    subprocess.run(["pandoc", md_path.name, "-o", out.name, "--embed-resources", "--standalone",
+                    "--metadata", "title=Report"], cwd=md_path.parent, check=True)
     return out
 
 
@@ -275,26 +297,41 @@ def update_latest(reports_dir: Path, run_dir: Path) -> None:
 
 
 def main(argv=None) -> int:
-    ap = argparse.ArgumentParser(description=__doc__)
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--results", default=Path("results"), type=Path)
+    ap.add_argument("--extra", default=EXTRA_PRUNED, help="glob delle results/ degli esperimenti (solo reti potate)")
     ap.add_argument("--reports", default=Path("reports"), type=Path)
-    ap.add_argument("--run", default=None,
-                    help="timestamp della cartella; default: adesso")
+    ap.add_argument("--target", default="rpi5_640", help="profilo di deploy (conf/target/) per il budget")
+    ap.add_argument("--deploy", default="640", help="risoluzione di deploy delle misure da confrontare")
+    ap.add_argument("--budget", type=float, default=None, help="budget del modello in ms; default dal profilo")
+    ap.add_argument("--run", default=None, help="nome della cartella; default: data e ora")
     ap.add_argument("--no-html", action="store_true")
-    args = ap.parse_args(argv)
+    a = ap.parse_args(argv)
 
-    stamp = args.run or datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    out_dir = args.reports / stamp
-    df = _load(args.results, out_dir)
+    out_dir = a.reports / (a.run or datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
+    df = load([a.results])
+    if df is None:
+        raise SystemExit(f"nessun risultato in {a.results}")
+    extra = load([p for p in sorted(ROOT.glob(a.extra)) if p.is_dir()]) if a.extra else None
+    budget = a.budget if a.budget is not None else model_budget(a.target)
 
-    figures = _figures(df, out_dir)
-    tables = _tables(df, out_dir)
-    facts = _facts(df)
-    md = render(df, figures, tables, facts, Path(__file__).resolve().parents[1],
-                out_dir)
-    if not args.no_html:
+    ok = df[df["status"] == "ok"]
+    grid_t = grid(ok, a.deploy, budget)
+    pool = ok if extra is None else __import__("pandas").concat([ok, extra[extra["status"] == "ok"]]).drop_duplicates("cell_id")
+    pruned_t = pruned(pool, grid_t)
+    tables = {"griglia": grid_t, "potate": pruned_t, "varianti": variants(ok, a.deploy), "fallite": failed(df)}
+
+    out_dir.mkdir(parents=True, exist_ok=True)
+    df.to_parquet(out_dir / "data.parquet", index=False)
+    (out_dir / "tables").mkdir(exist_ok=True)
+    for k, v in tables.items():
+        if v is not None and not v.empty:
+            v.to_csv(out_dir / "tables" / f"{k}.csv", index=False)
+    md = render(tables, figures(grid_t, pruned_t, budget, out_dir), facts(df, grid_t, pruned_t, budget, a.target,
+                                                                          a.deploy), out_dir)
+    if not a.no_html:
         to_html(md)
-    update_latest(args.reports, out_dir)
+    update_latest(a.reports, out_dir)
     print(f"report in {out_dir} (reports/latest aggiornato)")
     return 0
 

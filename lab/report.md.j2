@@ -1,0 +1,57 @@
+# Report delle misure — {{ facts.target }}
+
+Generato il {{ generated_at }} da `python -m tools.report` (template `lab/report.md.j2`). La cartella è
+autoconsistente: immagini e tabelle hanno percorsi relativi, `data.parquet` contiene tutte le misure.
+
+Risoluzione di deploy **{{ facts.deploy }}**, budget del modello **{{ facts.budget }} ms** (profilo
+`conf/target/{{ facts.target }}.yaml`: budget end-to-end meno pre e post-processing). Le mAP50-95 confrontate sono
+quelle del training (miglior epoca sul val, sulla workstation); la colonna `_disp` è la mAP misurata sul
+dispositivo, dove c'è.
+
+## Sintesi
+
+| | |
+|---|---|
+| misure | {{ facts.n_total }} ({% for k, v in facts.esiti.items() %}{{ k }} {{ v }}{% if not loop.last %}, {% endif %}{% endfor %}) |
+| di cui a risoluzioni storiche (non {{ facts.deploy }}) | {{ facts.n_storiche }} |
+{% if facts.migliore_griglia %}| migliore della griglia nel budget | **{{ facts.migliore_griglia.rete }}**, {{ facts.migliore_griglia.latenza_ms }} ms, mAP50-95 {{ facts.migliore_griglia.mAP50_95 }} |
+{% endif %}{% if facts.migliore_potata %}| migliore potata nel budget | da **{{ facts.migliore_potata.partenza }}** (`{{ facts.migliore_potata.finetune }}`), {{ facts.migliore_potata.latenza_ms }} ms, mAP50-95 {{ facts.migliore_potata.mAP50_95 }} |
+{% endif %}
+
+## 1. Griglia larghezza × profondità
+
+Latenza fp16 (OpenVINO) sul dispositivo, mediana delle misure ripetute; `nel_budget` confronta con
+{{ facts.budget }} ms.
+
+{% if figures.latenza_griglia %}![Latenza della griglia]({{ figures.latenza_griglia }})
+{% endif %}
+{% if figures.pareto %}![Latenza e mAP50-95: griglia e reti potate]({{ figures.pareto }})
+{% endif %}
+{{ tables.griglia or "_Nessuna misura della griglia a questa risoluzione._" }}
+
+## 2. Reti potate
+
+Ricerche `pit_latency` riaddestrate e misurate sul dispositivo, da `results/` e dalle `results/` degli
+esperimenti. `griglia_pari` è la rete della griglia con la mAP più alta fra quelle non più lente della potata;
+`delta_mAP` è la differenza di mAP50-95 rispetto a lei (positiva: la potatura rende).
+
+{{ tables.potate or "_Nessuna rete potata misurata._" }}
+
+## 3. Altre precisioni e backend
+
+Rispetto allo stesso modello con gli stessi pesi in fp16 OpenVINO (`rapporto` < 1: più veloce).
+
+{{ tables.varianti or "_Solo misure fp16 OpenVINO._" }}
+
+## 4. Misure fallite
+
+{{ tables.fallite or "_Nessuna._" }}
+
+## 5. Condizioni di misura
+
+| | |
+|---|---|
+| misure con throttling | {{ facts.n_throttled if facts.n_throttled is defined else "n/d" }} |
+| temperatura massima a fine misura | {{ facts.temp_max ~ " °C" if facts.temp_max is defined else "n/d" }} |
+{% for k, v in (facts.ore or {}).items() %}| ore macchina, {{ k }} | {{ v }} |
+{% endfor %}

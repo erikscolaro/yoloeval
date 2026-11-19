@@ -64,6 +64,8 @@ def load(results_dir: Path) -> list[dict]:
         except json.JSONDecodeError:
             print(f"! {path.name} non e' JSON valido, saltato", file=sys.stderr)
             continue
+        if not isinstance(rec, dict) or "cell_id" not in rec:   # altri json (riepiloghi degli esperimenti)
+            continue
         versions[rec.get("schema_version")] += 1
         rows.append(flatten_record(rec))
     if len(versions) > 1:
@@ -79,7 +81,7 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--results-dir", default="results", type=Path)
     ap.add_argument("--out", default=None, type=Path,
-                    help="default: <results-dir>/../data.parquet")
+                    help="default: reports/data.parquet")
     ap.add_argument("--csv", action="store_true", help="scrive anche un CSV")
     args = ap.parse_args(argv)
 
@@ -100,7 +102,7 @@ def main(argv=None) -> int:
     order = [c for c in ("board", "backend", "quantization", "compute_target", "model")
              if c in df.columns]
     df = df.sort_values(order, na_position="last", key=natural_key)
-    out = args.out or Path("data.parquet")
+    out = args.out or Path("reports/data.parquet")
     out.parent.mkdir(parents=True, exist_ok=True)
     df.to_parquet(out, index=False)
     if args.csv:
