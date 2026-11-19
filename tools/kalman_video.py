@@ -3,7 +3,8 @@
 La classe giusta viene dal nome del video (drone_*.mp4, airplane_*, helicopter_*, bird_*): misura solo la
 classificazione e la copertura, non le box, e non conta i falsi allarmi. Per ogni video: fotogrammi con almeno una
 detection (grezze: conf >= --hi), classe giusta fra questi (quella della detection o del track piu' sicuro), e
-fotogrammi giusti su tutti, che e' il numero da confrontare.
+fotogrammi giusti su tutti, che e' il numero da confrontare. Con --crop anche la versione con il crop adattativo
+(src/crop_tracker.py, --crop-size e --rescan come in tools/predict_video.py) e la quota di fotogrammi in TRACK.
 
     python -m tools.kalman_video MODELLO.pt [--video predict] [--imgsz 640] [--hi 0.4 --lo 0.1 --vote 0.9 ...]
 """
@@ -13,6 +14,7 @@ from pathlib import Path
 import cv2
 from ultralytics import YOLO
 
+from src.crop_tracker import CropTracker, yolo_detect
 from src.tracking import KalmanTracker, Params
 from tools.predict_video import KF
 
@@ -23,13 +25,17 @@ def main():
     d = Params()
     for k in KF:
         p.add_argument(f"--{k.replace('_', '-')}", dest=k, type=type(getattr(d, k)), default=getattr(d, k))
+    p.add_argument("--crop", action="store_true")
+    p.add_argument("--crop-size", type=int, default=256), p.add_argument("--rescan", type=int, default=30)
     a = p.parse_args()
     par = Params(**{k: getattr(a, k) for k in KF})
     m = YOLO(a.model)
     names = {v: k for k, v in m.names.items()}
-    tot = {"grezze": [0, 0, 0], "kalman": [0, 0, 0]}
+    tot = {"grezze": [0, 0, 0], "kalman": [0, 0, 0], "kalman-crop": [0, 0, 0]}
     print(f"{'video':28s} {'fotogr':>6s} | {'grezze: det':>11s} {'cls ok':>6s} {'giusti':>6s} | "
-          f"{'kalman: det':>11s} {'cls ok':>6s} {'giusti':>6s}")
+          f"{'kalman: det':>11s} {'cls ok':>6s} {'giusti':>6s}"
+          + (f" | {'crop: det':>9s} {'cls ok':>6s} {'giusti':>6s} {'TRACK':>5s}" if a.crop else ""))
+    n_track = 0
     for v in sorted(Path(a.video).glob("*.mp4")):
         if v.stem.split("_")[0] not in names:
             continue
@@ -37,6 +43,9 @@ def main():
         cap = cv2.VideoCapture(str(v))
         fps = cap.get(cv2.CAP_PROP_FPS) or 30
         tr, n, rd, rc, kd, kc = KalmanTracker(len(m.names), par), 0, 0, 0, 0, 0
+        ct = CropTracker(yolo_detect(m), len(m.names), par, scan_imgsz=a.imgsz, crop=a.crop_size,
+                         rescan=a.rescan) if a.crop else None
+        cd, cc, ck = 0, 0, 0
         while (f := cap.read()[1]) is not None:
             det = m.predict(f, imgsz=a.imgsz, conf=par.lo, verbose=False)[0].boxes.data.cpu().numpy()
             t, n = tr.step(det, 1 / fps), n + 1
@@ -45,13 +54,24 @@ def main():
                 rd, rc = rd + 1, rc + (int(hi[hi[:, 4].argmax(), 5]) == giusta)
             if t:
                 kd, kc = kd + 1, kc + (max(t, key=lambda x: x.conf).cls == giusta)
+            if ct:
+                tc, info = ct.step(f, 1 / fps)
+                ck += info["mode"] == "TRACK"
+                if tc:
+                    cd, cc = cd + 1, cc + (max(tc, key=lambda x: x.conf).cls == giusta)
         if not n:
             print(f"{v.stem:28s} non letto (codec?)")
             continue
-        for k, x in (("grezze", (n, rd, rc)), ("kalman", (n, kd, kc))):
+        for k, x in (("grezze", (n, rd, rc)), ("kalman", (n, kd, kc)), ("kalman-crop", (n, cd, cc))):
             tot[k] = [s + y for s, y in zip(tot[k], x)]
+        n_track += ck
         print(f"{v.stem:28s} {n:6d} | {rd / n:11.0%} {rc / max(rd, 1):6.0%} {rc / n:6.0%} | "
-              f"{kd / n:11.0%} {kc / max(kd, 1):6.0%} {kc / n:6.0%}")
+              f"{kd / n:11.0%} {kc / max(kd, 1):6.0%} {kc / n:6.0%}"
+              + (f" | {cd / n:9.0%} {cc / max(cd, 1):6.0%} {cc / n:6.0%} {ck / n:5.0%}" if ct else ""))
+    if not a.crop:
+        tot.pop("kalman-crop")
+    else:
+        print(f"fotogrammi in TRACK: {n_track / max(tot['grezze'][0], 1):.1%}")
     for k, (n, det, c) in tot.items():
         print(f"TOTALE {k}: fotogrammi con detection {det / max(n, 1):.1%}, classe giusta fra questi "
               f"{c / max(det, 1):.1%}, fotogrammi giusti su tutti {c / max(n, 1):.1%}")

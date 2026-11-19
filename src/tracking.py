@@ -92,6 +92,11 @@ class KalmanTracker:
         t.x, t.P = F @ t.x, F @ t.P @ F.T + Q
         t.x[2:4] = np.maximum(t.x[2:4], 1.0)
 
+    def peek(self, t: Track, dt: float):
+        """Stato e covarianza predetti fra dt secondi, senza toccare il track (per decidere dove guardare)."""
+        F, Q = self._FQ(max(t.x[3], 1.0), dt)
+        return F @ t.x, F @ t.P @ F.T + Q
+
     def _update(self, t: Track, det):
         z = xyxy2cxcywh(det[:4])
         S = self.H @ t.P @ self.H.T + self._R(max(z[3], 1.0))
