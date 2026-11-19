@@ -92,7 +92,7 @@ search:
       # Facoltativo, non nei config (cambierebbe la chiave di tutte le ricerche): si accende con
       # +strategy.search.pit.open_detect=true. true: PIT pota anche le conv della testa Detect (ramo
       # one2one nel costo, one2many solo allenato); serve una LUT con le famiglie della testa
-      # (target.lut_dir=artifacts/lut/rpi5_detect). Esplorazione: non ha dato il guadagno atteso.
+      # (target.lut_dir=artifacts/lut/rpi5_detect, scripts/build_lut.sh --testa). Esplorazione: non ha dato il guadagno atteso.
     trace_imgsz: 640
       # Facoltativo. Risoluzione dei costi; se manca, model.imgsz.
     latency:

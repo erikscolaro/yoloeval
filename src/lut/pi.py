@@ -58,6 +58,14 @@ FIXED_CIN = {"k3s2_320"}
 # each family above and the odd 3 of w0.09375; resuming measures only the new points, raw.csv is appended
 EXTRA_AXIS = {"k3s1_160": {3}}
 N_CONV = 71328
+# head LUT (pit.open_detect, 14/11), only with --testa and in its own folder (artifacts/lut/rpi5_detect): the main
+# LUT stays as it is, its CSVs and so the search keys do not change. Detect of N-, one2one branch: the (c_in, 16)
+# convs of the box branch and the depthwise 3x3 of the cls branch, groups = c_in = c_out (1D grid, points (c, c))
+HEAD_LAYERS = {"k3s1_20": [(256, 16)], "k3s1_40": [(128, 16)], "k3s1_80": [(64, 16)]}
+HEAD_FAMILIES = {"dw3s1_20": (3, 1, 20, [(256, 256)]), "dw3s1_40": (3, 1, 40, [(128, 128)]),
+                 "dw3s1_80": (3, 1, 80, [(64, 64)])}
+N_CONV_HEAD = 72563
+DEPTHWISE = set(HEAD_FAMILIES)
 REPEATS, SEED = 3, 0
 UNSTABLE_REL, EXTRA_REPEATS = 0.05, 6      # (max-min)/median of the first REPEATS above this: 6 more repeats
 TEMP_MAX_C, TEMP_RESUME_C = 75.0, 65.0         # guard: firmware throttles at 80 C; with the fan at max it never trips
@@ -77,10 +85,22 @@ B4R_FIELDS = ["net", "repeat", "sequence", "ms", "mean_ms", "min_ms", "max_ms", 
               "throttled", "governor", "timestamp", "n_cores", "infer_precision", "openvino", "remeasured"]
 
 
+def use_head() -> None:
+    """Adds the head shapes (HEAD_LAYERS, HEAD_FAMILIES) to the grid: `lut <dir> --testa`."""
+    global N_CONV
+    if "dw3s1_20" in FAMILIES:
+        return
+    for f, extra in HEAD_LAYERS.items():
+        k, s, hw, layers = FAMILIES[f]
+        FAMILIES[f] = (k, s, hw, layers + extra)
+    FAMILIES.update(HEAD_FAMILIES)
+    N_CONV = N_CONV_HEAD
+
+
 def family_label(f: str, sep: str = " ") -> str:
     """'k3s2_40' -> '3×3 s2 @40': kernel, stride and side of the output map at 640, as in the family name."""
-    k, s, hw, _ = FAMILIES[f]
-    return f"{k}×{k} s{s}{sep}@{hw}"
+    k, s, hw, _ = {**HEAD_FAMILIES, **FAMILIES}[f]
+    return f"{'dw ' if f in DEPTHWISE else ''}{k}×{k} s{s}{sep}@{hw}"
 
 
 def axis(m: int, extra=()) -> list[int]:
@@ -100,6 +120,9 @@ def points() -> list[tuple]:
         s = set()
         for ci, co in layers:
             ex = EXTRA_AXIS.get(f, ())
+            if f in DEPTHWISE:
+                s |= {(a, a) for a in axis(ci, ex)}
+                continue
             s |= {(a, b) for a in ([ci] if f in FIXED_CIN else axis(ci, ex)) for b in axis(co, ex)}
         pts += [(f, "conv", ci, co) for ci, co in sorted(s)]
     assert len(pts) == N_CONV
@@ -125,11 +148,13 @@ def build(f, kind, ci, co) -> bytes:
         inp = helper.make_tensor_value_info("input", FP16, [1, ci, hw * s, hw * s])
         out = helper.make_tensor_value_info("output", FP16, [1, co, hw, hw])
         rng = np.random.default_rng([k, s, hw, ci, co])        # deterministic per net
-        w = rng.normal(0, 1 / np.sqrt(ci * k * k), (co, ci, k, k)).astype(np.float16)
+        grp = ci if f in DEPTHWISE else 1                      # depthwise: weight (c, 1, k, k)
+        assert grp == 1 or ci == co, (f, ci, co)
+        w = rng.normal(0, 1 / np.sqrt(ci // grp * k * k), (co, ci // grp, k, k)).astype(np.float16)
         b = rng.normal(0, 0.1, co).astype(np.float16)
         inits = [numpy_helper.from_array(w, "w"), numpy_helper.from_array(b, "b")]
         nodes = [helper.make_node("Conv", ["input", "w", "b"], ["y"], name="conv", kernel_shape=[k, k],
-                                  pads=[k // 2] * 4, strides=[s, s]),
+                                  pads=[k // 2] * 4, strides=[s, s], group=grp),
                  helper.make_node("Sigmoid", ["y"], ["sig"], name="sigmoid"),     # SiLU as exported
                  helper.make_node("Mul", ["y", "sig"], ["output"], name="silu")]
     g = helper.make_graph(nodes, f"{f}_{kind}_{ci}_{co}", [inp], [out], inits)
@@ -426,12 +451,15 @@ def main():
     signal.signal(signal.SIGTERM, signal.default_int_handler)   # systemctl stop: restore the board, as Ctrl-C
     logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(name)s: %(message)s')
     what, d = sys.argv[1], Path(sys.argv[2])
+    if "--testa" in sys.argv:
+        sys.argv.remove("--testa")
+        use_head()
     if what == "lut":
         lut(d)
     elif what == "b4r":
         b4r(d, sys.argv[3:])
     else:
-        sys.exit(f"uso: python -m src.lut.pi lut|b4r <dir> [net...]; non {what!r}")
+        sys.exit(f"uso: python -m src.lut.pi lut|b4r <dir> [net...] [--testa]; non {what!r}")
 
 
 if __name__ == "__main__":

@@ -73,3 +73,21 @@ def test_solve_one_c_per_architecture():
     y = np.array([C[k] for k in arch]) + X @ np.array([0.9, 1.1, 0.7]) + rng.normal(0, 0.01, 90)
     c, a = fit.solve(X, y, 0.0, fit.onehot(arch, ["p", "q", "r"]))
     assert np.allclose(c, [2, 5, 9], atol=0.05) and np.allclose(a, [0.9, 1.1, 0.7], atol=0.02)
+
+
+def test_testa_solo_con_use_head(monkeypatch):
+    """Le forme della testa (pit.open_detect) entrano solo con use_head (--testa): la griglia principale non cambia.
+    dw3s1_*: griglia 1D (c, c) e rete ONNX con group = c, peso (c, 1, 3, 3)."""
+    import onnx
+    assert not [p for p in pi.points() if p[0].startswith("dw")]
+    monkeypatch.setattr(pi, "FAMILIES", dict(pi.FAMILIES))
+    monkeypatch.setattr(pi, "N_CONV", pi.N_CONV)
+    pi.use_head()
+    pts = pi.points()
+    assert len(pts) == pi.N_CONV_HEAD
+    assert [p[2:] for p in pts if p[0] == "dw3s1_80"] == [(c, c) for c in pi.axis(64)]
+    m = onnx.load_from_string(pi.build("dw3s1_80", "conv", 64, 64))
+    conv = m.graph.node[0]
+    assert next(a.i for a in conv.attribute if a.name == "group") == 64
+    assert list(m.graph.initializer[0].dims) == [64, 1, 3, 3]
+    assert [d.dim_value for d in m.graph.output[0].type.tensor_type.shape.dim] == [1, 64, 80, 80]
