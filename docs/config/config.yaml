@@ -114,10 +114,10 @@ continue_on_error: true
 hydra:
   # Configurazione di Hydra. Da cambiare raramente.
   run:
-    dir: outputs/${now:%Y-%m-%d_%H-%M-%S}
+    dir: runs/hydra/outputs/${now:%Y-%m-%d_%H-%M-%S}
       # Dove finiscono log e config risolta di una run singola.
   sweep:
-    dir: multirun/${now:%Y-%m-%d_%H-%M-%S}
+    dir: runs/hydra/multirun/${now:%Y-%m-%d_%H-%M-%S}
     subdir: ${hydra.job.num}
       # Idem per il multirun, una sottocartella per job.
   job:

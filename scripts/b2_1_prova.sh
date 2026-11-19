@@ -1,7 +1,7 @@
 #!/bin/bash
 # Run di prova B2-1 (griglia discreta di latenza sul PI, fp16 OpenVINO, pesi casuali), 13/10/2026.
 # Lanciata il 13/10 da ~/Desktop/yoloeval_prova, spostata in repo il 14/10: risultati in results/, artefatti in
-# artifacts/, multirun in multirun/, log e figure in reports/b2_1_prova/.
+# artifacts/, multirun in runs/hydra/multirun/, log e figure in reports/b2_1_prova/.
 # Il confronto numerico dopo l'export vuole una cartella di immagini, in I (default il calib del dataset, 511 immagini).
 # I entra nella chiave delle celle: con una cartella diversa da quella del 13/10 (data/b2_1_prova/immagini, tolta il
 # 28/10) le celle non si saltano e la griglia si rifà.
@@ -18,7 +18,7 @@ if [ "${1:-}" = figure ]; then $F; exit; fi
 W=${W:-0.0625,0.09375,0.125,0.1875,0.25,0.375,0.5,0.75,1.0}
 A="model=yolo26 model.width=$W model.depth=D101,D126,D170"
 I=${I:-$PWD/data/air-detection/all/images/calib}
-O="logging=local dataset.local_path=$I hydra.sweep.dir=multirun/\${now:%Y-%m-%d_%H-%M-%S}"
+O="logging=local dataset.local_path=$I hydra.sweep.dir=runs/hydra/multirun/\${now:%Y-%m-%d_%H-%M-%S}"
 D=${D:-480p,720p,1080p}
 echo "== train $(date)";     $R run.py -m stage=train train=random $A $O
 echo "== export $(date)";    $R run.py -m stage=export train=random $A $O deploy=$D quantization=fp16 backend=openvino hardware=rpi5 freq_target=max compute_target=cpu_4

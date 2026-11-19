@@ -279,7 +279,7 @@ Non c'e' un tool che cancelli tutto. Per ripartire da zero, dalla root e con
 nessuno sweep in esecuzione (`pgrep -f run.py`):
 
 ```bash
-rm -rf artifacts/* results/* reports/* multirun/ outputs/ \
+rm -rf artifacts/* results/* reports/* runs/hydra/ \
        data.parquet benchmark_report.csv yolo26*.pt
 ```
 

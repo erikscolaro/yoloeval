@@ -50,9 +50,9 @@ allow_reboot: false             # riavvio automatico della board per cambio prof
 
 hydra:
   run:
-    dir: outputs/${now:%Y-%m-%d_%H-%M-%S}
+    dir: runs/hydra/outputs/${now:%Y-%m-%d_%H-%M-%S}
   sweep:
-    dir: multirun/${now:%Y-%m-%d_%H-%M-%S}
+    dir: runs/hydra/multirun/${now:%Y-%m-%d_%H-%M-%S}
     subdir: ${hydra.job.num}
   job:
     chdir: true
