@@ -10,3 +10,4 @@ ncnn                      # mAP degli export ncnn (benchncnn lo compila il provi
 openvino                  # plugin CPU ARM + benchmark_app; wheel manylinux_2_35 (Bookworm ha glibc 2.36)
 pyyaml
 opencv-python-headless
+scipy                     # linear_sum_assignment del tracker (src/tracking.py)
