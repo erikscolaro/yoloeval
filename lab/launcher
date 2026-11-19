@@ -513,7 +513,7 @@ print("classi:", spec.get("names"))
 PY
 }
 predict_video() {  # yolo predict con le box dal vivo: modello dalla lista, video o cartella di video, soglia
-  local args=() d m src conf out imgsz
+  local args=() d m src conf out imgsz mode
   for d in artifacts/weights/*_e[1-9]*_*/ artifacts/finetune/*/; do   # i training veri (non e0, pesi casuali) e le potate
     [[ -f $d/best.pt ]] || continue
     m=$(grep -o '"map50_95": [0-9.]*' "$d/meta.json" 2>/dev/null | head -1 | grep -o '[0-9.]*$' | cut -c1-5)
@@ -523,11 +523,18 @@ predict_video() {  # yolo predict con le box dal vivo: modello dalla lista, vide
   m=$(wt --menu "Modello per il predict (mAP50-95 del training)." 0 0 0 "${args[@]}") || return
   src=$(wt --inputbox "Video o cartella di video:" 0 0 "$PWD/predict") || return
   [[ -e $src ]] || { wt --msgbox "$src non esiste."; return; }
-  imgsz=$(wt --inputbox "Lato lungo dell'ingresso del modello, multiplo di 32 (allenato a 640; 16:9 a 640 entra 640x384):" 0 0 "640") || return
-  (( imgsz > 0 && imgsz % 32 == 0 )) || { wt --msgbox "imgsz deve essere un multiplo di 32."; return; }
+  imgsz=$(wt --menu "Ingresso del modello (lato lungo; il letterbox arrotonda l'altro a 32). Allenato a 640." 0 0 0 \
+      640 "lato lungo 640, quello degli esperimenti (16:9 entra 640x384)" 480,864 "480p: 864x480" \
+      736,1280 "720p: 1280x736" 1088,1920 "1080p: 1920x1088" 320 "lato lungo 320: veloce, i droni piccoli spariscono" \
+      altro "a mano: lato lungo, o ALTEZZA,LARGHEZZA") || return
+  [[ $imgsz == altro ]] && { imgsz=$(wt --inputbox "Lato lungo, o ALTEZZA,LARGHEZZA, multipli di 32:" 0 0 "640") || return; }
+  mode=$(wt --menu "Come il fotogramma entra nel modello:" 0 0 0 fit "si scala per starci dentro (letterbox)" \
+      crop "ritaglio dal centro a risoluzione nativa, senza scalare") || return
+  [[ $imgsz =~ ^[0-9]+(,[0-9]+)?$ ]] && ! (( ${imgsz%,*} % 32 || ${imgsz#*,} % 32 )) \
+    || { wt --msgbox "imgsz: multipli di 32, un numero o ALTEZZA,LARGHEZZA."; return; }
   conf=$(wt --inputbox "Soglia di confidenza (P-: F1 massimo a 0,37, per i droni 0,07):" 0 0 "0.25") || return
   out=$PWD/predict/risultati   # predict/ non e' versionata
-  lancia predict "$PY -m tools.predict_video $PWD/$m/best.pt $(printf %q "$src") --conf $conf --imgsz $imgsz --out $(printf %q "$out/$(basename "$m")_$imgsz")"
+  lancia predict "$PY -m tools.predict_video $PWD/$m/best.pt $(printf %q "$src") --conf $conf --imgsz $imgsz --mode $mode --out $(printf %q "$out/$(basename "$m")_${imgsz/,/x}_$mode")"
 }
 pulizia_hydra() {  # cartelle di runs/hydra dei run finiti (non la cwd di un run.py vivo)
   local d p att=() via=()
