@@ -24,3 +24,9 @@ max_det: ${export_max_det}
   # Massimo numero di detection per immagine, uguale a export_max_det (64). Vale
   # per entrambe: e' anche la dimensione dell'output della testa one-to-one,
   # [1, max_det, 6].
+
+map_on_target: false
+  # true | false. true: mAP calcolata sulla board anche per gli artefatti
+  # portabili (ONNX, IR, ncnn), che su ARM calcolano in fp16 o con kernel int8
+  # diversi da quelli x86; cache a parte (accuracy_target.json). false: sulla
+  # workstation, molto piu' veloce.
