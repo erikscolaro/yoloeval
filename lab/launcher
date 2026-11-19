@@ -413,15 +413,16 @@ salva_ricetta() {
 
 # ---------------------------------------------------------------- avvio e run
 comandi() {  # una riga per step; con select nella catena, gli step dopo potano il modello scelto da select
-  local s guida="" t ov=() i
+  local s guida="" t ov=() i lock
   t=$(ov target)
   for s in "${STEPS[@]}"; do
-    if [[ $s == lut ]]; then echo "scripts/build_lut.sh"; continue; fi   # parametri propri (src/lut/pi.py)
+    lock=""; [[ $s == @(lut|provision|export|benchmark) ]] && lock="flock $RUNS/.pi.lock "   # il Pi, uno alla volta (come gli script)
+    if [[ $s == lut ]]; then echo "${lock}scripts/build_lut.sh"; continue; fi   # parametri propri (src/lut/pi.py)
     ov=("${OV[@]}")
     if [[ -n $guida && $s != provision ]]; then   # il modello lo decide select: via gli override del modello
       ov=(); for i in "${OV[@]}"; do [[ ${i%%=*} == model* ]] || ov+=("$i"); done
     fi
-    printf '%s run.py stage=%s' "$PY" "$s"; ((${#ov[@]})) && printf ' %q' "${ov[@]}"
+    printf '%s%s run.py stage=%s' "$lock" "$PY" "$s"; ((${#ov[@]})) && printf ' %q' "${ov[@]}"
     [[ -n $guida && $s != provision ]] && printf ' $MS'
     echo
     if [[ $s == select && ${STEPS[-1]} != select ]]; then   # solo se dopo select c'e' qualcosa da guidare

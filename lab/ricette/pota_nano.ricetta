@@ -4,3 +4,4 @@ set model=yolo26n
 set strategy=pit_latency
 set target=rpi5_640
 set finetune=scratch
+set logging=local

@@ -2,3 +2,4 @@
 step export benchmark
 set strategy=baseline
 set target=rpi5_640
+set logging=local

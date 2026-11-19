@@ -3,3 +3,4 @@ step select search finetune export benchmark
 set strategy=pit_latency
 set target=rpi5_640
 set finetune=scratch
+set logging=local
