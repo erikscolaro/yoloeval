@@ -1,5 +1,5 @@
 # Griglia larghezza × profondità: mAP50 e mAP50-95 (miglior epoca sul val), a barre 3D e a linee (una per profondità).
-#   .venv/bin/python tools/figure_griglia.py OUT_DIR   (dalla radice di yoloeval)
+#   .venv/bin/python tools/figure_griglia.py [OUT_DIR]   (dalla radice di yoloeval; default docs/figures/griglia)
 # Stile della tesi (tools/thesis.mplstyle), una figura per tipo (barre, linee) con mAP50 sopra e mAP50-95 sotto, PNG + PDF; titolo e note nella
 # didascalia LaTeX. Rileggibile mentre la griglia gira: le celle senza meta.json sono in corso (valore migliore finora,
 # barre tratteggiate e marker vuoti).
@@ -89,7 +89,8 @@ def celle():
 
 
 if __name__ == "__main__":
-    OUT = Path(sys.argv[1] if len(sys.argv) > 1 else ".")
+    OUT = Path(sys.argv[1]) if len(sys.argv) > 1 else ROOT / "docs/figures/griglia"
+    OUT.mkdir(parents=True, exist_ok=True)
     cells = celle()
     ij = np.array(list(cells))
     # due figure, una per tipo, con mAP50 sopra (valori più alti) e mAP50-95 sotto

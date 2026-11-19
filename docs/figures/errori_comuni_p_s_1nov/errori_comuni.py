@@ -11,7 +11,7 @@ import cv2
 import numpy as np
 from ultralytics import YOLO
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[3]   # docs/figures/<questa cartella>/
 HERE = Path(__file__).parent
 D = ROOT / "data/air-detection/all"
 W = ROOT / "artifacts/weights"

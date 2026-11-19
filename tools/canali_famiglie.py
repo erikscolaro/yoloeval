@@ -1,6 +1,6 @@
 """Canali tenuti da una search PIT, raggruppati per famiglia di blocco YOLO26 (Conv, C3k2, SPPF).
 
-    .venv/bin/python tools/canali_famiglie.py out.png artifacts/search/<dir> [artifacts/weights/<rete>/best.pt]
+    .venv/bin/python tools/canali_famiglie.py out.png (solo il nome: in docs/figures/canali/) artifacts/search/<dir> [artifacts/weights/<rete>/best.pt]
 
 Il terzo argomento (facoltativo) sovrappone i canali di un'altra rete non potata (per esempio P-) come tacca nera.
 
@@ -35,6 +35,10 @@ def canali_rete(pesi: str) -> dict:
 
 
 def main(out: str, search_dir: str, ref: str | None = None) -> None:
+    out = Path(out)
+    if out.parent == Path("."):           # solo il nome del file: nella cartella delle figure del progetto
+        out = Path(__file__).resolve().parents[1] / "docs/figures/canali" / out
+    out.parent.mkdir(parents=True, exist_ok=True)
     rows = torch.load(Path(search_dir) / "pruned.pt", weights_only=False, map_location="cpu")["pit_meta"]["channels"]
     rif = canali_rete(ref) if ref else {}
     if ref:

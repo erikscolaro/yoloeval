@@ -1,6 +1,6 @@
 # Quanto rende ogni ms di latenza sul Pi 5 a 640: (a) guadagno di mAP per 10 ms a ogni passo del fronte mAP50-95;
 # (b) spazio di potatura di ogni architettura (rete potata al massimo -> rete intera) rispetto al budget.
-#   .venv/bin/python tools/figure_guadagno_latenza.py [OUT_DIR] [--budget MS] [--latency CSV]
+#   .venv/bin/python tools/figure_guadagno_latenza.py [OUT_DIR, default docs/figures/guadagno_latenza_640] [--budget MS] [--latency CSV]
 # Larghezza del testo (tools.plots.WIDTH), stile della tesi, PNG + PDF. Pavimento: C_arch + sum a_f LUT_f sugli strati della rete
 # nano_floor (pavimento_s) riportata sulle architetture; dove c'e' il pavimento misurato vale quello.
 import argparse
@@ -36,7 +36,7 @@ def ordine(a):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("out", nargs="?", default=str(ROOT / "lab/reports/guadagno_latenza_640"))
+    ap.add_argument("out", nargs="?", default=str(ROOT / "docs/figures/guadagno_latenza_640"))
     ap.add_argument("--budget", type=float, help="ms; senza, niente linee del budget")
     ap.add_argument("--latency", help="csv (arch, ms) con le latenze a 640: sostituisce o estende quelle disponibili")
     ap.add_argument("--weights", default=str(ROOT / "artifacts/weights"))

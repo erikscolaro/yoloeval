@@ -8,7 +8,7 @@ discreta larghezza × ingresso: i ritagli quadrati del tracking (128, 256, 512) 
     B. dove sta l'ottimo          (dopo il modello di precisione, fase 2c)
     C. candidati alla potatura    (alla decisione 2d, prima del blocco 2)
 
-    python tools/figure_sintesi.py OUT_DIR                                   # tutte, dati di esempio
+    python tools/figure_sintesi.py [OUT_DIR]                                 # tutte, dati di esempio (default docs/figures/sintesi)
     python tools/figure_sintesi.py OUT_DIR --risultati results --board rpi5  # A e A dettagliata, latenze misurate
     python tools/figure_sintesi.py OUT_DIR --precisioni fp16                 # solo le righe scelte
     python tools/figure_sintesi.py OUT_DIR --risoluzioni 480p 720p 1080p     # solo gli ingressi scelti
@@ -263,7 +263,7 @@ if __name__ == "__main__":
     import argparse
 
     ap = argparse.ArgumentParser()
-    ap.add_argument("out", nargs="?", default=".")
+    ap.add_argument("out", nargs="?", default=str(Path(__file__).resolve().parents[1] / "docs/figures/sintesi"))
     ap.add_argument("--risultati", help="cartella dei JSON del benchmark: figura A con le latenze misurate")
     ap.add_argument("--board", default="rpi5")
     ap.add_argument("--precisioni", nargs="+", choices=PRECS, default=PRECS, help="righe da disegnare, in ordine")

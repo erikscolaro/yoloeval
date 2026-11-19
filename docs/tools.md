@@ -22,13 +22,19 @@ Da un'altra cartella Python non trova il pacchetto
 | [`roofline`](#toolsroofline) | `results/*.json`, `results/roofline/*.json` | `lab/reports/roofline/` | efficienza dei modelli e confronto con la baseline |
 | [`artifacts`](#toolsartifacts) | `artifacts/`, `results/` | niente (tranne `prune --apply`) | vedere e ripulire la cache di pesi ed export |
 
-Tre script si lanciano invece come file (`python tools/<nome>.py`), ognuno con l'uso scritto nella docstring:
+Gli script delle figure si lanciano invece come file (`python tools/<nome>.py`), ognuno con l'uso scritto nella
+docstring. Senza cartella di uscita scrivono in `docs/figures/<nome>/` (le figure già fatte, con la data nel nome della
+cartella, sono lì):
 
 | script | legge | scrive | a cosa serve |
 |---|---|---|---|
-| `curva_fbeta.py` | pesi `.pt`, dataset in `data/air-detection/all/` | una figura | curva F-beta per classe in funzione della soglia di confidenza (`--beta`, `--split`) |
-| `figure_sintesi.py` | `results/` (con `--risultati`) o dati di esempio | figure A, B, C | figure di sintesi del blocco 1 per dispositivo (`NEW_MASTERPLAN.md`, sezione 13) |
-| `search_channels.py` | `pruned.pt` di una o più cartelle in `artifacts/search/` | un PNG | canali tenuti da una ricerca PIT, per layer |
+| `curva_fbeta.py` | pesi `.pt`, dataset in `data/air-detection/all/` | `docs/figures/fbeta/` | curva F-beta per classe in funzione della soglia di confidenza (`--beta`, `--split`) |
+| `figure_sintesi.py` | `results/` (con `--risultati`) o dati di esempio | `docs/figures/sintesi/` (A, B, C) | figure di sintesi del blocco 1 per dispositivo (`NEW_MASTERPLAN.md`, sezione 13) |
+| `search_channels.py` | `pruned.pt` di una o più cartelle in `artifacts/search/` | un PNG (solo il nome: in `docs/figures/canali/`) | canali tenuti da una ricerca PIT, per layer |
+| `canali_famiglie.py` | `pruned.pt` di una ricerca, facoltativo un `best.pt` di confronto | un PNG (solo il nome: in `docs/figures/canali/`) | canali tenuti per famiglia di blocco |
+| `figure_griglia.py` | `artifacts/weights/*/run/results.csv` | `docs/figures/griglia/` | mAP della griglia larghezza × profondità, a barre e a linee |
+| `figura_pareto.py` | `results/`, `artifacts/weights/` | `docs/figures/pareto/` | fronte di Pareto mAP-latenza della griglia |
+| `figure_guadagno_latenza.py` | `artifacts/weights/`, esperimenti B4-R e pavimento | `docs/figures/guadagno_latenza_640/` | mAP per ms e spazio di potatura per architettura |
 
 `order.py` e `plots.py` sono moduli di supporto (ordinamento naturale dei nomi, stile dei grafici).
 

@@ -1,6 +1,6 @@
 # Fronte di Pareto mAP-latenza: un punto per ogni modello allenato della griglia, una serie per scheda con latenze
 # misurate. Latenza su asse lineare, finestra centrata sulla fascia del budget del modello (figura A, figure_sintesi.py).
-#   .venv/bin/python tools/figura_pareto.py OUT_DIR [--deploy 480p] [--precisione fp16] [--risultati results]
+#   .venv/bin/python tools/figura_pareto.py [OUT_DIR, default docs/figures/pareto] [--deploy 480p] [--precisione fp16] [--risultati results]
 # Stile della tesi, una figura con mAP50 sopra e mAP50-95 sotto, PNG + PDF; titolo e note nella didascalia LaTeX.
 import argparse
 import sys
@@ -81,7 +81,7 @@ def etichette(ax, items, punti, linee):
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
-    ap.add_argument("out", nargs="?", default=".")
+    ap.add_argument("out", nargs="?", default=str(ROOT / "docs/figures/pareto"))
     ap.add_argument("--deploy", default="480p", help="ingresso delle latenze (risoluzione di deploy o ritaglio)")
     ap.add_argument("--precisione", default="fp16")
     ap.add_argument("--risultati", default=str(ROOT / "results"), help="cartella dei JSON del benchmark")

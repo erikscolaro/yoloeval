@@ -1,6 +1,6 @@
 """Grafico a barre dei canali tenuti da una search PIT, per layer potabile.
 
-    .venv/bin/python tools/search_channels.py out.png n1=artifacts/search/<dir> n8=artifacts/search/<dir> ...
+    .venv/bin/python tools/search_channels.py out.png (solo il nome: in docs/figures/canali/) n1=artifacts/search/<dir> n8=artifacts/search/<dir> ...
     (al posto di <dir> anche un .json con {"channels": righe}; i layer si accoppiano per nome alla prima serie)
 
 Legge pit_meta['channels'] di <dir>/pruned.pt: (layer, canali prima, canali tenuti, potabile). Una barra per layer,
@@ -25,6 +25,10 @@ def channels(search_dir: str) -> list:
 
 
 def main(out: str, runs: dict[str, str]) -> None:
+    out = Path(out)
+    if out.parent == Path("."):           # solo il nome del file: nella cartella delle figure del progetto
+        out = Path(__file__).resolve().parents[1] / "docs/figures/canali" / out
+    out.parent.mkdir(parents=True, exist_ok=True)
     rows = {label: channels(p) for label, p in runs.items()}
     first = next(iter(rows.values()))
     idx = [i for i, r in enumerate(first) if r[3]]            # layer potabili

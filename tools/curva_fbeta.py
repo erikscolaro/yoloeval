@@ -1,7 +1,7 @@
 """Curva F-beta in funzione della soglia di confidenza, per classe, come la BoxF1_curve di Ultralytics ma con beta a
 scelta: beta 2 pesa il recall il doppio della precisione, 0.5 il contrario, 1 e' la F1.
 
-    python tools/curva_fbeta.py PESI OUT_DIR                        # F2 sul val
+    python tools/curva_fbeta.py PESI [OUT_DIR]                      # F2 sul val (default docs/figures/fbeta)
     python tools/curva_fbeta.py PESI OUT_DIR --beta 1 --split test  # F1 sul test
 
 Valida con la testa one-to-one (nms=False) e conf 0.001, come il val del training. Non lascia niente su disco oltre
@@ -65,7 +65,7 @@ if __name__ == "__main__":
 
     ap = argparse.ArgumentParser()
     ap.add_argument("pesi", help="best.pt da validare")
-    ap.add_argument("out", nargs="?", default=".")
+    ap.add_argument("out", nargs="?", default=str(Path(__file__).resolve().parents[1] / "docs/figures/fbeta"))
     ap.add_argument("--beta", type=float, default=2.0, help="2: recall pesato il doppio; 1: F1; 0.5: precisione")
     ap.add_argument("--split", default="val", choices=["val", "test"])
     args = ap.parse_args()

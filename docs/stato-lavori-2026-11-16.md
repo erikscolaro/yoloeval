@@ -49,7 +49,7 @@ Sigle: lettera per la larghezza e segno per la profondità (- 101 strati, nessun
 
 ### Accuratezza
 
-![mAP50 e mAP50-95 delle 24 varianti, per larghezza e profondità](griglia_16nov/griglia_barre.png)
+![mAP50 e mAP50-95 delle 24 varianti, per larghezza e profondità](figures/griglia_16nov/griglia_barre.png)
 
 *mAP50 (sopra) e mAP50-95 (sotto) sul validation set per le 24 varianti. I segmenti con Δ indicano la differenza tra
 la profondità migliore e la peggiore a pari larghezza.*
@@ -133,7 +133,7 @@ da escludere su questo dispositivo.
 Con i risultati di base completi, sto provando ad andare oltre, prendendo un modello più grande e accurato e potandolo
 fino a farlo rientrare nel budget. L'obiettivo è superare P- alla stessa latenza.
 
-![Guadagno di mAP per millisecondo e spazio di potatura di ogni modello](guadagno_latenza_16nov/guadagno_latenza_640.png)
+![Guadagno di mAP per millisecondo e spazio di potatura di ogni modello](figures/guadagno_latenza_16nov/guadagno_latenza_640.png)
 
 *(a) Punti di mAP guadagnati ogni 10 ms passando da un modello al successivo. (b) Per ogni modello: latenza intera
 (punto pieno) e latenza con la potatura al massimo (punto vuoto). I modelli in arancione sono fuori budget da interi,
