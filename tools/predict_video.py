@@ -11,6 +11,9 @@ Esc tutto. I video annotati vanno in OUT/<nome del video>.mp4.
 --mode crop: dal centro del fotogramma si ritaglia un rettangolo grande quanto l'ingresso, a risoluzione nativa e senza
 scalare (gli oggetti restano grandi in pixel come nel training); se il fotogramma e' piu' piccolo si completa con il
 grigio del letterbox. Sul video si vede il riquadro del ritaglio.
+--kalman: tracker con filtro di Kalman (src/tracking.py) sulle detection: classe a voto sulla storia del track, box
+filtrata, detection deboli (--lo <= conf < --hi) tenute solo se confermano un track. Le box del tracker sono spesse con
+l'ID, quelle grezze del modello sottili e grigie. Con --kalman il modello gira a conf --lo, e --conf non conta.
 """
 import argparse
 import time
@@ -20,6 +23,8 @@ import cv2
 import numpy as np
 from ultralytics import YOLO
 
+from src.tracking import KalmanTracker, Params
+
 VIDEO = {".mp4", ".avi", ".mov", ".mkv", ".webm", ".m4v"}
 
 
@@ -28,6 +33,21 @@ def testo(img, righe):
         y = 28 + 26 * i
         cv2.putText(img, t, (10, y), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 0), 4, cv2.LINE_AA)
         cv2.putText(img, t, (10, y), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2, cv2.LINE_AA)
+
+
+KF = ("hi", "lo", "min_hits", "max_age", "vote", "iou_min", "iou_dup")
+COLORI = [(255, 80, 0), (0, 200, 255), (0, 0, 255), (0, 220, 0)]   # BGR per classe: drone, airplane, helicopter, bird
+
+
+def disegna(img, dets, tracks, names):
+    for x1, y1, x2, y2, *_ in dets:                              # grezze: sottili e grigie
+        cv2.rectangle(img, (int(x1), int(y1)), (int(x2), int(y2)), (160, 160, 160), 1)
+    for t in tracks:
+        x1, y1, x2, y2 = t.box.astype(int)
+        c = COLORI[t.cls % len(COLORI)]
+        cv2.rectangle(img, (x1, y1), (x2, y2), c, 2)
+        etichetta = f"#{t.id} {names[t.cls]} {t.conf:.2f}" + (" pred" if t.age else "")
+        cv2.putText(img, etichetta, (x1, max(y1 - 6, 12)), cv2.FONT_HERSHEY_SIMPLEX, 0.55, c, 2, cv2.LINE_AA)
 
 
 def un_video(model, src: Path, a) -> bool:
@@ -48,6 +68,8 @@ def un_video(model, src: Path, a) -> bool:
     if a.out:
         Path(a.out).mkdir(parents=True, exist_ok=True)
         out = cv2.VideoWriter(str(Path(a.out) / f"{src.stem}.mp4"), cv2.VideoWriter_fourcc(*"mp4v"), fps_v, (w, h))
+    tr = KalmanTracker(len(model.names), Params(**{k: getattr(a, k) for k in KF})) if a.kalman else None
+    conf = a.lo if a.kalman else a.conf
     fps, t0 = 0.0, time.perf_counter()
     while True:
         ok, frame = cap.read()
@@ -56,18 +78,27 @@ def un_video(model, src: Path, a) -> bool:
         if a.mode == "crop":
             tela = np.full((H, W, 3), 114, np.uint8)   # gia' alla forma dell'ingresso: il letterbox non scala
             tela[:ch, :cw] = frame[y0:y0 + ch, x0:x0 + cw]
-            r = model.predict(tela, imgsz=[H, W], conf=a.conf, verbose=False)[0]
+            r = model.predict(tela, imgsz=[H, W], conf=conf, verbose=False)[0]
+            d = r.boxes.data.cpu().numpy()
+            d = d[(d[:, 0] < cw) & (d[:, 1] < ch)]                  # niente box nel grigio di riempimento
+            d[:, [0, 2]] = d[:, [0, 2]].clip(0, cw) + x0
+            d[:, [1, 3]] = d[:, [1, 3]].clip(0, ch) + y0
             img = frame.copy()
-            img[y0:y0 + ch, x0:x0 + cw] = r.plot()[:ch, :cw]
+            if not tr:
+                img[y0:y0 + ch, x0:x0 + cw] = r.plot()[:ch, :cw]
             cv2.rectangle(img, (x0, y0), (x0 + cw - 1, y0 + ch - 1), (255, 255, 255), 2)
         else:
-            r = model.predict(frame, imgsz=a.imgsz if len(a.imgsz) == 2 else a.imgsz[0], conf=a.conf, verbose=False)[0]
-            img = r.plot()
+            r = model.predict(frame, imgsz=a.imgsz if len(a.imgsz) == 2 else a.imgsz[0], conf=conf, verbose=False)[0]
+            d = r.boxes.data.cpu().numpy()
+            img = frame.copy() if tr else r.plot()
+        if tr:
+            disegna(img, d, tr.step(d, 1 / fps_v), model.names)
         t1 = time.perf_counter()
         fps = 0.9 * fps + 0.1 / (t1 - t0) if fps else 1 / (t1 - t0)   # media mobile: numero leggibile
         t0 = t1
         testo(img, [f"video {w}x{h} @ {fps_v:.0f} fps  |  {a.mode}, ingresso {iw}x{ih}",
-                    f"inferenza {r.speed['inference']:.1f} ms  |  {fps:.1f} FPS  |  {len(r.boxes)} box  conf {a.conf}"])
+                    f"inferenza {r.speed['inference']:.1f} ms  |  {fps:.1f} FPS  |  {len(d)} box  "
+                    + (f"kalman hi {a.hi} lo {a.lo}, {len(tr.tracks)} track" if tr else f"conf {a.conf}")])
         if out:
             out.write(img)
         if a.show:
@@ -90,6 +121,10 @@ def main():
     p.add_argument("--conf", type=float, default=0.25), p.add_argument("--imgsz", type=lambda x: [int(v) for v in x.split(",")], default=[640])
     p.add_argument("--mode", choices=["fit", "crop"], default="fit")
     p.add_argument("--out"), p.add_argument("--no-show", dest="show", action="store_false")
+    p.add_argument("--kalman", action="store_true")
+    d = Params()
+    for k in KF:
+        p.add_argument(f"--{k.replace('_', '-')}", dest=k, type=type(getattr(d, k)), default=getattr(d, k))
     a = p.parse_args()
     s = Path(a.source)
     videos = sorted(f for f in s.iterdir() if f.suffix.lower() in VIDEO) if s.is_dir() else [s]
