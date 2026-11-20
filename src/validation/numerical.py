@@ -70,7 +70,7 @@ def compare_with_reference(conn, cfg, artifact, ref, device: str | None = None) 
         f"--ref {shlex.quote(str(ref))} "
         f"--target {shlex.quote(str(artifact))} "
         f"--images {shlex.quote(_images_dir(conn, cfg))} "
-        f"--imgsz {','.join(map(str, deploy_hw(cfg)))} --n {N_IMAGES}"
+        f"--imgsz {','.join(map(str, deploy_hw(cfg)))} --n {N_IMAGES} --batch {int(cfg.deploy.get('batch', 1))}"
     )
     if device:
         cmd += f" --device {shlex.quote(device)}"

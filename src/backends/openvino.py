@@ -8,7 +8,7 @@ precisione piu' alta, quindi lo speedup va misurato, non assunto.
 `benchmark_app` riporta di default mediana, media, minimo e massimo: i
 percentili alti non ci sono, e restano `None` invece di essere ricostruiti da
 media e deviazione standard. Il perimetro e' allineato agli altri backend con
-`-b 1` e uno stream solo (`-nstreams 1`), che e' quello che farebbe
+`-b` del deploy (1 di default) e uno stream solo (`-nstreams 1`), che e' quello che farebbe
 `-hint latency`: l'hint va pero' messo a `none`, perche' benchmark_app rifiuta
 `-nthreads` se c'e' un hint, e senza `-nthreads` il numero di core del compute
 target non arriverebbe a OpenVINO.
@@ -56,7 +56,7 @@ class OpenVINOBackend(Backend):
             format="openvino",
             imgsz=deploy_hw(cfg),
             quantize=cfg.quantization.precision,   # "fp32" | "fp16" | "int8"
-            batch=1,
+            batch=int(cfg.deploy.get("batch", 1)),   # deploy crop256_bN: N crop del tracker in una inferenza
             nms=False,            # testa one-to-one, vedi onnxruntime.py
             max_det=int(cfg.export_max_det),
             data=data,
@@ -113,6 +113,7 @@ class OpenVINOBackend(Backend):
             device=DEVICE_BY_COMPUTE.get(ct.get("device"), "CPU"),
             iters=int(bench.iters),
             threads=int(ct.get("n_cores") or 1),
+            batch=int(cfg.deploy.get("batch", 1)),
         )
         # sulle CPU ARM con fp16 OpenVINO calcolerebbe l'IR fp32 in fp16: la precisione va chiesta
         precision = (bench.get("infer_precision") or {}).get(cfg.quantization.precision)

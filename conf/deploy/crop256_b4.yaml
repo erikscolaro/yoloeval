@@ -1,0 +1,3 @@
+name: crop256_b4
+imgsz: [256, 256]
+batch: 4   # 4 crop del tracker (src/crop_tracker.py) in una sola inferenza

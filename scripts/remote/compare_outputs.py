@@ -54,7 +54,7 @@ def fixed_batch(images_dir, imgsz, n):
     return np.stack([letterbox(f, imgsz) for f in files]), [str(f) for f in files]
 
 
-def forward(weights, batch, device, end2end=None):
+def forward(weights, batch, device, end2end=None, step=1):
     import torch
     from ultralytics.nn.autobackend import AutoBackend
 
@@ -63,9 +63,10 @@ def forward(weights, batch, device, end2end=None):
     model.eval()
     outs = []
     with torch.no_grad():
-        for i in range(batch.shape[0]):
-            y = model(torch.from_numpy(batch[i:i + 1]).to(device))
-            outs.append(y[0] if isinstance(y, (list, tuple)) else y)
+        for i in range(0, batch.shape[0], step):   # step = batch fisso dell'artefatto (deploy crop256_bN)
+            y = model(torch.from_numpy(batch[i:i + step]).to(device))
+            y = y[0] if isinstance(y, (list, tuple)) else y
+            outs.extend(y[k:k + 1] for k in range(y.shape[0]))
     return [o.detach().float().cpu().numpy() for o in outs]
 
 
@@ -146,6 +147,7 @@ def main() -> int:
     ap.add_argument("--imgsz", type=lambda s: [int(x) for x in s.split(",")], default=[640, 640],
                     help="h,w dell'ingresso")
     ap.add_argument("--n", type=int, default=8)
+    ap.add_argument("--batch", type=int, default=1, help="batch fisso dell'artefatto: le immagini a gruppi di tanti")
     ap.add_argument("--device", default="cpu")
     ap.add_argument("--ref-device", default=None)
     ap.add_argument("--conf", type=float, default=DEFAULT_CONF)
@@ -155,7 +157,7 @@ def main() -> int:
     import numpy as np
 
     batch, files = fixed_batch(args.images, args.imgsz, args.n)
-    tgt = forward(args.target, batch, args.device)
+    tgt = forward(args.target, batch, args.device, step=args.batch)
     # Un `.pt` sceglie la testa a runtime e di default usa la one-to-many:
     # va allineato a quella che l'export ha messo nell'artefatto, altrimenti
     # il confronto e' fra due teste diverse e non misura la quantizzazione.

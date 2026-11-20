@@ -1,0 +1,3 @@
+name: crop256_b1
+imgsz: [256, 256]
+batch: 1   # riferimento del batch nella stessa sessione (crop256 e' a k=300, del 4/11/2026)

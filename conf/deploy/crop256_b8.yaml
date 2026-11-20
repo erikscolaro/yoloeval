@@ -1,0 +1,3 @@
+name: crop256_b8
+imgsz: [256, 256]
+batch: 8   # 8 crop del tracker (src/crop_tracker.py) in una sola inferenza
