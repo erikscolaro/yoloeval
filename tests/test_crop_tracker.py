@@ -60,3 +60,25 @@ def test_crop_fuori_dal_fotogramma_si_completa_di_grigio():
     img, (x0, y0), sc = ct.cut(frame_con(None), 10, 10, 200)
     assert img.shape == (256, 256, 3) and (x0, y0) == (-90, -90)
     assert (img[0, 0] == 114).all()
+
+
+def test_oggetto_oltre_max_side_va_in_scan_e_senza_limite_si_riduce():
+    grande = np.array([300, 60, 900, 660], float)     # 600x600: lato del crop 1000 > 512
+    ct = CropTracker(detect_finto([]), 4, Params(min_hits=3), scan_imgsz=640, crop=256, rescan=0)
+    assert {ct.step(frame_con(grande), 1 / 25)[1]["mode"] for _ in range(12)} == {"SCAN"}
+    ch = []
+    libero = CropTracker(detect_finto(ch), 4, Params(min_hits=3), scan_imgsz=640, crop=256, rescan=0, max_side=None)
+    out = [libero.step(frame_con(grande), 1 / 25)[1] for _ in range(12)]
+    assert [o["mode"] for o in out][4:] == ["TRACK"] * 8 and ch[-1][1] == (256, 256)
+    assert np.abs(out[-1]["dets"][0, :4] - grande).max() < 8
+    medio = np.array([500, 250, 740, 470], float)     # 240x220: lato del crop 400 < 512
+    ct2 = CropTracker(detect_finto([]), 4, Params(min_hits=3), scan_imgsz=640, crop=256, rescan=0)
+    assert [ct2.step(frame_con(medio), 1 / 25)[1]["mode"] for _ in range(8)][4:] == ["TRACK"] * 4
+
+
+def test_scan_riduce_con_area_e_riporta_le_box_nel_fotogramma():
+    ch = []
+    ct = CropTracker(detect_finto(ch), 4, Params(min_hits=3), scan_imgsz=640, crop=256, rescan=0)
+    shown, info = ct.step(frame_con(vero(0)), 1 / 25)           # 1280x720 -> 640x360
+    assert info["mode"] == "SCAN" and ch[-1][1] == (360, 640)
+    assert np.abs(info["dets"][0, :4] - vero(0)).max() <= 2     # box in coordinate del fotogramma intero

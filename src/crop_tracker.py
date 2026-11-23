@@ -1,6 +1,6 @@
 """Tracker di Kalman con crop adattativo (docs/tracker.md, livello B): il Kalman decide dove far guardare il modello.
 
-- SCAN: il modello gira sul fotogramma intero (scan_imgsz), quando non ci sono track confermati, ogni `rescan`
+- SCAN: il modello gira sul fotogramma intero ridotto con INTER_AREA (scan_imgsz), quando non ci sono track confermati, ogni `rescan`
   fotogrammi, dopo un fotogramma in cui un track confermato non ha trovato detection nel suo crop, o se i track sono
   piu' di `max_crops`.
 - TRACK: un crop quadrato per ogni track confermato, centrato sulla box predetta. Lato = box predetta + k sigma
@@ -8,6 +8,9 @@
   massimo `fill` del crop); mai piu' piccolo di crop / `max_up` (niente ingrandimenti oltre `max_up`). Il crop si porta
   a `crop` x `crop` (INTER_AREA se riduce), fuori dal fotogramma si completa con il grigio 114 del letterbox, e le
   detection si riproiettano nel fotogramma. Tutti i crop del fotogramma vanno al modello insieme.
+  Se il lato del crop di un track supera `max_side` (oggetto vicino e grande, oltre circa 0,6 * max_side px), quel
+  fotogramma e' uno SCAN: il ritaglio costa troppo e nello SCAN l'oggetto grande si vede gia' bene. `max_side` e' un
+  parametro di deploy; None lo toglie e il crop si riduce sempre a `crop`.
 
 `detect(images, imgsz, conf)` restituisce per ogni immagine un array (n, 6) xyxy, conf, cls nelle sue coordinate: con
 Ultralytics e' `yolo_detect(model)`, nei test una funzione finta.
@@ -28,10 +31,11 @@ def yolo_detect(model):
 
 class CropTracker:
     def __init__(self, detect, nc: int, p: Params | None = None, scan_imgsz=640, crop: int = 256, rescan: int = 30,
-                 k: float = 3.0, ctx: float = 0.2, fill: float = 0.6, max_up: float = 2.0, max_crops: int = 4):
+                 k: float = 3.0, ctx: float = 0.2, fill: float = 0.6, max_up: float = 1.0, max_crops: int = 4,
+                 max_side: float | None = 512):
         self.detect, self.tr = detect, KalmanTracker(nc, p)
         self.scan_imgsz, self.crop, self.rescan, self.k, self.ctx = scan_imgsz, crop, rescan, k, ctx
-        self.fill, self.max_up, self.max_crops = fill, max_up, max_crops
+        self.fill, self.max_up, self.max_crops, self.max_side = fill, max_up, max_crops, max_side
         self.n, self.need_scan = 0, True
 
     def roi(self, t, dt: float) -> tuple[float, float, float]:
@@ -55,19 +59,33 @@ class CropTracker:
         interp = cv2.INTER_AREA if s > self.crop else cv2.INTER_LINEAR
         return cv2.resize(tela, (self.crop, self.crop), interpolation=interp), (x0, y0), self.crop / s
 
+    def fit(self, frame):
+        """SCAN: fotogramma ridotto con INTER_AREA a lato lungo `scan_imgsz` (Ultralytics userebbe INTER_LINEAR). Restituisce
+        l'immagine e la scala; niente ingrandimenti."""
+        r = self.scan_imgsz / max(frame.shape[:2])
+        if r >= 1:
+            return frame, 1.0
+        h, w = frame.shape[:2]
+        return cv2.resize(frame, (round(w * r), round(h * r)), interpolation=cv2.INTER_AREA), r
+
     def step(self, frame, dt: float):
         """Un fotogramma: (track da mostrare, info) con info = {mode, rois [(x0, y0, lato, id, box predetta xyxy)], dets}."""
         p = self.tr.p
         confirmed = [t for t in self.tr.tracks if t.hits >= p.min_hits]
         scan = (self.need_scan or not confirmed or len(confirmed) > self.max_crops
                 or (self.rescan and self.n % self.rescan == 0))
+        if not scan:
+            geo = [self.roi(t, dt) for t in confirmed]
+            scan = self.max_side is not None and any(side > self.max_side for *_, side in geo)
         rois = []
         if scan:
-            dets = self.detect([frame], self.scan_imgsz, p.lo)[0]
+            img, r = self.fit(frame)
+            dets = np.array(self.detect([img], self.scan_imgsz, p.lo)[0], float).reshape(-1, 6)
+            dets[:, :4] /= r
         else:
             crops, orig = [], []
-            for t in confirmed:
-                img, o, sc = self.cut(frame, *self.roi(t, dt))
+            for t, g in zip(confirmed, geo):
+                img, o, sc = self.cut(frame, *g)
                 crops.append(img), orig.append((o, sc))
                 rois.append((o[0], o[1], self.crop / sc, t.id, cxcywh2xyxy(self.tr.peek(t, dt)[0])))
             parts = []
