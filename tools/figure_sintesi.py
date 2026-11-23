@@ -79,7 +79,8 @@ def lat_misurate(results, board):
     for p in Path(results).rglob("*.json"):
         rec = json.loads(p.read_text())
         ax = rec.get("axes") or {}
-        if rec.get("status") != "ok" or ax.get("board") != board:
+        # solo la griglia: le reti potate (strategy pit_latency) hanno la stessa larghezza nominale ma costano meno
+        if rec.get("status") != "ok" or ax.get("board") != board or ax.get("strategy", "baseline") != "baseline":
             continue
         m = rec["config"]["model"]
         acc[(float(m["width"]), ax["deploy"], m["depth"], ax["quantization"])].append(rec["latency"]["median_ms"])
@@ -162,8 +163,20 @@ def _box(ax, b, a, fill, edge="none"):
                                                    linewidth=0.6, boxstyle="round,pad=0,rounding_size=0.15"))
 
 
-def figura_a(out, device, dettaglio=False, misure=None, titolo=True):
-    """`misure` da `lat_misurate`: le configurazioni non ancora misurate sono caselle vuote. Senza, dati di esempio."""
+def budget_per_ingresso(jsonl):
+    """{ingresso: ms al modello} = 1000/30 - pre - post, mediana fra le passate
+    (experiments/latenza/modelli_budget_per_ingresso)."""
+    import json
+    v = {}
+    for line in open(jsonl):
+        r = json.loads(line)
+        v.setdefault(r["deploy"], []).append(r["pre"]["median_ms"] + r["post"]["median_ms"])
+    return {k: 1000 / 30 - float(np.median(x)) for k, x in v.items()}
+
+
+def figura_a(out, device, dettaglio=False, misure=None, titolo=True, budget=None):
+    """`misure` da `lat_misurate`: le configurazioni non ancora misurate sono caselle vuote. Senza, dati di esempio.
+    `budget` da `budget_per_ingresso`: un budget per ingresso, e la legenda non ha piu' una soglia in ms."""
     fills = ["#cfeee0", "#fbe7b8", "#eeeeee"]
     fig, axs = _frame()
     for i, j, q, d, a, r, b, w in _cells():
@@ -171,13 +184,16 @@ def figura_a(out, device, dettaglio=False, misure=None, titolo=True):
         if t is None:
             _box(axs[i, j], b, a, "white", GRID)
             continue
-        k = 0 if t <= (1 - A_PELO) * BUDGET else 1 if t <= (1 + A_PELO) * BUDGET else 2
+        B = budget[r] if budget else BUDGET
+        k = 0 if t <= (1 - A_PELO) * B else 1 if t <= (1 + A_PELO) * B else 2
         _box(axs[i, j], b, a, fills[k])
         if dettaglio:
             axs[i, j].text(b, a, _ms(t), fontsize=4.5, color=INK, ha="center", va="center")
     h = [plt.Rectangle((0, 0), 1, 1, facecolor=c, edgecolor="none") for c in fills]
     lo, hi = _num((1 - A_PELO) * BUDGET, "{:.1f}"), _num((1 + A_PELO) * BUDGET, "{:.1f}")
     labels = [f"≤ {lo} ms", f"{_ms(BUDGET)} ms ±{A_PELO:.0%}", f"> {hi} ms"]
+    if budget:
+        labels = ["Entro il budget", f"Nel budget ±{A_PELO:.0%}", "Oltre il budget"]
     if misure is not None and any(misure.get((w, r, d, q)) is None for _, _, q, d, _, r, _, w in _cells()):
         h.append(plt.Rectangle((0, 0), 1, 1, facecolor="white", edgecolor=GRID))
         labels.append("Non misurato")
@@ -268,6 +284,7 @@ if __name__ == "__main__":
     ap.add_argument("--board", default="rpi5")
     ap.add_argument("--precisioni", nargs="+", choices=PRECS, default=PRECS, help="righe da disegnare, in ordine")
     ap.add_argument("--risoluzioni", nargs="+", choices=RL, default=RL, help="ingressi da disegnare, dal basso")
+    ap.add_argument("--budget", help="jsonl di modelli_budget_per_ingresso: un budget per ingresso invece di BUDGET")
     ap.add_argument("--tesi", action="store_true", help="senza titolo, per la tesi (lo dice la didascalia)")
     args = ap.parse_args()
     PRECS, RL = args.precisioni, args.risoluzioni
@@ -277,7 +294,8 @@ if __name__ == "__main__":
         misure = lat_misurate(args.risultati, args.board)
         device = BOARDS.get(args.board, args.board)
         for dettaglio in (False, True):
-            print(figura_a(out, device, dettaglio, misure, titolo=not args.tesi))
+            print(figura_a(out, device, dettaglio, misure, titolo=not args.tesi,
+                           budget=budget_per_ingresso(args.budget) if args.budget else None))
         sys.exit()
     device = "Raspberry Pi 5, dati di esempio"
     print(figura_a(out, device, dettaglio=True))
