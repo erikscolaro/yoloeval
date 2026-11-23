@@ -298,7 +298,8 @@ def execute_benchmark(conn, cfg, raw_dest: Path, timer: PhaseTimer, bc,
     with energy_sampler(conn, cfg) as sampler:
         with timer.phase("compute"):
             t0 = time.time()
-            r = conn.run(cmd, hide=True, warn=True)
+            # se la board si riavvia a meta' misura, senza timeout ssh resta appeso per sempre
+            r = conn.run(cmd, hide=True, warn=True, timeout=MEASURE_TIMEOUT_S)
             wall_s = time.time() - t0
 
     raw = (r.stdout or "") + (("\n--- stderr ---\n" + r.stderr) if r.stderr else "")
@@ -388,6 +389,7 @@ def _wrap_command(conn, cfg, cmd: str, ct, n_cores) -> str:
 # processo dell'utente con il suo ambiente (niente `sudo chrt`, che lo azzererebbe).
 RT_PRLIMIT = "sudo -n prlimit --rtprio=99:99 --pid $$ >/dev/null 2>&1; "
 
+MEASURE_TIMEOUT_S = 900  # shortcut: fisso, le misure piu' lunghe stanno sotto i 2 minuti
 _RT_CACHE: dict[str, str | bool] = {}
 
 
