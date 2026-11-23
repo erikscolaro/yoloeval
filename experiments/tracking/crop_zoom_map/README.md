@@ -21,7 +21,7 @@ crop 256) cade già vicino all'ottimo per mAP50 da 16 px in su; nessuna modifica
   senza GT non contate).
 
 ```bash
-experiments/tracking/crop_map/rifai.sh          # circa 20 minuti sulla GPU; log in runs/, json in results/
+experiments/tracking/crop_zoom_map/rifai.sh          # circa 20 minuti sulla GPU; log in runs/, json in results/
 ```
 
 ## Risultati

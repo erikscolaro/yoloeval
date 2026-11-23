@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # B1-2 sul Pi 5 a 640: pre e post-processing fuori dal grafo (misura.py), governor performance, 3 passate.
 # Risultati in results/pre_post.jsonl, una riga per passata.
-#   experiments/latenza/pre_post_rpi5/rifai.sh
+#   experiments/latenza/modelli_pre_post_640/rifai.sh
 set -euo pipefail
 cd "$(dirname "$0")"
 mkdir -p results

@@ -10,6 +10,7 @@ import numpy as np
 cv2.setNumThreads(1)
 N, WARM, CROP = int(sys.argv[1]) if len(sys.argv) > 1 else 500, 50, 256
 rng = np.random.default_rng(0)
+LATI = tuple(int(x) for x in sys.argv[2].split(",")) if len(sys.argv) > 2 else (128, 256, 384, 512, 720)
 
 
 def pre(img):
@@ -49,6 +50,6 @@ for W, H in ((1280, 720), (1920, 1080)):
     frame = rng.integers(0, 256, (H, W, 3), dtype=np.uint8)
     for nome, ig in (("area", cv2.INTER_AREA), ("linear", cv2.INTER_LINEAR)):
         print(json.dumps({"video": f"{W}x{H}", "caso": f"scan_fit640_{nome}", **tempi(lambda: pre(fit(frame, ig)))}))
-        for side in (128, 256, 384, 512, 720):
+        for side in LATI:
             print(json.dumps({"video": f"{W}x{H}", "caso": f"crop{side}_{nome}", "lato": side,
                               **tempi(lambda: pre(taglia(frame, side, ig)))}))

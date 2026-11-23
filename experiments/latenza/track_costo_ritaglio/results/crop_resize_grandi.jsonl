@@ -1,0 +1,96 @@
+{"passata": 0, "video": "1280x720", "caso": "scan_fit640_area", "median_ms": 6.723, "p90_ms": 6.754}
+{"passata": 0, "video": "1280x720", "caso": "crop384_area", "lato": 384, "median_ms": 1.303, "p90_ms": 1.324}
+{"passata": 0, "video": "1280x720", "caso": "crop512_area", "lato": 512, "median_ms": 0.494, "p90_ms": 0.517}
+{"passata": 0, "video": "1280x720", "caso": "crop640_area", "lato": 640, "median_ms": 2.527, "p90_ms": 2.551}
+{"passata": 0, "video": "1280x720", "caso": "crop720_area", "lato": 720, "median_ms": 3.776, "p90_ms": 3.793}
+{"passata": 0, "video": "1280x720", "caso": "crop768_area", "lato": 768, "median_ms": 3.173, "p90_ms": 3.194}
+{"passata": 0, "video": "1280x720", "caso": "crop1000_area", "lato": 1000, "median_ms": 6.364, "p90_ms": 6.393}
+{"passata": 0, "video": "1280x720", "caso": "crop1024_area", "lato": 1024, "median_ms": 1.496, "p90_ms": 1.528}
+{"passata": 0, "video": "1280x720", "caso": "scan_fit640_linear", "median_ms": 2.655, "p90_ms": 2.68}
+{"passata": 0, "video": "1280x720", "caso": "crop384_linear", "lato": 384, "median_ms": 0.503, "p90_ms": 0.521}
+{"passata": 0, "video": "1280x720", "caso": "crop512_linear", "lato": 512, "median_ms": 0.606, "p90_ms": 0.634}
+{"passata": 0, "video": "1280x720", "caso": "crop640_linear", "lato": 640, "median_ms": 0.727, "p90_ms": 0.763}
+{"passata": 0, "video": "1280x720", "caso": "crop720_linear", "lato": 720, "median_ms": 0.847, "p90_ms": 0.887}
+{"passata": 0, "video": "1280x720", "caso": "crop768_linear", "lato": 768, "median_ms": 0.915, "p90_ms": 0.956}
+{"passata": 0, "video": "1280x720", "caso": "crop1000_linear", "lato": 1000, "median_ms": 1.703, "p90_ms": 1.728}
+{"passata": 0, "video": "1280x720", "caso": "crop1024_linear", "lato": 1024, "median_ms": 1.709, "p90_ms": 1.734}
+{"passata": 0, "video": "1920x1080", "caso": "scan_fit640_area", "median_ms": 11.536, "p90_ms": 11.578}
+{"passata": 0, "video": "1920x1080", "caso": "crop384_area", "lato": 384, "median_ms": 1.313, "p90_ms": 1.335}
+{"passata": 0, "video": "1920x1080", "caso": "crop512_area", "lato": 512, "median_ms": 0.507, "p90_ms": 0.527}
+{"passata": 0, "video": "1920x1080", "caso": "crop640_area", "lato": 640, "median_ms": 2.568, "p90_ms": 2.587}
+{"passata": 0, "video": "1920x1080", "caso": "crop720_area", "lato": 720, "median_ms": 3.83, "p90_ms": 3.848}
+{"passata": 0, "video": "1920x1080", "caso": "crop768_area", "lato": 768, "median_ms": 3.29, "p90_ms": 3.314}
+{"passata": 0, "video": "1920x1080", "caso": "crop1000_area", "lato": 1000, "median_ms": 6.801, "p90_ms": 6.83}
+{"passata": 0, "video": "1920x1080", "caso": "crop1024_area", "lato": 1024, "median_ms": 1.985, "p90_ms": 2.017}
+{"passata": 0, "video": "1920x1080", "caso": "scan_fit640_linear", "median_ms": 2.948, "p90_ms": 2.972}
+{"passata": 0, "video": "1920x1080", "caso": "crop384_linear", "lato": 384, "median_ms": 0.515, "p90_ms": 0.534}
+{"passata": 0, "video": "1920x1080", "caso": "crop512_linear", "lato": 512, "median_ms": 0.619, "p90_ms": 0.644}
+{"passata": 0, "video": "1920x1080", "caso": "crop640_linear", "lato": 640, "median_ms": 0.782, "p90_ms": 0.816}
+{"passata": 0, "video": "1920x1080", "caso": "crop720_linear", "lato": 720, "median_ms": 0.927, "p90_ms": 0.961}
+{"passata": 0, "video": "1920x1080", "caso": "crop768_linear", "lato": 768, "median_ms": 1.037, "p90_ms": 1.076}
+{"passata": 0, "video": "1920x1080", "caso": "crop1000_linear", "lato": 1000, "median_ms": 2.142, "p90_ms": 2.163}
+{"passata": 0, "video": "1920x1080", "caso": "crop1024_linear", "lato": 1024, "median_ms": 2.179, "p90_ms": 2.203}
+{"passata": 1, "video": "1280x720", "caso": "scan_fit640_area", "median_ms": 6.722, "p90_ms": 6.752}
+{"passata": 1, "video": "1280x720", "caso": "crop384_area", "lato": 384, "median_ms": 1.3, "p90_ms": 1.321}
+{"passata": 1, "video": "1280x720", "caso": "crop512_area", "lato": 512, "median_ms": 0.494, "p90_ms": 0.512}
+{"passata": 1, "video": "1280x720", "caso": "crop640_area", "lato": 640, "median_ms": 2.514, "p90_ms": 2.535}
+{"passata": 1, "video": "1280x720", "caso": "crop720_area", "lato": 720, "median_ms": 3.735, "p90_ms": 3.745}
+{"passata": 1, "video": "1280x720", "caso": "crop768_area", "lato": 768, "median_ms": 2.906, "p90_ms": 2.934}
+{"passata": 1, "video": "1280x720", "caso": "crop1000_area", "lato": 1000, "median_ms": 6.353, "p90_ms": 6.383}
+{"passata": 1, "video": "1280x720", "caso": "crop1024_area", "lato": 1024, "median_ms": 1.491, "p90_ms": 1.515}
+{"passata": 1, "video": "1280x720", "caso": "scan_fit640_linear", "median_ms": 2.665, "p90_ms": 2.681}
+{"passata": 1, "video": "1280x720", "caso": "crop384_linear", "lato": 384, "median_ms": 0.504, "p90_ms": 0.515}
+{"passata": 1, "video": "1280x720", "caso": "crop512_linear", "lato": 512, "median_ms": 0.602, "p90_ms": 0.62}
+{"passata": 1, "video": "1280x720", "caso": "crop640_linear", "lato": 640, "median_ms": 0.723, "p90_ms": 0.746}
+{"passata": 1, "video": "1280x720", "caso": "crop720_linear", "lato": 720, "median_ms": 0.839, "p90_ms": 0.867}
+{"passata": 1, "video": "1280x720", "caso": "crop768_linear", "lato": 768, "median_ms": 0.902, "p90_ms": 0.927}
+{"passata": 1, "video": "1280x720", "caso": "crop1000_linear", "lato": 1000, "median_ms": 1.696, "p90_ms": 1.717}
+{"passata": 1, "video": "1280x720", "caso": "crop1024_linear", "lato": 1024, "median_ms": 1.705, "p90_ms": 1.725}
+{"passata": 1, "video": "1920x1080", "caso": "scan_fit640_area", "median_ms": 11.533, "p90_ms": 11.57}
+{"passata": 1, "video": "1920x1080", "caso": "crop384_area", "lato": 384, "median_ms": 1.301, "p90_ms": 1.32}
+{"passata": 1, "video": "1920x1080", "caso": "crop512_area", "lato": 512, "median_ms": 0.501, "p90_ms": 0.514}
+{"passata": 1, "video": "1920x1080", "caso": "crop640_area", "lato": 640, "median_ms": 2.561, "p90_ms": 2.582}
+{"passata": 1, "video": "1920x1080", "caso": "crop720_area", "lato": 720, "median_ms": 3.805, "p90_ms": 3.817}
+{"passata": 1, "video": "1920x1080", "caso": "crop768_area", "lato": 768, "median_ms": 3.032, "p90_ms": 3.061}
+{"passata": 1, "video": "1920x1080", "caso": "crop1000_area", "lato": 1000, "median_ms": 6.788, "p90_ms": 6.82}
+{"passata": 1, "video": "1920x1080", "caso": "crop1024_area", "lato": 1024, "median_ms": 1.969, "p90_ms": 1.995}
+{"passata": 1, "video": "1920x1080", "caso": "scan_fit640_linear", "median_ms": 2.937, "p90_ms": 2.958}
+{"passata": 1, "video": "1920x1080", "caso": "crop384_linear", "lato": 384, "median_ms": 0.505, "p90_ms": 0.517}
+{"passata": 1, "video": "1920x1080", "caso": "crop512_linear", "lato": 512, "median_ms": 0.613, "p90_ms": 0.632}
+{"passata": 1, "video": "1920x1080", "caso": "crop640_linear", "lato": 640, "median_ms": 0.774, "p90_ms": 0.797}
+{"passata": 1, "video": "1920x1080", "caso": "crop720_linear", "lato": 720, "median_ms": 0.917, "p90_ms": 0.942}
+{"passata": 1, "video": "1920x1080", "caso": "crop768_linear", "lato": 768, "median_ms": 1.023, "p90_ms": 1.049}
+{"passata": 1, "video": "1920x1080", "caso": "crop1000_linear", "lato": 1000, "median_ms": 2.126, "p90_ms": 2.148}
+{"passata": 1, "video": "1920x1080", "caso": "crop1024_linear", "lato": 1024, "median_ms": 2.171, "p90_ms": 2.193}
+{"passata": 2, "video": "1280x720", "caso": "scan_fit640_area", "median_ms": 6.749, "p90_ms": 6.775}
+{"passata": 2, "video": "1280x720", "caso": "crop384_area", "lato": 384, "median_ms": 1.307, "p90_ms": 1.324}
+{"passata": 2, "video": "1280x720", "caso": "crop512_area", "lato": 512, "median_ms": 0.502, "p90_ms": 0.52}
+{"passata": 2, "video": "1280x720", "caso": "crop640_area", "lato": 640, "median_ms": 2.537, "p90_ms": 2.553}
+{"passata": 2, "video": "1280x720", "caso": "crop720_area", "lato": 720, "median_ms": 3.769, "p90_ms": 3.784}
+{"passata": 2, "video": "1280x720", "caso": "crop768_area", "lato": 768, "median_ms": 2.931, "p90_ms": 2.953}
+{"passata": 2, "video": "1280x720", "caso": "crop1000_area", "lato": 1000, "median_ms": 6.364, "p90_ms": 6.39}
+{"passata": 2, "video": "1280x720", "caso": "crop1024_area", "lato": 1024, "median_ms": 1.514, "p90_ms": 1.538}
+{"passata": 2, "video": "1280x720", "caso": "scan_fit640_linear", "median_ms": 2.686, "p90_ms": 2.706}
+{"passata": 2, "video": "1280x720", "caso": "crop384_linear", "lato": 384, "median_ms": 0.51, "p90_ms": 0.527}
+{"passata": 2, "video": "1280x720", "caso": "crop512_linear", "lato": 512, "median_ms": 0.613, "p90_ms": 0.637}
+{"passata": 2, "video": "1280x720", "caso": "crop640_linear", "lato": 640, "median_ms": 0.741, "p90_ms": 0.775}
+{"passata": 2, "video": "1280x720", "caso": "crop720_linear", "lato": 720, "median_ms": 0.862, "p90_ms": 0.897}
+{"passata": 2, "video": "1280x720", "caso": "crop768_linear", "lato": 768, "median_ms": 0.918, "p90_ms": 0.954}
+{"passata": 2, "video": "1280x720", "caso": "crop1000_linear", "lato": 1000, "median_ms": 1.724, "p90_ms": 1.745}
+{"passata": 2, "video": "1280x720", "caso": "crop1024_linear", "lato": 1024, "median_ms": 1.74, "p90_ms": 1.759}
+{"passata": 2, "video": "1920x1080", "caso": "scan_fit640_area", "median_ms": 11.525, "p90_ms": 11.565}
+{"passata": 2, "video": "1920x1080", "caso": "crop384_area", "lato": 384, "median_ms": 1.313, "p90_ms": 1.33}
+{"passata": 2, "video": "1920x1080", "caso": "crop512_area", "lato": 512, "median_ms": 0.502, "p90_ms": 0.523}
+{"passata": 2, "video": "1920x1080", "caso": "crop640_area", "lato": 640, "median_ms": 2.573, "p90_ms": 2.589}
+{"passata": 2, "video": "1920x1080", "caso": "crop720_area", "lato": 720, "median_ms": 3.828, "p90_ms": 3.84}
+{"passata": 2, "video": "1920x1080", "caso": "crop768_area", "lato": 768, "median_ms": 3.059, "p90_ms": 3.082}
+{"passata": 2, "video": "1920x1080", "caso": "crop1000_area", "lato": 1000, "median_ms": 6.804, "p90_ms": 6.831}
+{"passata": 2, "video": "1920x1080", "caso": "crop1024_area", "lato": 1024, "median_ms": 1.998, "p90_ms": 2.023}
+{"passata": 2, "video": "1920x1080", "caso": "scan_fit640_linear", "median_ms": 2.973, "p90_ms": 2.994}
+{"passata": 2, "video": "1920x1080", "caso": "crop384_linear", "lato": 384, "median_ms": 0.508, "p90_ms": 0.524}
+{"passata": 2, "video": "1920x1080", "caso": "crop512_linear", "lato": 512, "median_ms": 0.62, "p90_ms": 0.644}
+{"passata": 2, "video": "1920x1080", "caso": "crop640_linear", "lato": 640, "median_ms": 0.776, "p90_ms": 0.812}
+{"passata": 2, "video": "1920x1080", "caso": "crop720_linear", "lato": 720, "median_ms": 0.924, "p90_ms": 0.959}
+{"passata": 2, "video": "1920x1080", "caso": "crop768_linear", "lato": 768, "median_ms": 1.038, "p90_ms": 1.071}
+{"passata": 2, "video": "1920x1080", "caso": "crop1000_linear", "lato": 1000, "median_ms": 2.149, "p90_ms": 2.17}
+{"passata": 2, "video": "1920x1080", "caso": "crop1024_linear", "lato": 1024, "median_ms": 2.193, "p90_ms": 2.213}

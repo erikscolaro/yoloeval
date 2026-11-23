@@ -34,7 +34,7 @@ originale, e `seq.json` (fonte, classe, split, gruppo, fps, frame).
 
 - **Buchi**: 7 sequenze Svanström hanno frame mancanti (frame tolti in revisione), per esempio `V_DRONE_050_s0` ha
   97 frame su 310. Nei buchi lo stato del frame non è noto: la valutazione deve usare l'indice del frame per il dt e
-  dividere la sequenza dove c'è un buco, oppure togliere queste sequenze.
+  dividere la sequenza dove c'è un buco, oppure togliere queste sequenze. Decisione del 20/11/2026: si divide la sequenza nei buchi.
 - **ID**: le label YOLO non hanno l'ID degli oggetti. Anti-UAV ha sempre un oggetto; Svanström ha più oggetti in
   circa il 10% dei frame di val. Le metriche di detection e di classe non hanno bisogno dell'ID; HOTA e IDF1 sì.
 - **Varietà**: i video Anti-UAV vengono da 2 sessioni in val e da 1 in test.

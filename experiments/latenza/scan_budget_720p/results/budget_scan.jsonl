@@ -1,0 +1,6 @@
+{"passata": 0, "interp": "area", "median_ms": 2.629, "p99_ms": 2.688, "budget_ms": 30.7}
+{"passata": 0, "interp": "linear", "median_ms": 2.823, "p99_ms": 2.931, "budget_ms": 30.51}
+{"passata": 1, "interp": "area", "median_ms": 2.634, "p99_ms": 2.693, "budget_ms": 30.7}
+{"passata": 1, "interp": "linear", "median_ms": 2.827, "p99_ms": 2.883, "budget_ms": 30.51}
+{"passata": 2, "interp": "area", "median_ms": 2.66, "p99_ms": 2.706, "budget_ms": 30.67}
+{"passata": 2, "interp": "linear", "median_ms": 2.827, "p99_ms": 2.874, "budget_ms": 30.51}

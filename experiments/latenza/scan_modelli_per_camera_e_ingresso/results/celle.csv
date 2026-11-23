@@ -1,0 +1,13 @@
+camera,ingresso,interp,fuori_modello_ms,budget_ms,modello,lat_mediana_ms,lat_max_ms,mAP50-95
+640,640x384,area,2.04,31.08,PN-,24.3,27.5,0.587
+640,640x384,linear,2.03,31.09,PN-,24.3,27.5,0.587
+HD,640x384,area,2.71,30.41,P+,21.6,24.4,0.577
+HD,640x384,linear,3.05,30.06,P+,21.6,24.4,0.577
+HD,HD,area,7.79,25.33,-,,,
+HD,HD,linear,7.82,25.3,-,,,
+FHD,640x384,area,9.2,23.92,P-,15.6,23.9,0.57
+FHD,640x384,linear,2.15,30.96,PN-,24.3,27.5,0.587
+FHD,HD,area,21.39,11.72,-,,,
+FHD,HD,linear,9.71,23.4,-,,,
+FHD,FHD,area,17.3,15.82,-,,,
+FHD,FHD,linear,17.32,15.8,-,,,

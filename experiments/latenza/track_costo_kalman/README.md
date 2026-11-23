@@ -15,4 +15,5 @@ scipy), aggiornamento, NMS fra classi e voto della classe.
 | ms per fotogramma | 0,02 | 0,21 | 0,39 | 0,68 | 1,27 | 2,48 |
 
 Il costo cresce di circa 0,15 ms per oggetto. Con 1–4 oggetti il Kalman costa meno di 0,7 ms, cioè meno del 3% del
-budget del modello (28 ms). Il costo non contiene il taglio dei crop e l'inferenza (`../crop_resize_rpi5`).
+budget del modello (30,3 ms a 640). Il costo del fotogramma TRACK intero fuori dal modello (ritaglio, Kalman, pre,
+post) è in `../track_budget_n_crop`.

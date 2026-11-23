@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # Latenza a batch 1, 2, 4, 8 a 256x256 sul Raspberry Pi 5 per i 27 modelli della griglia (larghezze F..M x D101/D126/
 # D170), pesi casuali, OpenVINO fp16, 4 core, freq_target=max (governor performance), 3 passate. Il batch e' quello
-# del crop tracker (src/crop_tracker.py): N crop in una sola inferenza. Stessa pipeline di ../griglia_rpi5/rifai.sh,
+# del crop tracker (src/crop_tracker.py): N crop in una sola inferenza. Stessa pipeline di ../modelli_latenza_per_ingresso/rifai.sh,
 # deploy crop256_b1..b8 (conf/deploy). Idempotente; il benchmark tiene il lock del Pi. Poi le figure in report/.
-#   experiments/latenza/batch_rpi5/rifai.sh
+#   experiments/latenza/track_modelli_batch_crop256/rifai.sh
 set -euo pipefail
 cd "$(dirname "$0")/../../.."
-D=experiments/latenza/batch_rpi5
+D=experiments/latenza/track_modelli_batch_crop256
 W=${W:-0.0625,0.09375,0.125,0.1875,0.25,0.375,0.5,0.75,1.0}
 DEPLOY=${DEPLOY:-crop256_b1,crop256_b2,crop256_b4,crop256_b8}
 I=$PWD/data/air-detection/all/images/calib   # train=random: il dataset serve solo alla forma, basta la calib

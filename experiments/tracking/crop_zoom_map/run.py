@@ -4,7 +4,7 @@ mAP50 e mAP50-95 per classe e per fascia di grandezza della tesi (lato sqrt(w*h)
 fotogramma intero a 640. Ogni crop vale per il suo oggetto: gli altri oggetti nel crop sono ignorati (le detection su
 di loro non contano), le altre detection sono falsi positivi.
 
-    python experiments/tracking/crop_map/run.py MODELLO.pt [--crop 256] [--target 16 24 32 ...] [--jitter 0.1]
+    python experiments/tracking/crop_zoom_map/run.py MODELLO.pt [--crop 256] [--target 16 24 32 ...] [--jitter 0.1]
 """
 import argparse
 import json
@@ -123,7 +123,7 @@ def main():
     m, G, rng = YOLO(a.model), gt(), np.random.default_rng(a.seed)
     args = dict(conf=0.001, max_det=64, verbose=False)
     res = {"model": a.model, "crop": a.crop, "jitter": a.jitter, "bands": list(BANDS), "fotogramma_640": {},
-           "crop_map": {}, "n": {}}
+           "crop_zoom_map": {}, "n": {}}
 
     # fotogramma intero a 640: per fascia, i GT fuori fascia ignorati e le detection fuori fascia non contate
     stems = list(G)
@@ -162,10 +162,10 @@ def main():
                 ig = np.ones(len(gc), bool)
                 ig[k] = False                                            # conta solo l'oggetto del crop
                 camp[fascia(sz)].append((gc, g, ig, r.boxes.data.cpu().numpy(), None))
-        res["crop_map"][T] = {b: riassunto(valuta(v)) for b, v in camp.items() if v}
+        res["crop_zoom_map"][T] = {b: riassunto(valuta(v)) for b, v in camp.items() if v}
         res["n"][T] = {b: len(v) for b, v in camp.items()}
         print(f"target {T}", {b: {k: [round(x, 3) for x in v] for k, v in d.items()}
-                              for b, d in res["crop_map"][T].items()}, flush=True)
+                              for b, d in res["crop_zoom_map"][T].items()}, flush=True)
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
     (out / f"crop_map_{Path(a.model).parent.name}_c{a.crop}.json").write_text(json.dumps(res, indent=1))

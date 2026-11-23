@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Costo di taglio + resize + pre del crop adattativo sul Pi 5 (misura.py): un core, governor performance, 3 passate,
 # sotto il lock del Pi. Risultati in results/crop_resize.jsonl; rimette il governor com'era.
-#   experiments/latenza/crop_resize_rpi5/rifai.sh
+#   experiments/latenza/track_costo_ritaglio/rifai.sh
 set -euo pipefail
 cd "$(dirname "$0")"
 exec 9>../../../runs/.pi.lock; flock 9
