@@ -1,0 +1,3 @@
+name: 640x384
+imgsz: [384, 640]
+# camera 720p ridotta a 640 sul lato lungo senza cambiare le proporzioni (640x360) + bordo fino a 384, multiplo di 32

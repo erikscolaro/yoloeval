@@ -1,0 +1,3 @@
+name: 640x512
+imgsz: [512, 640]
+# camera Svanstrom 640x512 nativa (5:4): nessun resize, gia' multiplo di 32
