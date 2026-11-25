@@ -53,7 +53,7 @@ NCNN fp16 (prova D), confrontato con le sue misure a 2400 MHz (`experiments/depl
 | OpenVINO | 3000 | 23,34 | 47,58 |
 
 Nessun throttling in nessuna configurazione (`get_throttled` 0x0 prima e dopo ogni misura), temperatura massima
-circa 49 °C. Il Pi è ripartito a ogni frequenza fino a 3000 MHz.
+a fine misura 52,4 °C (`temp_end_c` nei json). Il Pi è ripartito a ogni frequenza fino a 3000 MHz.
 
 ## Commento
 

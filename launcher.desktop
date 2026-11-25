@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=yoloeval launcher
+Comment=Menu della pipeline (lab/launcher)
+Exec=/home/scolaroe/Desktop/yoloeval/lab/launcher
+Path=/home/scolaroe/Desktop/yoloeval
+Terminal=true
+Icon=utilities-terminal

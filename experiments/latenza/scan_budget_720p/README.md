@@ -17,8 +17,8 @@ experiments/latenza/scan_budget_720p/rifai.sh   # circa 1 minuto, aspetta il loc
 
 | interpolazione | costo fuori dal modello | p99 | budget del modello |
 |---|---|---|---|
-| INTER_AREA | 2,63 ms | 2,71 ms | **30,7 ms** |
-| INTER_LINEAR | 2,83 ms | 2,93 ms | 30,5 ms |
+| INTER_AREA | 2,63 ms | 2,69 ms | **30,7 ms** |
+| INTER_LINEAR | 2,83 ms | 2,88 ms | 30,5 ms |
 
 - Le passate differiscono di meno di 0,03 ms.
 - Con 720p → 640 la riduzione è esattamente 2×: OpenCV fa INTER_AREA come media di blocchi 2×2, che costa come LINEAR

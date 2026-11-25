@@ -3,6 +3,10 @@ scelta: beta 2 pesa il recall il doppio della precisione, 0.5 il contrario, 1 e'
 
     python tools/curva_fbeta.py PESI [OUT_DIR]                      # F2 sul val (default docs/figures/fbeta)
     python tools/curva_fbeta.py PESI OUT_DIR --beta 1 --split test  # F1 sul test
+    python tools/curva_fbeta.py PESI --soglie                       # soglie consigliate, in soglie_f1_val.json accanto ai pesi
+
+--soglie: F1 (o --beta) sul val, soglia migliore sulla media delle classi, sui soli droni e per classe (per_classe); il file lo legge il launcher
+nel predict. Niente figura.
 
 Valida con la testa one-to-one (nms=False) e conf 0.001, come il val del training. Non lascia niente su disco oltre
 alla figura: la cartella di Ultralytics e' temporanea e le cache delle label create qui vengono tolte.
@@ -68,8 +72,22 @@ if __name__ == "__main__":
     ap.add_argument("out", nargs="?", default=str(Path(__file__).resolve().parents[1] / "docs/figures/fbeta"))
     ap.add_argument("--beta", type=float, default=2.0, help="2: recall pesato il doppio; 1: F1; 0.5: precisione")
     ap.add_argument("--split", default="val", choices=["val", "test"])
+    ap.add_argument("--soglie", action="store_true", help="solo le soglie migliori, in soglie_f<beta>_<split>.json accanto ai pesi")
     args = ap.parse_args()
+    if args.soglie and "--beta" not in sys.argv:
+        args.beta = 1.0
     soglie, fb = curve(args.pesi, args.split, args.beta)
+    if args.soglie:
+        import json
+        media = np.mean(list(fb.values()), axis=0)
+        out = {"tutte": [round(float(soglie[media.argmax()]), 3), round(float(media.max()), 3)]}
+        if "drone" in fb:
+            out["drone"] = [round(float(soglie[fb["drone"].argmax()]), 3), round(float(fb["drone"].max()), 3)]
+        out["per_classe"] = {c: [round(float(soglie[y.argmax()]), 3), round(float(y.max()), 3)] for c, y in fb.items()}
+        f = Path(args.pesi).parent / f"soglie_f{args.beta:g}_{args.split}.json"
+        f.write_text(json.dumps(out) + "\n")
+        print(f, out)
+        sys.exit()
     for cls, y in fb.items():
         print(f"{cls:11s} {y.max():.3f} a soglia {soglie[y.argmax()]:.3f}")
     print(figura(args.out, soglie, fb, args.beta, args.split))

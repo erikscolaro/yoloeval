@@ -95,7 +95,7 @@ Queste regole valgono per tutta la tesi. Servono a rendere i confronti onesti e 
   misurano una volta e si sottraggono dal budget. Quello che resta è il **budget del modello**:
   `budget del modello = 33 ms − (pre + post + trasferimenti)`.
 - **Sul PI il percorso principale è a 640×640** (vedi "Risoluzione"). Il budget del modello a 640 è **da fissare**:
-  lo sceglie l'utente dalla tabella `experiments/latenza/griglia_rpi5/report` (`experiments/latenza/griglia_rpi5/rifai.sh`). Il valore 28 ms che compare
+  lo sceglie l'utente dalla tabella `experiments/latenza/modelli_latenza_per_ingresso/report` (`experiments/latenza/modelli_latenza_per_ingresso/rifai.sh`). Il valore 28 ms che compare
   negli esempi è quello ottenuto a 480p: vale solo come esempio.
 
 ### Risoluzione
@@ -104,11 +104,14 @@ Queste regole valgono per tutta la tesi. Servono a rendere i confronti onesti e 
 
 - **Training**: tutti i modelli si allenano a **640×640**, la scala del dataset (nativo 640×512). Non si allena a
   nessun'altra risoluzione, e non si ingrandisce mai un'immagine (non aggiunge dettagli).
-- **Deploy principale: 640×640, risoluzione fittizia** (decisione dell'utente). È una scelta di comodo: LUT, B4-R,
-  pavimento e stimatore di latenza esistono solo a 640, e a 640 il fotogramma ha la stessa grandezza del training,
-  quindi il `val` standard basta. Tutte le decisioni (2c, 2d, fase 4) si prendono a 640 sul PI.
-- **Deploy a più risoluzioni (estensione, se abbiamo tempo)**: camera **16:9** a tre risoluzioni. Il modello riceve il fotogramma intero; l'ingresso va arrotondato a
-  un multiplo di 32 (lo stride massimo della rete):
+- **Risoluzione degli esperimenti: 640×640, risoluzione fittizia** (decisione dell'utente, dal 13/11). È una
+  grandezza standard e una scelta di comodo: LUT, B4-R, pavimento e stimatore di latenza esistono solo a 640, e a 640
+  il fotogramma ha la stessa grandezza del training, quindi il `val` standard basta. Le decisioni (2c, 2d, fase 4) e
+  gli esperimenti di potatura si fanno a 640 sul PI.
+- **Condizioni di deploy, misurate alla fine**: camera **16:9** a tre risoluzioni, più i ritagli del tracking. Alla
+  fine si misurano le latenze dei modelli scelti in ogni condizione di deploy e da lì si traggono le considerazioni
+  (fase 5). Il modello riceve il fotogramma intero; l'ingresso va arrotondato a un multiplo di 32 (lo stride massimo
+  della rete):
 
   | | fotogramma | ingresso del modello |
   |---|---|---|
@@ -129,12 +132,14 @@ Queste regole valgono per tutta la tesi. Servono a rendere i confronti onesti e 
   sullo stesso oggetto, che non dipendono dalla grandezza del fotogramma.\</esempio>
 - **La risoluzione non è una leva da allenare, è una condizione di deploy**: cambia la latenza (in modo circa
   quadratico) e la mAP misurata sui set di deploy, mai il training.
-- **Ritagli quadrati del tracking: 128×128, 256×256, 512×512.** Il detector gira sul fotogramma intero per agganciare
-  il bersaglio; poi, a ogni fotogramma, si taglia un quadrato **a risoluzione nativa** attorno al soggetto e lo si dà
-  al modello: l'oggetto resta grande in pixel come nel training, il calcolo scende (il 128 ha circa 1/25 dei pixel
-  del 640×640). Per ora entrano **solo nella griglia di latenza** (2a); la mAP sui ritagli e il ritorno al fotogramma
-  intero quando il bersaglio si perde sono da definire. \<esempio>Il ritaglio regge oggetti fino a circa metà del suo
-  lato (64 px nel 128); il 512 non sta in un fotogramma 480p (alto 480), quindi serve dal 720p in su.\</esempio>
+- **Tracker (SCAN/TRACK), regole del 23/11/2026** (sezione 12b; dettagli in `docs/tracker.md`):
+  - **SCAN**: il fotogramma intero, ridotto senza cambiare le proporzioni e completato con il bordo grigio. Ingresso
+    640×384 per le camere 16:9 (HD e FHD), 640×512 per Svanström. Un solo file del modello: OpenVINO lo porta alla
+    forma della camera all'avvio (`model.reshape`).
+  - **TRACK**: un ritaglio quadrato attorno al bersaglio, portato sempre a **256×256**. Il lato del ritaglio è almeno
+    256 px (nessun ingrandimento digitale) e al massimo 512 px; oltre, il fotogramma è uno SCAN.
+  - **Interpolazione**: INTER_AREA ovunque, scelta conservativa per la qualità dell'immagine.
+  - Il ritaglio 128×128 e il 512×512 come ingresso del modello non si usano più.
 
 ### Training e seed
 
@@ -273,7 +278,7 @@ Si usa la famiglia **YOLO26** con la testa **one-to-one** (senza NMS). Nel train
 - la **profondità**, cioè il **numero di strati convoluzionali** della rete (definizione sotto).
 
 La **risoluzione** non si varia nel training (sempre 640×640): è la condizione di deploy (640×640 principale; 480p, 720p, 1080p, regole
-fisse), su cui si misurano latenza e mAP. Il percorso principale è a 640×640; le tre risoluzioni di deploy sono un'estensione.
+fisse), su cui si misurano latenza e mAP. Gli esperimenti si fanno a 640×640; alla fine si misurano tutte le condizioni di deploy.
 
 **Sigle**: ogni modello ha una sigla = lettera della larghezza + segno della profondità. Lettere: F 0.0625, FP 0.09375,
 P 0.125, PN 0.1875, N 0.25, NS 0.375, S 0.5, SM 0.75, M 1.0 (le intermedie prendono le lettere delle due vicine). Segno:
@@ -350,7 +355,7 @@ di 16, e femto e 0.09375 hanno 9 conv sotto gli 8 canali. \<esempio>Su GPU e NPU
 larghezze rischiano di costare più delle potenze di 2 a parità di calcoli\</esempio>: la griglia di latenza della 2a lo misura,
 ed è un risultato da riportare.
 
-Le risoluzioni sono **640×640** (deploy principale, fittizio) e le tre dell'estensione: **480p, 720p, 1080p** (ingressi 864×480, 1280×736, 1920×1088; regole fisse),
+Le risoluzioni sono **640×640** (risoluzione degli esperimenti, fittizia) e le tre di deploy misurate alla fine: **480p, 720p, 1080p** (ingressi 864×480, 1280×736, 1920×1088; regole fisse),
 più i tre ritagli quadrati del tracking (**`crop128`, `crop256`, `crop512`**), per ora solo nella griglia di latenza.
 
 Ogni configurazione valutata (larghezza, profondità, risoluzione di deploy, precisione) è quindi **un modello che
@@ -399,7 +404,7 @@ Costruito e congelato nella repo `~/Desktop/vedetta`: l'ordine delle operazioni 
 
 ### Set di deploy
 
-A 640 il set di deploy è il `val` standard. Per l'estensione servono set di val alle risoluzioni di deploy (`val_480p`, `val_720p`, `val_1080p`), costruiti una volta su disco e uguali per
+A 640 il set di deploy è il `val` standard. Per le altre condizioni di deploy servono set di val alle risoluzioni di deploy (`val_480p`, `val_720p`, `val_1080p`), costruiti una volta su disco e uguali per
 tutti i modelli. Ogni fotogramma di deploy è un **mosaico**: un frame di val con il suo oggetto, in posizione casuale
 a seed fisso, e intorno frame di **solo sfondo dello stesso video** (oggetto cancellato con l'inpainting), così il
 cielo è lo stesso e non ci sono giunture fra cieli diversi. Per il 1080p: 3×2 frame da 640×512 (1920×1024) più una
@@ -507,7 +512,7 @@ uscite diversi, reti potate a caso) serve solo alla potatura, e si fa nel blocco
 | run | cosa misura | dove | cosa si varia |
 |---|---|---|---|
 | B1-0 | ripetibilità: lo stesso modello (N, pesi casuali) misurato 5 volte | PI fp16 | niente: è sempre la stessa misura |
-| B1-2 | pre-processing, post-processing e trasferimenti | PI | risoluzione di deploy: 640×640 (principale), 480p, 720p, 1080p (estensione) |
+| B1-2 | pre-processing, post-processing e trasferimenti | PI | risoluzione di deploy: 640×640 (esperimenti), 480p, 720p, 1080p (alla fine) |
 | B1-1 | costo minimo di uno strato: catene di strati identici e piccoli (conv 3×3, 16 canali, 54×30) | PI | numero di strati: 1, 2, 4, 8, 16, 32 |
 | P1-1 | probe ridotto: 8 conv 3×3 uguali, canali da 1 a 64 a passo 1 e da 72 a 128 a passo 8, mappe del deploy a passo 8 e 16 del 480p e del 1080p (108×60, 54×30, 240×136, 120×68), 3 passate | PI fp16 | numero di canali |
 | B1-3 | prestazioni massime reali: picco di calcolo e banda di memoria (roofline) | PI | precisioni del dispositivo |
@@ -634,7 +639,7 @@ comprende tutti i modelli della mappatura e tutte le candidate all'ottimo: è un
 senza bisogno di interpolare. \<esempio>Costo indicativo: sul Pi qualche ora per precisione\</esempio>. Per l'int8 i modelli si quantizzano con
 **la ricetta del dispositivo**: sul PI quella di X2 (onnxruntime, testa, ramo di classe e attention in float) (AGX e DX: sezione 16).
 Calibrazione su pesi casuali: per la latenza conta solo quali nodi sono quantizzati, non i valori. Già da qui si sa quali modelli stanno nel budget su ogni dispositivo, in ogni precisione e a ogni
-risoluzione di deploy (figura A, sezione 13). \<esempio>Sul Pi, nell'estensione, probabilmente nessun modello oltre i 640: a 720p il fotogramma ha circa 2,3
+risoluzione di deploy (figura A, sezione 13). \<esempio>Sul Pi, alle altre risoluzioni di deploy, probabilmente nessun modello oltre i 640: a 720p il fotogramma ha circa 2,3
 volte i pixel di un 640×640, a 1080p circa 5 volte, e la latenza sul Pi segue i calcoli.\</esempio>
 
 | run | modelli | dove | precisioni |
@@ -732,7 +737,7 @@ Se più dispositivi o risoluzioni hanno lo stesso ottimo, i suoi training si fan
 > le candidate nel budget con mAP predetta ≥ 0,452.\</esempio>
 
 **Cosa ci aspettiamo**: \<esempio>la mAP vera dell'ottimo entro circa 1 punto da quella predetta; un ottimo che cambia
-con la risoluzione di deploy (su PI a 640 il budget è stretto; nell'estensione, a risoluzioni più alte, forse nessun modello); l'ottimo migliore di qualunque taglia standard (F, P, N, S, M) che sta nel budget.\</esempio>
+con la risoluzione di deploy (su PI a 640 il budget è stretto; alle risoluzioni di deploy più alte, forse nessun modello); l'ottimo migliore di qualunque taglia standard (F, P, N, S, M) che sta nel budget.\</esempio>
 
 **Conoscenza che produciamo**: il tasso di cambio delle leve per dispositivo; la **ricetta** `(w, d)` ottima per
 dispositivo, risoluzione di deploy e budget; quanto costa salire di risoluzione; quanto è affidabile scegliere un
@@ -828,7 +833,7 @@ farli diventare un collo di bottiglia. Se il blocco 2 non si fa, restano punti d
 - La mAP ai set di deploy cambia poco con la risoluzione (regole fisse); la differenza fra modelli la fanno le
   detection multiple sullo stesso oggetto, più frequenti nei modelli piccoli.
 - Sotto il pico la precisione cala in fretta (canali interni minuscoli).
-- **PI**: nel budget stanno solo i modelli piccoli (circa fino al pico) a 640; alle risoluzioni più alte dell'estensione, probabilmente nessuno.
+- **PI**: nel budget stanno solo i modelli piccoli (circa fino al pico) a 640; alle risoluzioni di deploy più alte, probabilmente nessuno.
 
 \</esempio>
 
@@ -954,7 +959,7 @@ Non basta, perché le curve canali → latenza del PI non sono né lineari né a
   48 e 64. Questi probe usano 30 iterazioni, con cui la mediana viene circa 2× il regime: sono poco affidabili, e da
   qui in poi si usano 200 iterazioni;
 - **CPU della workstation**: andamento lineare con plateau (64, 68, 72 e 76 canali costano quasi uguale);
-- **separabilità rifiutata** (05/11, [`pruning/separability`](experiments/pruning/separability), wandb `6lhj71tw`).
+- **separabilità rifiutata** (05/11, [`pruning/separability`](../experiments/pruning/separability), wandb `6lhj71tw`).
   L'ipotesi era `LUT_f(c_in, c_out) ≈ F_f(c_out) · G_f(c_in)`: se avesse retto, una LUT si sarebbe ricavata da due
   scansioni 1D (circa 2,5 ore). Esito su 5 928 misure, criterio "90% dei punti entro 2× il rumore":
 
@@ -1004,7 +1009,7 @@ d'uscita; per le s2 l'ingresso è il doppio). I 74 sono 66 più 8: nei C3k2 il `
 
 #### Protocollo della LUT
 
-Dettagli, prove e decisioni in [`pruning/lut_pi_passo2`](experiments/pruning/lut_pi_passo2).
+Dettagli, prove e decisioni in [`pruning/lut_pi_passo2`](../experiments/pruning/lut_pi_passo2).
 
 - **Rete di misura**: una sola conv con pesi casuali, bias e SiLU, come le Conv di YOLO26 con la BN fusa. La SiLU
   **non è fusa** nella conv, né qui né nel nano vero (102 `Convolution` e 101 `Subgraph`): la LUT misura lo strato
@@ -1042,7 +1047,7 @@ latenza_rete = C + Σ_f a_f · Σ_{strati in f} LUT_f(c_in, c_out)  [+ γ · ele
 **Ipotesi sulla composizione**: sul PI OpenVINO esegue i nodi uno alla volta e i 4 core lavorano dentro ogni nodo,
 quindi i rami paralleli (C3k2, FPN) non si sovrappongono e sommare gli strati è corretto.
 
-**Stima e verifica** ([`pruning/b4r_composizione`](experiments/pruning/b4r_composizione)):
+**Stima e verifica** ([`pruning/b4r_composizione`](../experiments/pruning/b4r_composizione)):
 
 1. **Reti B4-R**: potature casuali di **tutte le architetture fino al nano** (larghezze 0.0625–0.25 × D101, D126,
    D170: 15 architetture), 50 per architettura più quella intera, 765 reti. Potatura con i vincoli di yolopit
@@ -1069,14 +1074,15 @@ Implementata in yolopit (`yolopit/latency.py`, `search.py`, `config.py`), con 13
   griglia. Il valore è sempre quello esatto della LUT; si cambia solo la pendenza per il gradiente.
 - Il target DUCCIO si dà in ms: `target: {latency: X}`.
 - Quattro pendenze, scelte con `pit.latency.estimator`: `lut` (derivata della LUT), `smooth` (superficie liscia per
-  famiglia, **default**), `secant` (retta fino a D canali più in basso), `best` (retta più ripida verso qualsiasi punto
-  più in basso). Servono perché la latenza va a gradini (ogni 32 canali di uscita) e la ricerca sente solo la pendenza
+  famiglia), `secant` (retta fino a D canali più in basso), `best` (retta più ripida verso qualsiasi punto più in
+  basso, **default** dal 14/11, scelta nel confronto delle pendenze). Servono perché la latenza va a gradini (ogni 32 canali di uscita) e la ricerca sente solo la pendenza
   nel punto in cui sta.
 
 **Da provare** (dettagli in `docs/stimatore-latenza.md`, sezione 9):
 
 1. Confronto delle quattro pendenze: stessa ricerca, stesso target in ms, cambia solo `estimator`. Si guardano mAP,
-   latenza misurata sul PI e distanza dalla stima.
+   latenza misurata sul PI e distanza dalla stima. **Fatto il 14/11** (`experiments/pruning/pendenze`): `lut` non
+   arriva al target, `best` sta più vicino al target di `smooth` (27,9 contro 26,8 ms su 28) con mAP un po' più alta.
 2. Aggiustamento dopo la search: i layer appena sopra un gradino si spostano al gradino sotto (per esempio da 34 a
    32 canali) e si misura quanto cambia la mAP dopo il finetune. È la vecchia idea "search con la sola parte liscia e
    poi ricerca locale sulla LUT", ridotta a un esperimento; non è implementata come strada alternativa.
@@ -1129,16 +1135,22 @@ dopo ogni misura, non durante; le prove preliminari del 05–06/11 sono senza ve
 
 **Come si pota**:
 
-- Si parte dal modello indicato dalla decisione 2d (il tetto, o il più piccolo che lo eguaglia), già allenato con 3
-  seed in 2e. Deve passare il test del pavimento della 2d (pavimento sotto l'85% di `B`). \<esempio>Su PI è previsto il **nano**: per portarlo alla latenza del pico va tolto circa il 70% dei calcoli
-  (stima dalla retta 16,6 ms + 15,2 ms/GMAC).\</esempio>
+- **Più partenze**: il modello indicato dalla decisione 2d (il nano su PI) e le reti della griglia sopra il budget
+  più vicine a lui (N-, PN-, PN, PN+, P+). Ognuna deve passare il test del pavimento della 2d (pavimento sotto l'85%
+  di `B`).
 - **La potatura lavora sulla leva che rende di più (tasso di cambio, 2c)**, alla risoluzione di deploy a cui il
   dispositivo è stretto.
 - Il costo che guida la potatura (PIT) è o il **numero di calcoli** (il metodo classico) o lo **stimatore** del
   dispositivo (4a); sul PI con `pit.n` = 2, il passo della LUT.
-- Dopo la potatura il modello si riallena per recuperare precisione (finetune).
+- **Ricetta della ricerca** (`conf/strategy/pit_latency.yaml`): 30 epoche; maschere con SGD a lr 0,01, a coseno
+  fino a 0,0001; forza di DUCCIO 2; pendenza `best`; temperatura delle maschere 0,1 (nel forward di training la
+  maschera di un blocco è `sigmoid((|alpha| − 0,5)/T)`, con T da 0,1 a 0,001 e le ultime 3 epoche nette); rete
+  dell'ultima epoca (`select: last`). Senza temperatura le maschere restano sulla soglia e la rete finale cambia a
+  ogni epoca (`experiments/pruning/maschere_lr`).
+- **Dopo la potatura l'architettura si riallena da zero** (300 epoche, la ricetta completa: `finetune=scratch`), ed
+  è il default. Il finetune dai pesi ereditati resta come confronto (domanda 2).
 
-**Run: potatura e finetune (seed 0)**. Ogni search `S4-xx` è seguita dal suo finetune `FT4-xx`. `B` è il budget del
+**Run: potatura e training da zero (seed 0)**. Ogni search `S4-xx` è seguita dal suo training da zero `FT4-xx`. `B` è il budget del
 modello del dispositivo; `B'` è un budget più stretto (per esempio 20 fps), per vedere se la tendenza regge.
 
 | run | dispositivo | si parte da | costo che guida la potatura | budget | nota |
@@ -1151,8 +1163,8 @@ modello del dispositivo; `B'` è un budget più stretto (per esempio 20 fps), pe
 
 | run | cosa | seed |
 |---|---|---|
-| S4-xx + FT4-xx | la stessa potatura e lo stesso finetune, con altri 2 seed | 1, 2 |
-| R4-xx | la **stessa architettura trovata dalla potatura, ma allenata da zero** (pesi casuali, ricetta completa) | 0, 1, 2 |
+| S4-xx + FT4-xx | la stessa potatura e lo stesso training da zero, con altri 2 seed | 1, 2 |
+| R4-xx | la **stessa architettura trovata dalla potatura, con il finetune dai pesi ereditati** (il default è già da zero) | 0, 1, 2 |
 | già fatto in 2c (T2-O) | l'ottimo scalato per il dispositivo | 0, 1, 2 |
 
 Per ogni potato si misurano la latenza end-to-end sul suo dispositivo (`B4-xx`) e la precisione sul val (`E4-xx`).
@@ -1175,6 +1187,10 @@ Per ogni potato si misurano la latenza end-to-end sul suo dispositivo (`B4-xx`) 
 \</esempio>
 - Se la potatura perde contro l'ottimo scalato, è comunque un risultato: "su questo dispositivo conviene scegliere
   bene il modello piccolo".
+
+**Stato al 19/11** (seed 0, 640, PI): la potatura non ha reso come atteso. La migliore potata (da PN-, con la
+temperatura) fa 30,4 ms e mAP50-95 0,567; P, della griglia, fa 27,7 ms e 0,573. Il distacco è vicino al rumore fra
+seed, quindi la conclusione aspetta i 3 seed. La ricerca con la temperatura è da rifare dalle altre partenze.
 - La potatura in profondità (togliere blocchi interi) resta fuori dal piano: si valuta solo se lo stimatore mostra
   che il costo per strato domina (AGX, se abbiamo tempo).
 
@@ -1249,6 +1265,37 @@ distanza ≈ S · W / (2 · p_min · tan(FOV / 2))
 \<esempio>Il test qualche punto sotto il val (lo split per gruppi di sessioni è più severo), ma con lo stesso ordinamento fra i metodi.\</esempio>
 
 ---
+
+## 12b. Tracker su video (SCAN/TRACK, un bersaglio)
+
+Il tracker è descritto in `docs/tracker.md`; il codice è in `src/crop_tracker.py` e `src/tracking.py`.
+
+**Scelte fatte (23/11/2026)**:
+
+- **Modelli**: SCAN con **P-**, TRACK con **S-**. Regola: il massimo delle passate sul PI (stima del p99) sta nel budget
+  a 30 fps del caso peggiore (33,3 ms meno il costo fuori dal modello).
+  - SCAN: 20,5 ms a 640×512 (budget circa 31 ms), 15,6 ms a 640×384 (budget 30,4 ms con camera HD, 23,9 ms con camera
+    FHD). PN- non sta nel budget a 640×512 né con camera FHD.
+  - TRACK: 24,4 ms (massimo 25,2 ms) contro un budget di 31,2 ms.
+- **Ingresso alla risoluzione della camera**: schiacciare 640×512 a 640×384 costa 0,07 di mAP50-95; il letterbox costa
+  0,03. La perdita è sugli oggetti da 8 a 32 px.
+- **I due modelli restano in memoria** (212 MB): il cambio SCAN ↔ TRACK costa 0,1–0,2 ms.
+
+Gli esperimenti sono in `experiments/latenza` (prefissi `scan_`, `track_`, `modelli_`) e in `experiments/tracking`.
+
+**Passi successivi**:
+
+1. **Script di valutazione sui video di val** (`experiments/tracking/video_val_test`): lo stesso video con il detector
+   da solo, con il Kalman e con il Kalman più il ritaglio. Svanström a 640×512, Anti-UAV (FHD) a 640×384. Metriche: mAP
+   per fascia, tracce perse, quota di fotogrammi in TRACK.
+2. **Taratura (livello C di `docs/tracker.md`)** con lo stesso script: prima Q e R (NIS), poi `hi`, `lo`,
+   `min_hits`, `max_age`, poi `k`, `ctx` e `fill`.
+3. **Prova sul test**, una volta sola, con i parametri tarati.
+
+**Da verificare**: la mAP sui ritagli 256² e sui video; il pre a 640×512 (oggi interpolato).
+
+**Opzione da valutare dopo la taratura**: ingresso 128×128 per i ritagli fino a 128 px (secondo modello compilato).
+Per ora il TRACK usa solo l'ingresso 256×256 (`docs/tracker.md`, Sviluppi possibili).
 
 ## 13. Figure di sintesi
 

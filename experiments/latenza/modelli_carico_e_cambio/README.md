@@ -26,7 +26,7 @@ experiments/latenza/modelli_carico_e_cambio/rifai.sh
 | modello | read_model | compile_model | prima inferenza | a regime |
 |---|---|---|---|---|
 | PN- (SCAN), a freddo | 126 ms | 885 ms | 29,0 ms | 25,9 ms |
-| PN- (SCAN), a caldo | 16 ms | 244 ms | 27,6 ms | 25,9 ms |
+| PN- (SCAN), a caldo | 16 ms | 244 ms | 27,6 ms | 26,0 ms |
 | PN- (SCAN), cache OpenVINO | 16 ms | 129 ms | 27,0 ms | 25,7 ms |
 | S- (TRACK), a freddo | 235 ms | 1.003 ms | 46,1 ms | 25,2 ms |
 | S- (TRACK), a caldo | 17 ms | 260 ms | 45,8 ms | 25,2 ms |
@@ -40,7 +40,7 @@ experiments/latenza/modelli_carico_e_cambio/rifai.sh
 
 | chiamata | da solo | alternato ogni fotogramma | nel ciclo | nel ciclo, cache sporca |
 |---|---|---|---|---|
-| SCAN | 25,6 / 25,9 / 31,7 | 25,7 / 26,0 / 28,5 | 25,7 / 25,9 / 25,9 | 25,7 / 25,9 / 26,0 |
+| SCAN | 25,6 / 25,9 / 31,7 | 25,7 / 26,2 / 28,5 | 25,7 / 25,9 / 25,9 | 25,7 / 26,0 / 26,0 |
 | TRACK dopo uno SCAN | — | — | 25,1 / 25,3 / 25,3 | 25,1 / 25,3 / 25,3 |
 | TRACK (altri) | 24,9 / 25,2 / 25,2 | 25,1 / 25,4 / 26,8 | 24,9 / 25,2 / 25,4 | 24,9 / 25,1 / 25,2 |
 

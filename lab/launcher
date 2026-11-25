@@ -79,6 +79,10 @@ wt() {
           if [[ -z ${tags[i]} ]]; then [[ -z $filt ]] && vis+=("$i")
           elif [[ -z $filt || "${tags[i],,} ${descs[i],,}" == *"${filt,,}"* ]]; then vis+=("$i"); fi
         done
+        if [[ -n $filt ]]; then   # il filtro uguale a una sigla "(P-) ..." tiene solo quella, non tutto cio' che contiene p
+          local esatte=(); for i in "${vis[@]}"; do [[ ${tags[i],,} == "(${filt,,})"* ]] && esatte+=("$i"); done
+          ((${#esatte[@]})) && vis=("${esatte[@]}")
+        fi
         nv=${#vis[@]}; ((cur >= nv)) && cur=$((nv > 0 ? nv - 1 : 0))
         sep() { [[ -z ${tags[vis[$1]]} ]]; }   # la voce visibile $1 e' un separatore
         while ((cur < nv - 1)) && sep "$cur"; do ((cur++)); done
@@ -512,41 +516,279 @@ for split in ("train", "val", "test", "calib"):
 print("classi:", spec.get("names"))
 PY
 }
-predict_video() {  # yolo predict con le box dal vivo: modello dalla lista, video o cartella di video, soglia
-  local args=() d m src conf out imgsz mode kf vedi mc
-  for d in artifacts/weights/*_e[1-9]*_*/ artifacts/finetune/*/; do   # i training veri (non e0, pesi casuali) e le potate
-    [[ -f $d/best.pt ]] || continue
-    m=$(grep -o '"map50_95": [0-9.]*' "$d/meta.json" 2>/dev/null | head -1 | grep -o '[0-9.]*$' | cut -c1-5)
-    args+=("${d%/}" "mAP50-95 ${m:-?}")
+PESI_SCAN=artifacts/weights/yolo26w0.125_D101_air_detection_all_e300_e7d00a5f   # P-, docs/tracker.md
+PESI_TRACK=artifacts/weights/yolo26w0.5_D101_air_detection_all_e300_21d2b4bd    # S-
+lista_pesi() {  # lista_pesi CONSIGLIATO NOME: coppie per wt --menu, "(sigla) cartella", il consigliato in cima
+  local d visti=" " dirs=()
+  for d in "$1/" artifacts/weights/*_e[1-9]*_*/ artifacts/weights/test-*/ artifacts/finetune/*/; do   # i training veri (non e0) e le potate
+    [[ -f $d/best.pt && $visti != *" $d "* ]] || continue
+    visti+="$d "; dirs+=("${d%/}")
   done
-  ((${#args[@]})) || { wt --msgbox "Nessun best.pt in artifacts/weights/ o artifacts/finetune/."; return; }
-  m=$(wt --menu "Modello per il predict (mAP50-95 del training)." 0 0 0 "${args[@]}") || return
-  src=$(wt --inputbox "Video o cartella di video:" 0 0 "$PWD/predict") || return
+  ((${#dirs[@]})) || return 0
+  "$PY" - "$1" "$2" "${dirs[@]}" 2>/dev/null <<'PY'
+import json, re, sys
+from pathlib import Path
+from tools.report import sigla
+cons, nome, *dirs = sys.argv[1:]
+for d in dirs:
+    m = re.match(r"yolo26[a-z0-9.]*_D\d+", Path(d).name)
+    meta = Path(d) / "meta.json"
+    mp = json.loads(meta.read_text()).get("metrics", {}).get("map50_95") if meta.exists() else None
+    print(f"{'(' + (sigla(m.group()) if m else '?') + ')':7s} {d}")
+    print(f"mAP50-95 {mp:.3f}" if isinstance(mp, float) else "mAP50-95 ?", end=f"  <- consigliato: {nome}\n" if d == cons else "\n")
+PY
+}
+# Trovate da sole a ogni apertura del menu:
+# - ricette: lab/ricette/predict/<nome>.ricetta, prima riga "# descrizione", seconda gli argomenti di tools/predict_video.py
+#   (dopo il modello: PESI_SCAN e PESI_TRACK = P- e S-, STUDIO = preset del Kalman della fonte scelta);
+# - sorgenti: le fonti delle sequenze in data/tracking/<split>/*/seq.json e ogni cartella di video in data/tracking/video/.
+RICETTE_PREDICT=lab/ricette/predict
+voci_sorgenti() {  # coppie (tag, descrizione) per wt --menu; tag split/fonte, split/tutte o video/<cartella>
+  local sp f n
+  for sp in val test; do
+    compgen -G "data/tracking/$sp/*/seq.json" >/dev/null || continue
+    while read -r n f; do echo "$sp/$f"; echo "$n sequenze $f del $sp (con label)"; done \
+      < <(grep -ho '"fonte": "[^"]*"' data/tracking/$sp/*/seq.json | cut -d'"' -f4 | sort | uniq -c)
+    echo "$sp/tutte"; echo "tutte le $(ls -d data/tracking/$sp/*/ | wc -l) sequenze del $sp"
+  done
+  for f in data/tracking/video/*/; do
+    n=$(ls "$f" | grep -ciE '\.(mp4|avi|mov|mkv|webm|m4v)$'); ((n)) || continue
+    echo "video/$(basename "$f")"; echo "$n video in ${f%/} (senza label: solo da vedere)"
+  done
+}
+usa_sorgente() {  # usa_sorgente TAG: SRC_DIR, SRC_FONTE (--fonte, vuoto per tutte e per i video), SRC_STUDIO (preset del Kalman)
+  local a=${1%%/*} b=${1#*/}
+  if [[ $a == video ]]; then SRC_DIR=$PWD/data/tracking/video/$b; SRC_FONTE=""
+  else SRC_DIR=$PWD/data/tracking/$a; SRC_FONTE=$([[ $b != tutte ]] && echo "$b"); fi
+  SRC_STUDIO=${SRC_FONTE:-tutte}   # Kalman tarato sulla stessa fonte se c'e', altrimenti su tutte e due
+  [[ -f experiments/tracking/taratura_kalman/results/kalman_f2_${SRC_STUDIO}_val.json ]] || SRC_STUDIO=tutte
+}
+predict_video() {  # guidata, ricette pronte (file in lab/ricette/predict) su una sorgente, o manuale (tutto a mano)
+  local f r nome arg args=() src x
+  mapfile -t args < <(voci_sorgenti)
+  f=$(wt --menu "Predict dal vivo. Nella finestra: pulsante scia (tasto t) per la traiettoria predetta e quella vera." 0 0 0 \
+      guidata "5 scelte veloci: sorgente, tracker, modelli, crop; parametri tarati scelti da soli" \
+      "" "ricette pronte su (ingresso 640; nuove cartelle in data/tracking/video/ compaiono qui)" "${args[@]}" \
+      "" "modalita' pro" manuale "tutto a mano: modelli, sorgente, ingresso, tracker, parametri") || return
+  case $f in guidata) predict_guidata; return ;; manuale) predict_manuale; return ;; esac
+  usa_sorgente "$f"
+  args=(); for r in "$RICETTE_PREDICT"/*.ricetta; do args+=("$(basename "$r" .ricetta)" "$(head -1 "$r" | sed 's/^# *//')"); done
+  ((${#args[@]})) || { wt --msgbox "Nessuna ricetta in $RICETTE_PREDICT/."; return; }
+  nome=$(wt --menu "Ricette su $f (preset del Kalman: taratura di $SRC_STUDIO). Nuove ricette: file in $RICETTE_PREDICT/." 0 0 0 "${args[@]}") || return
+  arg=$(sed -n 2p "$RICETTE_PREDICT/$nome.ricetta")
+  arg=${arg//PESI_SCAN/$PESI_SCAN}; arg=${arg//PESI_TRACK/$PESI_TRACK}; arg=${arg//STUDIO/$SRC_STUDIO}
+  src=$(wt --inputbox "$f, $nome: cartella di sequenze o di video (o un video):" 0 0 "$SRC_DIR") || return
   [[ -e $src ]] || { wt --msgbox "$src non esiste."; return; }
-  imgsz=$(wt --menu "Ingresso del modello (lato lungo; il letterbox arrotonda l'altro a 32). Allenato a 640." 0 0 0 \
-      640 "lato lungo 640, quello degli esperimenti (16:9 entra 640x384)" 480,864 "480p: 864x480" \
-      736,1280 "720p: 1280x736" 1088,1920 "1080p: 1920x1088" 320 "lato lungo 320: veloce, i droni piccoli spariscono" \
-      altro "a mano: lato lungo, o ALTEZZA,LARGHEZZA") || return
-  [[ $imgsz == altro ]] && { imgsz=$(wt --inputbox "Lato lungo, o ALTEZZA,LARGHEZZA, multipli di 32:" 0 0 "640") || return; }
-  mode=$(wt --menu "Come il fotogramma entra nel modello:" 0 0 0 fit "si scala per starci dentro (letterbox)" \
-      crop "ritaglio dal centro a risoluzione nativa, senza scalare") || return
-  [[ $imgsz =~ ^[0-9]+(,[0-9]+)?$ ]] && ! (( ${imgsz%,*} % 32 || ${imgsz#*,} % 32 )) \
-    || { wt --msgbox "imgsz: multipli di 32, un numero o ALTEZZA,LARGHEZZA."; return; }
-  kf=$(wt --menu "Tracker sulle detection:" 0 0 0 no "nessuno, le box del modello" \
-      kalman "Kalman: classe a voto, box filtrate, detection deboli se confermano un track (parametri: tools/predict_video.py --help)" \
-      kalman-crop "Kalman con crop adattativo: fotogramma intero solo in SCAN, poi un crop 256 per track") || return
-  conf=$(wt --inputbox "Soglia di confidenza (P-: F1 massimo a 0,37, per i droni 0,07):" 0 0 "0.25") || return
-  if [[ $kf == kalman-crop ]]; then   # l'ingresso scelto vale per lo SCAN
-    mc=$(wt --inputbox "Kalman con crop: numero massimo di crop per fotogramma (con piu' track, fotogramma intero):" 0 0 "4") || return
-    [[ $mc =~ ^[1-9][0-9]*$ ]] || { wt --msgbox "Numero massimo di crop: un intero da 1 in su."; return; }
-    conf="$conf --kalman-crop --max-crops $mc"
+  set -- $arg
+  PAR_OVR=()
+  if [[ " $* " == *" --preset "* ]]; then x="$*"; x=${x#*--preset }; prima_di_avviare "${x%% *}" || return; fi
+  lancia predict "$PY -m tools.predict_video $PWD/$1 $(printf %q "$src") ${*:2}$(par_args) --imgsz 640${SRC_FONTE:+ --fonte $SRC_FONTE} --out $(printf %q "$PWD/predict/risultati/${f//\//_}__$nome")"
+}
+PAR_OVR=()   # parametri del tracker cambiati a mano (chiave=valore), per --par di predict_video e demo_pi.sh
+edita_parametri() {  # edita_parametri PRESET|default: tutti i parametri del tracker, tarati e cambiati; aggiorna PAR_OVR
+  local x v voci
+  while true; do
+    mapfile -t voci < <("$PY" - "$1" "${PAR_OVR[@]}" <<'PY'
+import sys
+from dataclasses import asdict
+from tools.predict_video import Params, applica_par, preset
+pre, ovr = sys.argv[1], sys.argv[2:]
+base = preset(pre) if pre != "default" else (Params(), None, {"rescan": 30})
+ora = applica_par(*base, ovr)
+def piatto(p, t, c):
+    d = asdict(p); d.pop("fps", None)
+    t = t or {}
+    d |= {"hi_track": t.get("hi", d["hi"]), "lo_track": t.get("lo", d["lo"])}
+    return d | {k: c.get(k, v) for k, v in {"k": 3.0, "ctx": 0.2, "fill": 0.6, "rescan": 30, "max_side": 512}.items()}
+DESC = {"hi": "SCAN: detection sopra hi fanno nascere un track", "lo": "detection deboli: aggiornano solo track esistenti",
+        "min_hits": "detection prima di mostrare il track", "max_age": "fotogrammi senza detection prima di cancellarlo",
+        "show_age": "fotogrammi in cui un track solo predetto resta a video", "gate": "distanza di Mahalanobis^2 massima per associare",
+        "v0": "incertezza iniziale della velocita'", "iou_dup": "NMS senza classe fra detection dello stesso fotogramma",
+        "vote": "memoria del voto di classe (0: solo l'ultima)", "q_pos": "rumore di moto, posizione", "q_size": "rumore di moto, dimensione",
+        "r_pos": "errore di misura, posizione", "r_size": "errore di misura, dimensione",
+        "hi_track": "TRACK (S- sul crop): nascita", "lo_track": "TRACK: aggiornamento", "k": "crop: sigma della predizione",
+        "ctx": "crop: contesto in piu'", "fill": "crop: quota massima occupata dall'oggetto",
+        "rescan": "SCAN del fotogramma intero ogni N fotogrammi (0: mai)", "max_side": "crop oltre questo lato: SCAN"}
+b, n = piatto(*base), piatto(*ora)
+for k in DESC:
+    f = lambda v: f"{v:.3g}" if isinstance(v, float) else str(v)
+    print(k); print(f"{f(n[k]):>8}{'  *' if f(n[k]) != f(b[k]) else '   '} (tarato {f(b[k])})  {DESC[k]}")
+PY
+)
+    ((${#voci[@]})) || { wt --msgbox "Parametri non leggibili da $1."; return 1; }
+    x=$(wt --menu "Parametri del tracker ($([[ $1 == default ]] && echo "default del codice" || basename "$1")). * = cambiato. Invio per cambiare, vuoto torna al tarato." 0 0 0 \
+        fatto "torna indietro" azzera "tutti ai valori tarati" "" "" "${voci[@]}") || return 0
+    case $x in
+      fatto) return 0 ;;
+      azzera) PAR_OVR=() ;;
+      *) v=$(wt --inputbox "$x: nuovo valore (vuoto = tarato):" 0 0 "") || continue
+         local o=() e; for e in "${PAR_OVR[@]}"; do [[ $e == "$x="* ]] || o+=("$e"); done
+         [[ -n $v ]] && o+=("$x=$v"); PAR_OVR=("${o[@]}") ;;
+    esac
+  done
+}
+prima_di_avviare() {  # prima_di_avviare PRESET: ultimo passo di ricette e guidata, avvia o cambia i parametri del tracker
+  local x
+  PAR_OVR=()
+  while true; do
+    x=$(wt --menu "Pronto. Parametri del tracker: $([[ ${#PAR_OVR[@]} -gt 0 ]] && echo "${#PAR_OVR[@]} cambiati (${PAR_OVR[*]})" || echo "tutti tarati")." 0 0 0 \
+        avvia "lancia il predict" parametri "vedi e cambia i parametri del tracker") || return 1
+    [[ $x == avvia ]] && return 0
+    edita_parametri "$1"
+  done
+}
+par_args() { local e; for e in "${PAR_OVR[@]}"; do printf ' --par %s' "$e"; done; }
+scegli_conf() {  # scegli_conf CARTELLA_PESI: soglia dal menu, con le consigliate (F1 massimo sul val) del modello
+  local m=$1 sf=$1/soglie_f1_val.json voci=() conf
+  [[ -f $sf ]] || ! wt --yesno "Soglie consigliate di $(basename "$m") non calcolate: le calcolo ora (val sulla GPU, circa 20 s per P-)?" 0 0 \
+    || "$PY" tools/curva_fbeta.py "$m/best.pt" --soglie >/dev/null 2>&1
+  [[ -f $sf ]] && mapfile -t voci < <("$PY" -c 'import json,sys
+s = json.load(open(sys.argv[1]))
+for k, n in (("tutte", "F1 massimo, media delle classi"), ("drone", "F1 massimo sui droni")):
+    if k in s: print(s[k][0]); print(f"{n}: F1 {s[k][1]:.3f} sul val")' "$sf")
+  conf=$(wt --menu "Soglia di confidenza di $(basename "$m")$([[ -f $sf ]] || echo " (soglie consigliate non calcolate)"):" 0 0 0 \
+    "${voci[@]}" 0.25 "default di Ultralytics" altro "a mano") || return 1
+  [[ $conf == altro ]] && { conf=$(wt --inputbox "Soglia di confidenza:" 0 0 "0.25") || return 1; }
+  echo "$conf"
+}
+demo_pi() {  # demo sul Pi (scripts/demo_pi.sh): parametri del tracker, avvia, spegni, overclock
+  local x P=experiments/tracking/taratura_kalman_crop/results/kalman_crop_f2_val.json
+  PAR_OVR=(rescan=0 vote=0.95)   # sul Pi niente SCAN periodico, classe della traccia stabile
+  while true; do
+    x=$(wt --menu "Demo sul Raspberry Pi 5: Kalman con crop tarato (P- in SCAN a 640, S- su crop 256), OpenVINO fp16 4 core, video in ~/Videos/demo, finestra sul monitor HDMI del Pi (o VNC). Tasti: spazio pausa, n video dopo, q esce." 0 0 0 \
+        "" "finestra su questo PC (il Pi manda solo i metadati, gira senza desktop)" \
+        avvia-f2 "preset F2 (il deploy)" avvia-f2-maschera "preset F2, in SCAN solo box sopra la F1 per classe di P- (tasto m)" \
+        avvia-f1 "preset F1 (prova 445)" avvia-f1-maschera "preset F1 con la maschera" \
+        "" "finestra sullo schermo HDMI del Pi" \
+        pi-f2 "preset F2" pi-f2-maschera "preset F2 con la maschera" pi-f1 "preset F1" pi-f1-maschera "preset F1 con la maschera" \
+        "" "altro" prepara "copia tutto sul Pi senza avviare: poi si avvia dal Pi (icone Demo o ~/bench/demo/avvia.sh)" parametri "vedi e cambia i parametri del tracker ($([[ ${#PAR_OVR[@]} -gt 0 ]] && echo "${#PAR_OVR[@]} cambiati: ${PAR_OVR[*]}" || echo "tutti tarati"))" \
+        fine "chiude la demo e spegne il desktop: il Pi torna libero per i benchmark" \
+        "" "overclock (un solo avvio, poi torna a 2,4 GHz)" oc-on "riavvia il Pi in overclock" oc-off "riavvio normale" oc-stato "frequenza, tensione, throttling") || return
+    case $x in
+      avvia-*) lancia demo-pi "scripts/demo_pi.sh avvia ${x#avvia-} ${PAR_OVR[*]}"; return ;;
+      pi-*) lancia demo-pi "scripts/demo_pi.sh avvia-sul-pi ${x#pi-} ${PAR_OVR[*]}"; return ;;
+      prepara) mostra scripts/demo_pi.sh prepara "${PAR_OVR[@]}" ;;
+      parametri) edita_parametri "$P" ;;
+      fine) mostra scripts/demo_pi.sh fine ;;
+      oc-*) mostra scripts/demo_pi.sh oc "${x#oc-}" ;;
+    esac
+  done
+}
+predict_guidata() {  # poche scelte veloci: fonte, tracker, modelli dalla lista, crop; parametri tarati scelti da soli
+  local f kf m sm tm stm cs conf args=() nome src x
+  mapfile -t args < <(voci_sorgenti)
+  f=$(wt --menu "Guidata 1/5: sorgente" 0 0 0 "${args[@]}") || return
+  usa_sorgente "$f"; f=${f//\//_}
+  kf=$(wt --menu "Guidata 2/5: tracker" 0 0 0 kalman-crop "Kalman con crop (il deploy): un modello per lo SCAN, uno per i crop" \
+      kalman "Kalman sulle detection, senza crop" no "nessuno: solo il detector") || return
+  mapfile -t args < <(lista_pesi "$PESI_SCAN" "P- per lo SCAN")
+  ((${#args[@]})) || { wt --msgbox "Nessun best.pt in artifacts/weights/ o artifacts/finetune/."; return; }
+  m=$(wt --menu "Guidata 3/5: $([[ $kf == kalman-crop ]] && echo "modello dello SCAN (fotogramma intero)" || echo "modello"). Scrivi la sigla per filtrare." 0 0 0 "${args[@]}") || return
+  sm=${m%% *}; sm=${sm//[()]/}; m=${m##* }      # sigla (P-, S-, ...) per il nome della cartella di uscita
+  if [[ $kf == kalman-crop ]]; then
+    mapfile -t args < <(lista_pesi "$PESI_TRACK" "S- per il TRACK")
+    tm=$(wt --menu "Guidata 4/5: modello dei crop (TRACK). Scrivi la sigla per filtrare." 0 0 0 "${args[@]}") || return
+    stm=${tm%% *}; stm=${stm//[()]/}; tm=${tm##* }
+    cs=$(wt --menu "Guidata 5/5: lato del crop" 0 0 0 256 "crop 256 (tarato)" 128 "crop 128 (parametri del 256)" 64 "crop 64 (parametri del 256)") || return
+    conf="--kalman-crop --max-crops 1 --crop-size $cs --track-model $PWD/$tm/best.pt --preset $PWD/experiments/tracking/taratura_kalman_crop/results/kalman_crop_f2_val.json"
+    nome=${f}__kalman-crop_SCAN-${sm}_TRACK-${stm}_crop$cs
+  elif [[ $kf == kalman ]]; then
+    conf="--kalman --preset $PWD/experiments/tracking/taratura_kalman/results/kalman_f2_${SRC_STUDIO}_val.json"
+    nome=${f}__kalman_${sm}_senza-crop
+  else
+    conf=$(scegli_conf "$m") || return
+    nome=${f}__solo-detector_${sm}_conf$conf; conf="--conf $conf"
   fi
-  [[ $kf == kalman ]] && conf="$conf --kalman"   # con --kalman il modello gira a --lo e la soglia non conta
-  vedi=$(wt --menu "Durante il predict:" 0 0 0 mostra "finestra dal vivo e video salvato" \
-      salva "niente finestra, salva solo i video (piu' veloce)") || return
-  [[ $vedi == salva ]] && conf="$conf --no-show"
-  out=$PWD/predict/risultati   # predict/ non e' versionata
-  lancia predict "$PY -m tools.predict_video $PWD/$m/best.pt $(printf %q "$src") --conf $conf --imgsz $imgsz --mode $mode --out $(printf %q "$out/$(basename "$m")_${imgsz/,/x}_$mode${kf/no/}${mc:+_max$mc}")"
+  PAR_OVR=()
+  if [[ $kf != no ]]; then x=${conf#*--preset }; prima_di_avviare "${x%% *}" || return; fi
+  src=$SRC_DIR
+  lancia predict "$PY -m tools.predict_video $PWD/$m/best.pt $(printf %q "$src") $conf$(par_args) --imgsz 640${SRC_FONTE:+ --fonte $SRC_FONTE} --out $(printf %q "$PWD/predict/risultati/$nome")"
+}
+predict_manuale() {  # modalita' pro: un modulo con tutti i campi e i valori del deploy; si cambia un campo alla volta, poi avvia
+  local args=() m=$PESI_SCAN tm=$PESI_TRACK src=$PWD/data/tracking/val fonte=tutte imgsz=640 mode=fit kf=kalman-crop
+  local conf=0.25 cs=256 mc=1 rs="" ma=no ps=experiments/tracking/taratura_kalman_crop/results/kalman_crop_f2_val.json
+  local vedi=mostra extra="" campo voci x out cmd
+  PAR_OVR=()
+  while true; do
+    voci=(avvia "lancia il predict con i valori qui sotto" "" "modello e sorgente"
+      modello "$(basename "$m")$([[ $kf == kalman-crop ]] && echo "  (SCAN)")"
+      sorgente "${src#$PWD/}" fonte "$fonte  (solo sequenze di data/tracking)"
+      ingresso "$imgsz, $mode" "" "tracker e parametri" tracker "$kf")
+    if [[ $kf == no ]]; then voci+=(soglia "$conf")
+    else voci+=(preset "${ps##*/}" parametri "$([[ ${#PAR_OVR[@]} -gt 0 ]] && echo "${#PAR_OVR[@]} cambiati: ${PAR_OVR[*]}" || echo "tutti dal preset")  (vedi e cambia)"); fi
+    [[ $kf == kalman-crop ]] && voci+=("modello-crop" "$(basename "$tm")  (TRACK)" crop "lato $cs, max $mc crop"
+      rescan "${rs:-dal preset (o 30)}" maschera "$ma  (in SCAN solo box sopra la F1 per classe del modello dello SCAN; tasto m)")
+    voci+=("" "uscita" finestra "$vedi" altri "${extra:-nessuno}  (argomenti in piu' di tools/predict_video.py)")
+    campo=$(wt --menu "Predict, modalita' pro: Invio su un campo per cambiarlo, poi avvia. Valori di partenza: il tracker del deploy." 0 0 0 "${voci[@]}") || return
+    case $campo in
+      avvia) break ;;
+      modello|modello-crop)
+        mapfile -t args < <(lista_pesi "$([[ $campo == modello ]] && echo "$PESI_SCAN" || echo "$PESI_TRACK")" "$([[ $campo == modello ]] && echo "P- per lo SCAN" || echo "S- per il TRACK")")
+        x=$(wt --menu "$campo (mAP50-95 del training). Scrivi la sigla per filtrare." 0 0 0 "${args[@]}") || continue
+        [[ $campo == modello ]] && m=${x##* } || tm=${x##* } ;;
+      sorgente)
+        x=$(wt --inputbox "Video, cartella di video, sequenza di data/tracking o cartella di sequenze (fps da seq.json):" 0 0 "$src") || continue
+        [[ -e $x ]] && src=$x || wt --msgbox "$x non esiste." ;;
+      fonte) fonte=$(wt --menu "Quali sequenze:" 0 0 0 tutte "tutte" svanstrom "solo Svanstrom" anti_uav "solo Anti-UAV") || fonte=tutte ;;
+      ingresso)
+        x=$(wt --menu "Ingresso del modello (lato lungo; il letterbox arrotonda l'altro a 32). Allenato a 640." 0 0 0 \
+            640 "lato lungo 640, quello degli esperimenti (16:9 entra 640x384)" 480,864 "480p: 864x480" \
+            736,1280 "720p: 1280x736" 1088,1920 "1080p: 1920x1088" 320 "lato lungo 320: veloce, i droni piccoli spariscono" \
+            altro "a mano: lato lungo, o ALTEZZA,LARGHEZZA") || continue
+        [[ $x == altro ]] && { x=$(wt --inputbox "Lato lungo, o ALTEZZA,LARGHEZZA, multipli di 32:" 0 0 "$imgsz") || continue; }
+        [[ $x =~ ^[0-9]+(,[0-9]+)?$ ]] && ! (( ${x%,*} % 32 || ${x#*,} % 32 )) || { wt --msgbox "imgsz: multipli di 32, un numero o ALTEZZA,LARGHEZZA."; continue; }
+        imgsz=$x
+        mode=$(wt --menu "Come il fotogramma entra nel modello:" 0 0 0 fit "si scala per starci dentro (letterbox)" \
+            crop "ritaglio dal centro a risoluzione nativa, senza scalare") || mode=fit ;;
+      tracker)
+        x=$(wt --menu "Tracker sulle detection:" 0 0 0 kalman-crop "Kalman con crop: fotogramma intero solo in SCAN, poi crop sul track" \
+            kalman "Kalman: classe a voto, box filtrate, detection deboli se confermano un track" no "nessuno, le box del modello") || continue
+        [[ $x == "$kf" ]] && continue
+        kf=$x   # preset coerente con il tracker nuovo; si cambia dal campo preset
+        case $kf in kalman-crop) ps=experiments/tracking/taratura_kalman_crop/results/kalman_crop_f2_val.json ;;
+                    kalman) ps=experiments/tracking/taratura_kalman/results/kalman_f2_tutte_val.json ;;
+                    no) [[ -f $m/soglie_f1_val.json ]] && conf=$("$PY" -c 'import json,sys; print(json.load(open(sys.argv[1]))["tutte"][0])' "$m/soglie_f1_val.json") ;; esac ;;
+      soglia) x=$(scegli_conf "$m") && conf=$x ;;
+      parametri) edita_parametri "$ps" ;;
+      preset)
+        local pre=(default "default del codice (src/tracking.py, src/crop_tracker.py)") K=experiments/tracking/taratura_kalman/results C=experiments/tracking/taratura_kalman_crop/results dir nota ob st f
+        [[ $kf == kalman-crop && -f $C/kalman_crop_f2_val.json ]] && pre+=("$C/kalman_crop_f2_val.json" "Kalman con crop tarato insieme, F2 droni + vincolo, due fonti")
+        for f in $C/kalman_crop_f1_val*.json; do
+          [[ $kf == kalman-crop && -f $f ]] && pre+=("$f" "Kalman con crop tarato insieme, F1 droni + vincolo, due fonti$([[ $f == *prova* ]] && echo " (${f##*_}: ricerca in corso)")")
+        done
+        for ob in f2 f1; do
+          for st in tutte svanstrom anti_uav; do
+            f=$K/kalman_${ob}_${st}_val.json
+            [[ -f $f ]] && pre+=("$f" "Kalman tarato $([[ $ob == f2 ]] && echo "F2 droni + vincolo aerei" || echo "F1 tutte le classi"), studio ${st/tutte/due fonti}")
+          done
+        done
+        x=$(wt --menu "Parametri del tracker. Scrivi per filtrare (svan, anti, f2, f1, crop)." 0 0 0 "${pre[@]}") && ps=$x ;;
+      crop)
+        x=$(wt --menu "Lato del crop del TRACK (i parametri tarati sono del 256):" 0 0 0 256 "tarato" 128 "" 64 "" 512 "") && cs=$x
+        x=$(wt --inputbox "Numero massimo di crop per fotogramma (S- sta nel budget solo con 1):" 0 0 "$mc") && [[ $x =~ ^[1-9][0-9]*$ ]] && mc=$x ;;
+      maschera) [[ $ma == no ]] && ma=si || ma=no
+                [[ $ma == si ]] && ! grep -qs per_classe "$m/soglie_f1_val.json" && { ma=no
+                  wt --msgbox "$(basename "$m") non ha le soglie per classe. Calcolarle (pochi minuti sulla GPU): python tools/curva_fbeta.py $m/best.pt --soglie"; } ;;
+      rescan) x=$(wt --inputbox "Re-scan del fotogramma intero ogni N fotogrammi (0 = mai, resta quello dopo un mancato; vuoto = il preset o 30):" 0 0 "$rs") \
+                && [[ -z $x || $x =~ ^[0-9]+$ ]] && rs=$x ;;
+      finestra) vedi=$(wt --menu "Durante il predict:" 0 0 0 mostra "finestra dal vivo e video salvato" salva "niente finestra, salva solo i video (piu' veloce)") || vedi=mostra ;;
+      altri) x=$(wt --inputbox "Argomenti in piu' (es. --min-hits 2, --hi 0.3, --max-age 20, --allarme 0; vincono sul preset. Elenco: python -m tools.predict_video --help):" 0 0 "$extra") && extra=$x ;;
+    esac
+  done
+  cmd="$PWD/$m/best.pt $(printf %q "$src") --imgsz $imgsz --mode $mode"
+  case $kf in
+    no) cmd+=" --conf $conf" ;;
+    kalman) cmd+=" --kalman" ;;
+    kalman-crop) cmd+=" --kalman-crop --crop-size $cs --max-crops $mc --track-model $PWD/$tm/best.pt${rs:+ --rescan $rs}$([[ $ma == si ]] && echo " --maschera-scan")"
+                 ;;
+  esac
+  [[ $kf != no && $ps != default ]] && cmd+=" --preset $PWD/$ps"
+  [[ $kf != no ]] && cmd+="$(par_args)"
+  [[ $fonte != tutte ]] && cmd+=" --fonte $fonte"
+  [[ $vedi == salva ]] && cmd+=" --no-show"
+  [[ -n $extra ]] && cmd+=" $extra"
+  out=$PWD/predict/risultati/manuale_$(basename "$m")_${imgsz/,/x}_${mode}_$kf$([[ $kf == kalman-crop ]] && echo "_crop$cs")_$(date +%H%M%S)
+  lancia predict "$PY -m tools.predict_video $cmd --out $(printf %q "$out")"
 }
 pulizia_hydra() {  # cartelle di runs/hydra dei run finiti (non la cwd di un run.py vivo)
   local d p att=() via=()
@@ -569,7 +811,7 @@ help_utilita() {
     artefatti|artefatto|prune) echo "tools/artifacts.py: elenco, dettaglio, artefatti non usati da nessuna misura." ;;
     split) echo "Immagini ed etichette per split del dataset della config attuale." ;;
     val) echo "yolo detect val di un best.pt sul dataset della config, in background." ;;
-    predict) echo "tools/predict_video.py su un video o una cartella di video: box dal vivo con risoluzione, ingresso, inferenza e FPS (q salta il video, Esc chiude); i video annotati vanno in predict/risultati/<modello> (predict/ non è versionata)." ;;
+    predict) echo "Predict dal vivo con tools/predict_video.py. guidata: 5 scelte (fonte, tracker, modelli, crop), i parametri tarati li sceglie da sola. Ricette: file in lab/ricette/predict/ (riga 1 descrizione, riga 2 argomenti), su una sorgente: fonti di data/tracking/val e test (da seq.json) e ogni cartella di data/tracking/video/; nuove ricette e cartelle compaiono da sole. manuale (pro): un modulo con tutti i campi gia' ai valori del deploy, si cambia un campo alla volta e poi avvia; 'altri' accetta qualunque argomento di predict_video. Soglie consigliate (F1 massimo sul val, media e droni) da soglie_f1_val.json accanto ai pesi. Nella finestra: spazio pausa, . passo, t scia, n/p video dopo/prima, Esc chiude. Video annotati in predict/risultati/ (non versionata)." ;;
     pulizia) echo "Cancella le cartelle di runs/hydra/ dei run finiti (config risolta e run.log)." ;;
   esac
 }
@@ -582,6 +824,7 @@ utilita() {
         cella "dettaglio di una misura" aggrega "tabella di tutte le misure" report "genera il report" \
         "" "artefatti" artefatti "elenco" artefatto "dettaglio di uno" prune "artefatti non usati" \
         "" "dataset" split "immagini per split" val "validazione di un modello" predict "box dal vivo su un video" \
+        "" "raspberry" demo-pi "demo sul Pi: Kalman crop tarato P-/S-, OpenVINO, monitor del Pi; overclock" \
         "" "pulizia" pulizia "log di Hydra dei run finiti") || return
     case $u in
       stato) mostra stato_macchina ;;
@@ -598,6 +841,7 @@ utilita() {
       val) x=$(wt --inputbox "best.pt da validare:" 0 0 "artifacts/finetune/") || continue
            lancia val "$PWD/.venv/bin/yolo detect val model=$x data=$(data_yaml) split=val imgsz=640 plots=False project=$PWD/runs/val exist_ok=True" ;;
       predict) predict_video ;;
+      demo-pi) demo_pi ;;
       pulizia) pulizia_hydra ;;
     esac
   done
@@ -692,6 +936,7 @@ while :; do
       override "override attivi (togli)" \
       salva "salva come ricetta" \
       "" "run e strumenti" \
+      predict "predict dal vivo: ricette, guidata, manuale (tracker e video)" \
       storico "run passati: esito, log, rilancio" \
       strumenti "script, figure, rifai.sh degli esperimenti" \
       utilita "stato, misure, report, artefatti, dataset, pulizia" \
@@ -701,7 +946,7 @@ while :; do
     avvia) avvio ;; ricette) menu_ricette ;; step) menu_steps ;;
     modello) scegli_gruppo model ;; profilo) scegli_gruppo target ;;
     principali) menu_principali ;; tutti) menu_parametri ;; gruppi) menu_gruppi ;;
-    override) menu_override ;; salva) salva_ricetta ;; storico) storico ;; strumenti) strumenti ;; utilita) utilita ;;
+    override) menu_override ;; salva) salva_ricetta ;; predict) predict_video ;; storico) storico ;; strumenti) strumenti ;; utilita) utilita ;;
     help) wt --msgbox "$HELP" ;;
   esac
 done

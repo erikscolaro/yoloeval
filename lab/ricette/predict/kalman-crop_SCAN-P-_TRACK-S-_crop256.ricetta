@@ -1,0 +1,2 @@
+# tracker del deploy: P- in SCAN, S- su un crop 256 in TRACK, parametri di Optuna (F2 droni), rescan spento
+PESI_SCAN/best.pt --kalman-crop --max-crops 1 --track-model PESI_TRACK/best.pt --preset experiments/tracking/taratura_kalman_crop/results/kalman_crop_f2_val.json --par rescan=0

@@ -1,0 +1,25 @@
+studio     fonte      modo                F2 recall  prec aerei->drone
+svanstrom  svanstrom  detector_miglior_conf 0.428 0.383 0.816 0.0324
+svanstrom  totale     detector_miglior_conf 0.428 0.383 0.816 0.0324
+svanstrom  svanstrom  kalman_partenza  0.391 0.349 0.751 0.0225
+svanstrom  totale     kalman_partenza  0.391 0.349 0.751 0.0225
+svanstrom  svanstrom  kalman_tarato    0.422 0.377 0.824 0.0262
+svanstrom  totale     kalman_tarato    0.422 0.377 0.824 0.0262
+svanstrom  parametri: hi=0.0342 lo=0.0207 gate=68.4 iou_dup=0.55 min_hits=1 max_age=1 show_age=1 vote=0.502 r_pos=0.0364 r_size=0.141 q_pos=16 q_size=8 v0=34.3
+anti_uav   anti_uav   detector_miglior_conf 0.776 0.768 0.811 0.0000
+anti_uav   totale     detector_miglior_conf 0.776 0.768 0.811 0.0000
+anti_uav   anti_uav   kalman_partenza  0.654 0.621 0.835 0.0000
+anti_uav   totale     kalman_partenza  0.654 0.621 0.835 0.0000
+anti_uav   anti_uav   kalman_tarato    0.823 0.838 0.769 0.0000
+anti_uav   totale     kalman_tarato    0.823 0.838 0.769 0.0000
+anti_uav   parametri: hi=0.0859 lo=0.0016 gate=170 iou_dup=0.212 min_hits=2 max_age=14 show_age=1 vote=0.936 r_pos=0.0474 r_size=0.12 q_pos=64 q_size=32 v0=307
+tutte      svanstrom  detector_miglior_conf 0.428 0.384 0.802 0.0324
+tutte      anti_uav   detector_miglior_conf 0.775 0.783 0.744 0.0000
+tutte      totale     detector_miglior_conf 0.666 0.647 0.755 0.0324
+tutte      svanstrom  kalman_partenza  0.408 0.365 0.774 0.0238
+tutte      anti_uav   kalman_partenza  0.654 0.620 0.836 0.0000
+tutte      totale     kalman_partenza  0.573 0.533 0.821 0.0238
+tutte      svanstrom  kalman_tarato    0.421 0.377 0.805 0.0259
+tutte      anti_uav   kalman_tarato    0.830 0.842 0.782 0.0000
+tutte      totale     kalman_tarato    0.702 0.684 0.786 0.0259
+tutte      parametri: hi=0.0447 lo=0.001 gate=194 iou_dup=0.229 min_hits=1 max_age=5 show_age=0 vote=0.49 r_pos=0.0449 r_size=0.126 q_pos=64 q_size=32 v0=466

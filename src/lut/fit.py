@@ -7,7 +7,7 @@
 - y_j = median of the repeats of net j; x_jf = sum of the LUT medians of its layers in family f.
 - One C per architecture (width x depth): C2PSA, PSABlock, Detect and the non-conv nodes are not pruned, so what the
   LUT does not see changes with the architecture, not with the pruning. The a_f are shared by every architecture.
-- Ridge towards 1 with a_f >= 0 (NEW_MASTERPLAN.md, 4a): min |y - C_arch - X a|^2 + lam |a - 1|^2, bounded least
+- Ridge towards 1 with a_f >= 0 (docs/NEW_MASTERPLAN.md, 4a): min |y - C_arch - X a|^2 + lam |a - 1|^2, bounded least
   squares (scipy lsq_linear); lam by cross-validation grouped by architecture (random folds reward overfitting:
   nets of the same architecture are alike).
 - Check, leave-one-architecture-out (nested: lam is chosen again inside each fold): fit on the other architectures, calibrate C of the held-out one on its unpruned

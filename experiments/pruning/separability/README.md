@@ -17,7 +17,7 @@ una rete potata si ricava da poche scansioni 1D, senza misurare tutte le coppie 
   - scansioni 1D da 1 a 128 su un asse, con l'altro asse a 32, 64 o 128;
   - griglia 18×18 su {8, 16, 24, 31, 32, 33, 40, 47, 48, 49, 63, 64, 65, 80, 96, 112, 127, 128}.
   
-  In tutto 988 punti per famiglia.
+  In tutto 988 punti per famiglia (`results/points.csv`); 984 conv più 4 reti identità.
 - Ripetizioni: 3, con ordine mescolato a ogni ripetizione (seed 0). La latenza di un punto è la
   mediana delle 3. Il rumore è la mediana di (max − min)/mediana.
 - Iterazioni di benchmark_app: 200, non le 30 di `probe_edge`. Con 30 la mediana veniva circa 2× il
@@ -40,6 +40,8 @@ Gli ONNX generati e il log della misura sono in `runs/`, ignorata da git.
 Run su wandb: <https://wandb.ai/yolo-bench/yolo-bench/runs/6lhj71tw>
 
 ## Risultati (05/11/2026)
+
+`results/summary.json` e le figure sono stati rifatti il 09/11/2026 con `analyze.py`: i numeri qui sotto non cambiano.
 
 5928 misure in 162 minuti.
 

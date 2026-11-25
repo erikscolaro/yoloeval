@@ -23,8 +23,8 @@ experiments/tracking/scan_map_per_ingresso/rifai.sh     # GPU, circa 5 minuti
 
 ## Risultati
 
-**PN-**, mAP50 / mAP50-95 (tutto il val): nativo 0,826 / 0,560; schiacciato 0,769 / 0,496 (−0,064); letterbox
-0,786 / 0,531 (−0,029). Le perdite sono le stesse di P-.
+**PN-**, mAP50 / mAP50-95 (tutto il val): nativo 0,826 / 0,560; schiacciato 0,769 / 0,496 (−0,057 / −0,064); letterbox
+0,786 / 0,531 (−0,040 / −0,029). Le perdite hanno lo stesso ordine di P-.
 
 **P-**, mAP50 / mAP50-95:
 

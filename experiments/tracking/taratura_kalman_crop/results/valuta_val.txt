@@ -1,0 +1,29 @@
+fonte      modo       mAP50  50-95 recall falsi/f  persi
+anti_uav   detector   0.828  0.451  0.783   0.266  0.217
+anti_uav   kalman     0.822  0.443  0.848   0.324  0.152
+anti_uav   crop       0.828  0.450  0.848   0.187  0.152
+anti_uav   fotogrammi in TRACK: 67.6% (su 16212)
+svanstrom  detector   0.531  0.265  0.700   0.433  0.279
+svanstrom  kalman     0.521  0.258  0.716   0.322  0.263
+svanstrom  crop       0.577  0.296  0.734   0.260  0.242
+svanstrom  fotogrammi in TRACK: 68.5% (su 12214)
+totale     detector   0.607  0.309  0.744   0.338  0.244
+totale     kalman     0.597  0.301  0.787   0.323  0.200
+totale     crop       0.646  0.333  0.794   0.218  0.191
+totale     fotogrammi in TRACK: 68.0% (su 28426)
+svanstrom 1ogg detector   0.490  0.258  0.698   0.411  0.302
+svanstrom 1ogg kalman     0.478  0.248  0.714   0.285  0.286
+svanstrom 1ogg crop       0.549  0.290  0.739   0.217  0.261
+svanstrom 1ogg fotogrammi in TRACK: 75.4% (su 10699)
+svanstrom 2+ogg detector   0.459  0.234  0.705   0.586  0.116
+svanstrom 2+ogg kalman     0.464  0.233  0.723   0.582  0.104
+svanstrom 2+ogg crop       0.462  0.237  0.716   0.562  0.104
+svanstrom 2+ogg fotogrammi in TRACK: 19.4% (su 1515)
+totale 1ogg detector   0.582  0.310  0.749   0.324  0.251
+totale 1ogg kalman     0.571  0.300  0.794   0.308  0.206
+totale 1ogg crop       0.632  0.334  0.804   0.199  0.196
+totale 1ogg fotogrammi in TRACK: 70.7% (su 26911)
+totale 2+ogg detector   0.459  0.234  0.705   0.586  0.116
+totale 2+ogg kalman     0.464  0.233  0.723   0.582  0.104
+totale 2+ogg crop       0.462  0.237  0.716   0.562  0.104
+totale 2+ogg fotogrammi in TRACK: 19.4% (su 1515)

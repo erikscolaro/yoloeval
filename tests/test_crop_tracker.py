@@ -82,3 +82,17 @@ def test_scan_riduce_con_area_e_riporta_le_box_nel_fotogramma():
     shown, info = ct.step(frame_con(vero(0)), 1 / 25)           # 1280x720 -> 640x360
     assert info["mode"] == "SCAN" and ch[-1][1] == (360, 640)
     assert np.abs(info["dets"][0, :4] - vero(0)).max() <= 2     # box in coordinate del fotogramma intero
+
+
+def test_soglie_del_track_valgono_solo_nei_crop():
+    # nei crop il modello da' conf 0,2: sotto il lo dello SCAN (0,3), sopra quello del TRACK (0,1)
+    def detect(images, imgsz, conf):
+        out = detect_finto([])(images, imgsz, conf)
+        if imgsz == 256:
+            for d in out:
+                d[:, 4] = 0.2
+        return [d[d[:, 4] >= conf] for d in out]
+    for track, atteso in ((None, "SCAN"), ({"lo": 0.1}, "TRACK")):
+        ct = CropTracker(detect, 4, Params(hi=0.5, lo=0.3, min_hits=2), crop=256, rescan=0, track=track)
+        modi = [ct.step(frame_con(vero(k)), 1 / 25)[1]["mode"] for k in range(12)]
+        assert modi[-1] == atteso and ct.tr.p is (ct.p_track if atteso == "TRACK" else ct.p_scan), (track, modi)

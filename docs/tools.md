@@ -29,7 +29,7 @@ cartella, sono lì):
 | script | legge | scrive | a cosa serve |
 |---|---|---|---|
 | `curva_fbeta.py` | pesi `.pt`, dataset in `data/air-detection/all/` | `docs/figures/fbeta/` | curva F-beta per classe in funzione della soglia di confidenza (`--beta`, `--split`) |
-| `figure_sintesi.py` | `results/` (con `--risultati`) o dati di esempio | `docs/figures/sintesi/` (A, B, C) | figure di sintesi del blocco 1 per dispositivo (`NEW_MASTERPLAN.md`, sezione 13) |
+| `figure_sintesi.py` | `results/` (con `--risultati`) o dati di esempio | `docs/figures/sintesi/` (A, B, C) | figure di sintesi del blocco 1 per dispositivo (`docs/NEW_MASTERPLAN.md`, sezione 13) |
 | `search_channels.py` | `pruned.pt` di una o più cartelle in `artifacts/search/` | un PNG (solo il nome: in `docs/figures/canali/`) | canali tenuti da una ricerca PIT, per layer |
 | `canali_famiglie.py` | `pruned.pt` di una ricerca, facoltativo un `best.pt` di confronto | un PNG (solo il nome: in `docs/figures/canali/`) | canali tenuti per famiglia di blocco |
 | `figure_griglia.py` | `artifacts/weights/*/run/results.csv` | `docs/figures/griglia/` | mAP della griglia larghezza × profondità, a barre e a linee |

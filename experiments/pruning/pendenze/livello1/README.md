@@ -52,8 +52,8 @@ soglia studiata poi in `../../maschere_lr`.
 |---|---|---|---|---|---|
 | `best` | 42 | 0,464 | 0,522 | 0,536 | 27,91 ms |
 | `best` | 43 | – | – | 0,535 | 27,93 ms |
-| `smooth` | 42 | 0,459 | 0,523 | 0,530 | 26,89 ms |
-| `smooth` | 43 | – | – | 0,525 | 26,74 ms |
+| `smooth` | 42 | 0,459 | 0,523 | 0,525 | 26,74 ms |
+| `smooth` | 43 | – | – | 0,530 | 26,89 ms |
 
 Tutte e quattro le reti da zero stanno sotto 28,85 ms. `best` sta più vicino al target: 27,9 ms di media contro
 26,8, cioè più di 0,5 ms di differenza, quindi vince `best` già con la seconda regola. Ha anche la mAP più alta

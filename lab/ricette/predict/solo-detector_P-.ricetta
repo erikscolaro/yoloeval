@@ -1,0 +1,2 @@
+# P- da solo sul fotogramma a 640, conf 0,25
+PESI_SCAN/best.pt --conf 0.25

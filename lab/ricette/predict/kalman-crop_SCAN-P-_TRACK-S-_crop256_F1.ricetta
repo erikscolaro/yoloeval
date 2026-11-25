@@ -1,0 +1,2 @@
+# come il deploy, con il preset F1 di Optuna (precisione e recall alla pari; prova 445, a ricerca in corso), rescan spento
+PESI_SCAN/best.pt --kalman-crop --max-crops 1 --track-model PESI_TRACK/best.pt --preset experiments/tracking/taratura_kalman_crop/results/kalman_crop_f1_val_prova445.json --par rescan=0

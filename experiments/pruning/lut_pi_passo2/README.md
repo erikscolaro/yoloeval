@@ -3,7 +3,7 @@
 Questo esperimento misura le LUT di latenza delle conv potabili del nano YOLO26 (N, larghezza 0.25,
 D126) sul Raspberry Pi 5. Ingresso sempre 640×640, 4 classi. Le LUT servono allo stimatore di latenza
 per la potatura per canale (PIT, `~/Desktop/yolopit`): vedi
-`NEW_MASTERPLAN.md` (sezione 11, fase 4a).
+`docs/NEW_MASTERPLAN.md` (sezione 11, fase 4a).
 
 **Stato (13/11):** chiuso. LUT completa, 71 328 punti × 3 ripetizioni (+ 6 sui 1 123 punti instabili), 220 722
 misure in 74 h dal 06/11 al 09/11, nessuna pausa termica né throttling (massimo 52 °C). La procedura (rete, misura,
@@ -128,25 +128,25 @@ massime (c_in, c_out) degli strati del nano:
 |---|---|---|
 | `k1s1_20` (1×1 s1 20×20) | (128,64) (128,128) (256,128) (256,256) (384,256) (512,256) | 33 153 |
 | `k1s1_40` | (64,32) (64,64) (128,128) (192,128) (384,128) | 12 545 |
-| `k1s1_80` | (32,16) (32,32) (64,64) (96,64) (96,128) (256,64) | 5 825 |
-| `k1s1_160` | (32,32) (48,64) | 825 |
+| `k1s1_80` | (32,16) (32,32) (64,64) (96,64) (96,128) (256,64) | 6 337 |
+| `k1s1_160` | (32,32) (48,64) | 1 089 |
 | `k3s1_20` | (64,64) (64,128) (128,64) | 3 201 |
-| `k3s1_40` | (32,32) | 289 |
+| `k3s1_40` | (32,32) | 833 |
 | `k3s1_80` | (16,16) (16,32) (32,16) | 225 |
-| `k3s1_160` | (8,16) (16,8) | 65 |
+| `k3s1_160` | (8,16) (16,8) | 84 |
 | `k3s2_20` | (128,128) (128,256) | 8 385 |
 | `k3s2_40` | (64,64) (128,128) | 4 225 |
 | `k3s2_80` | (64,64) | 1 089 |
 | `k3s2_160` | (16,32) | 153 |
 | `k3s2_320` (stem) | (3,16), con c_in fisso a 3 | 9 |
-| **totale** | | **69 989** |
+| **totale** | | **71 328** |
 
 La griglia di una famiglia è l'unione, sugli strati, dei punti con c_in ∈ {1, 2, 4, 6, …, c_in max}
 e c_out ∈ {1, 2, 4, 6, …, c_out max}: cioè 1, tutti i pari e il massimo.
 
 ## Protocollo
 
-- 3 ripetizioni per punto, in tutto 209 967 misure.
+- 3 ripetizioni per punto, più 6 extra sui punti instabili: in tutto 220 722 misure.
 - **Punti instabili.** Alla fine, i punti in cui le 3 ripetizioni differiscono più del 5%
   ((max − min) / mediana) vengono misurati altre 6 volte, e la LUT ne prende la mediana su 9. Serve per i
   punti con due regimi come `k1s1_160` 48×64 (sezione Due regimi). Nel pilota rimisurato nessun punto
@@ -266,12 +266,12 @@ a 50 °C come il benchmark. Pilota con ventola (06/11, 100 punti, `results/pilot
 nessun throttling; stima 39 h, fine attesa domenica 08/11 verso le 02:00. Il lancio del 05/11 alle 21:48 (senza
 ventola, un'inferenza di warmup) era stato fermato alle 22:06 per la prova del warmup; il suo log è `runs/run_0511.log`.
 
-**Coda dopo la LUT principale** (decisa il 06/11):
-1. estensione della LUT alle forme delle architetture B4-R che mancano (circa 2 500 punti, 1–2 h): k3s1_40 fino a
+**Coda dopo la LUT principale** (decisa il 06/11; stato al 25/11/2026):
+1. *fatta* (nella LUT completa del 13/11: le forme sono nei `results/lut_*.csv`): estensione della LUT alle forme delle architetture B4-R che mancano (circa 2 500 punti, 1–2 h): k3s1_40 fino a
    32×64/64×32 (D101), k1s1_160 64×64 e k1s1_80 128×128 (w0.25_D170), k3s1_160 con 3 canali (w0.09375);
-2. profiling per nodo sul Pi (PERF_COUNT, nano intero e un potato): quanto pesano Concat, Add, Interpolate e
+2. *non trovato nei risultati* (25/11): profiling per nodo sul Pi (PERF_COUNT, nano intero e un potato): quanto pesano Concat, Add, Interpolate e
    MaxPool. Sulla workstation (x86, bf16) cambiano con la potatura di circa l'1%, meno del rumore delle conv;
-3. misura delle reti B4-R (`../b4r_composizione`).
+3. *fatta* il 13/11: misura delle reti B4-R (`../b4r_composizione`).
 
 **Efficienza, da fare prima della prossima LUT (estensione o S), non a misura in corso:** il Pi calcola solo per
 circa il 23% del tempo (0,14 s di 200 inferenze più warmup, su 0,60 s per misura). Il resto è preparazione:

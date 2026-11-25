@@ -47,7 +47,7 @@ Latenza media ± deviazione standard sulle 3 ripetizioni; Δ rispetto a OpenVINO
 | N | ncnn | int8 | 63,26 ± 0,68 | +11,5% | 0,566 | −0,027 | 0,847 |
 
 Dati: `results/tabella.csv` (i record per ripetizione sono in `results/*.json`). In una ripetizione di N int8 il
-massimo arriva a 124 ms (un singolo picco: media 63,1 ms contro 62,3–62,4 delle altre due).
+massimo arriva a 124,2 ms (un singolo picco: media 64,03 ms contro 62,97 e 62,77 ms delle altre due).
 
 ## Commento
 
@@ -66,7 +66,7 @@ massimo arriva a 124 ms (un singolo picco: media 63,1 ms contro 62,3–62,4 dell
   one-to-one nel grafo. Il +0,006 di ncnn fp16 viene quasi certamente da qui, non dal backend. Per lo stesso motivo
   la latenza ncnn non include il top-k, che però costa poco, e in deploy servirebbe un NMS fuori dal grafo.
 - **mAP calcolata sul Pi o sull'host**: per ncnn non cambia. Le prime misure di P l'avevano calcolata sulla
-  workstation (`runs/results_map_host`): fp16 0,5749 contro 0,5750 sul Pi, int8 0,5367 contro 0,5362.
+  workstation (`runs/results_map_host`, cartella non più presente al 25/11/2026: numeri non riverificabili): fp16 0,5749 contro 0,5750 sul Pi, int8 0,5367 contro 0,5362.
 
 ## Limiti
 

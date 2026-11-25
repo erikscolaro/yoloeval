@@ -59,3 +59,17 @@ def test_stesso_oggetto_con_due_classi_fa_un_solo_track():
         doppia[0, 4], doppia[0, 5] = 0.6, 1                   # stessa box, classe airplane, conf piu' bassa
         o = tr.step(np.vstack([d, doppia]))
     assert len(tr.tracks) == 1 and o[0].cls == 0
+
+
+def test_oggetto_piccolo_e_veloce_resta_un_solo_track():
+    # 20x20 px, 60 px a fotogramma a 30 fps (3 volte la sua dimensione): l'IoU con la predizione sarebbe zero
+    tr = KalmanTracker(4, Params(fps=30, v0=100))
+    ids = set()
+    for k in range(30):
+        x = 100 + 60 * k
+        shown = tr.step(np.array([[x, 200, x + 20, 220, 0.9, 0]]), 1 / 30)
+        if k >= 2:
+            assert len(shown) == 1
+            ids.add(shown[0].id)
+            assert abs(shown[0].box[0] - x) < 5
+    assert len(ids) == 1 and len(tr.tracks) == 1

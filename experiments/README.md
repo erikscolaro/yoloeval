@@ -66,7 +66,11 @@ Tutte sul Pi 5 (OpenVINO fp16, 4 core, governor performance, lock `runs/.pi.lock
 
 | cartella | scopo | stato |
 |---|---|---|
-| [`tracking/video_val_test`](tracking/video_val_test) | video completi di val e test (Svanström, Anti-UAV300) per tarare e provare il tracker | dati pronti; taratura non ancora fatta |
-| [`tracking/crop_zoom_map`](tracking/crop_zoom_map) | zoom del crop adattativo che rende più mAP, per classe e fascia (P-, crop 256) | chiuso il 19/11: la regola di oggi è vicina all'ottimo da 16 px in su. Il lato del crop (128, 256, 384) non è stato confrontato |
+| [`tracking/video_val_test`](tracking/video_val_test) | video completi di val e test (Svanström, Anti-UAV300) per tarare e provare il tracker | dati pronti; usati da `taratura_kalman` e `taratura_kalman_crop` |
+| [`tracking/crop_zoom_map`](tracking/crop_zoom_map) | zoom del crop adattativo che rende più mAP, per classe e fascia (P-, crop 256) | chiuso il 19/11: la regola di oggi è vicina all'ottimo da 16 px in su. Il 24/11 S- a crop 128 contro 256: il 128 perde in mAP50-95 in ogni fascia (drone 8–16 px: 0,402 contro 0,452) |
 | [`tracking/scan_map_per_ingresso`](tracking/scan_map_per_ingresso) | mAP di P- sul val con ingresso nativo 640×512, schiacciato a 640×384 e letterbox a 640×384 | chiuso il 23/11 (P- e PN-): schiacciato −0,064/−0,074 di mAP50-95, letterbox −0,029, persi soprattutto gli oggetti da 8 a 32 px; Svanström va a 640×512 |
 | [`tracking/crop_interpolazione_map`](tracking/crop_interpolazione_map) | INTER_AREA o INTER_LINEAR nel crop tracker, in mAP | misurato il 20/11; scelta del 23/11: AREA ovunque (conservativa) |
+| [`tracking/valuta_tracker_video`](tracking/valuta_tracker_video) | valutazione sui video di detector, Kalman e crop tracker (mAP, recall, falsi per fotogramma), per fonte e per numero di oggetti | strumento delle due tarature |
+| [`tracking/taratura_kalman`](tracking/taratura_kalman) | parametri del Kalman da solo con Optuna (F1 e F2 sui droni), per fonte | chiuso il 24/11: F2 totale 0,666 → 0,702 (detector → Kalman) |
+| [`tracking/taratura_kalman_crop`](tracking/taratura_kalman_crop) | parametri di Kalman e crop insieme sul tracker del deploy (P- in SCAN, S- su un crop 256), F2 con vincolo su aerei ed elicotteri | chiuso il 24/11: F2 totale 0,718 (Svanström 0,461, Anti-UAV 0,837); aerei chiamati drone 0,13% contro 3,2% |
+| [`tracking/confronto_p_s_crop`](tracking/confronto_p_s_crop) | P-, S-, Kalman con P- e Kalman con crop (256, 128, 64) a confronto, anche solo sui video con un oggetto | chiuso il 24/11: il crop 256 vince sul totale (0,718 contro S- 0,679), S- da solo vince su Svanström (0,534 contro 0,461); 128 e 64 con i parametri del 256: 0,711 e 0,688 |

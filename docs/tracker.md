@@ -5,7 +5,10 @@
 > fotogramma passa da 26 ms (640 intero) a circa 6–7 ms. Il fotogramma intero serve solo ogni N fotogrammi, quindi
 > diventa possibile il deploy a 1080p (207 ms a fotogramma intero) restando nel budget di 33 ms.
 
-**Stato**: piano, non avviato (19/11/2026). Viene dalla discussione "Kalman predictor per detection" del 28/09/2026,
+**Stato** (25/11/2026): fatto e tarato sul val. Codice in `src/tracking.py` e `src/crop_tracker.py`; taratura e
+confronti in `experiments/tracking/` (`taratura_kalman`, `taratura_kalman_crop`, `confronto_p_s_crop`). Con un crop
+256 di S- l'F2 sui droni è 0,718 sul totale (Svanström 0,461, Anti-UAV 0,837), contro 0,666 di P- da solo. Cose da
+fare in `docs/todo.md`. Piano iniziale del 19/11. Viene dalla discussione "Kalman predictor per detection" del 28/09/2026,
 che usava uno scenario marino (barche, gabbiani); qui è riportato al nostro dominio, oggetti in cielo.
 
 ## 1. Il filtro
@@ -115,6 +118,9 @@ rete potata piccola rende di più; l'orizzonte è il più difficile (eventualmen
   letterbox 0,029, soprattutto sugli oggetti da 8 a 32 px (`experiments/tracking/scan_map_per_ingresso`).
 - **TRACK: S-** (mAP50-95 0,613), crop 256², batch 1: 24,4 ms, massimo 25,2 ms, budget 31,2 ms. Con la regola del pari
   merito vincerebbe NS- (16,1 ms, 0,608): si tiene S- per la mAP, che nel budget ha 6 ms di margine.
+- **Un solo crop** (`max_crops` = 1, 23/11/2026): con 2 crop S- costa 44,4 ms contro un budget di 31,4 ms
+  (`experiments/latenza/track_modelli_batch_crop256`). Con 2 o più track confermati il fotogramma va in SCAN. Nei
+  video di val e test quasi tutti i fotogrammi hanno un oggetto; nessuno sciame.
 - **Due modelli in memoria**: 212 MB; il cambio SCAN ↔ TRACK costa 0,1–0,2 ms; la prima inferenza va fatta all'avvio
   (`experiments/latenza/modelli_carico_e_cambio`).
 - **Non verificato**: la mAP sui crop 256² e sui video.
@@ -212,9 +218,27 @@ Idee valutate e non implementate (23/11/2026):
   forma, una forma sola per batch e la mAP rettangolare, che non è misurata.
 - **Oggetti molto grandi.** Oltre `max_side` il fotogramma è uno SCAN (oggi 512 px, non tarato). Si potrebbe ridurre
   l'oggetto nel crop, con costo di resize e grigio da misurare.
+- **Ingresso 128×128 per i ritagli piccoli** (opzione, da valutare dopo la taratura con il solo 256). Due modelli
+  compilati: ritaglio fino a 128 px → ingresso 128 (1:1); da 129 a 256 px → ritaglio allargato a 256 (1:1); da 257 a 512
+  px → riduzione a 256 con AREA. Con un bersaglio piccolo e stabile S- costa 10,2 ms invece di 24,4 ms: cala la latenza
+  media, non il caso peggiore. Da misurare: la mAP su ritagli 128×128 e le tracce perse (poco margine per l'errore del
+  Kalman). Nel codice basta una lista di ingressi (128, 256) al posto di `crop`.
 - **Zoom digitale.** Escluso: aggiunge pochi dettagli (vedi sopra). Resta lo zoom ottico.
 
 - **Zoom ottico reale.** Una camera con zoom ottico (PTZ) aumenta i pixel dell'oggetto, cosa che lo zoom digitale
   non fa. Il predittore di Kalman dà posizione e dimensione attese dell'oggetto: può comandare il brandeggio e lo
   zoom della camera. Così il tracker mantiene l'oggetto a una grandezza adatta al modello (circa 96–160 px, vedi
   `experiments/tracking/crop_zoom_map`). Non è stato progettato né misurato.
+- **Ripresa dell'ID dopo una perdita.** Oggi un track perso per più di `max_age` fotogrammi rinasce con un ID nuovo:
+  la spia "DRONE" riparte da zero, e i cambi di ID non sono misurati. Idea: se un track nuovo nasce entro X
+  fotogrammi nella zona prevista dal Kalman per quello perso (incertezza allargata) e con dimensione simile, eredita
+  il vecchio ID; una verifica dell'aspetto conferma che è lo stesso oggetto. Per la verifica basta un hash percettivo
+  (pHash o dHash, distanza di Hamming) calcolato sulla box e non sul crop intero, dove il cielo domina; costa
+  pochissimo e si fa solo alla rinascita. Sotto i 20 px l'aspetto distingue poco (un drone lontano somiglia a un
+  uccello), e conta di più la geometria. DeepSORT confronta l'aspetto a ogni abbinamento, con una rete di
+  re-identificazione: sul Pi costerebbe budget.
+- **Moto proprio della camera.** Nella torretta la camera si muove per seguire il bersaglio; in Anti-UAV i
+  riorientamenti del pan-tilt spostano il drone di 100–130 px in 4–5 fotogrammi e il Kalman a velocità costante resta
+  indietro (Q 4 volte più alta che su Svanström). Gli angoli pan/tilt della torretta, passati al Kalman come ingresso
+  di controllo, compenserebbero questo moto. Non si può valutare qui: Svanström e Anti-UAV non hanno gli angoli della
+  camera.

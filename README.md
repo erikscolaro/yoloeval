@@ -2,10 +2,10 @@
 
 Misura latenza, accuratezza ed energia di YOLO26 su hardware edge. Confronta i modelli
 Ultralytics (baseline) con quelli potati da [yolopit](https://github.com/erikscolaro/yolopit)
-(ricerca PIT di PLiNIO, canali a blocchi di N). Classi: airplane, bird, drone, helicopter.
+(ricerca PIT di PLiNIO; con `pit_latency` guidata dalla latenza del Pi 5 stimata da una LUT). Classi: airplane, bird, drone, helicopter.
 Dataset: uno solo per training, pruning, fine-tuning e misure, **VEDETTA**, costruito e congelato nella repo
 `~/Desktop/vedetta` (sei fonti pubbliche, 640×512, split per gruppi di sessioni; regole e procedura nel suo
-README). Piano: `NEW_MASTERPLAN.md`.
+README). Piano e documentazione in [`docs/`](#documentazione).
 
 Un solo entry point, `run.py`, con configurazione [Hydra](https://hydra.cc): ogni asse è un
 gruppo in `conf/`, ogni campo è documentato in [`docs/config/`](docs/config/).
@@ -45,15 +45,16 @@ Il dataset viene copiato sulle board da solo al primo uso.
 | gruppo / chiave | valori |
 |---|---|
 | `model` | `yolo26f`, `yolo26p`, `yolo26n`, `yolo26s`, `yolo26m`; `model.depth=D101\|D126\|D170`; larghezze intermedie con `model=yolo26 model.width=0.1875` |
-| `deploy` | `640`, `480p`, `720p`, `1080p` (ingressi 640×640, 864×480, 1280×736, 1920×1088); `crop128`, `crop256`, `crop512` (ritagli quadrati del tracking, 128×128, 256×256, 512×512) |
+| `deploy` | `640` (il deploy di riferimento), `640x384`, `640x512`, `480p`, `720p`, `1080p` (ingressi 640×640, 640×384, 640×512, 864×480, 1280×736, 1920×1088); `crop128`, `crop256`, `crop512` (ritagli quadrati del tracker); `crop256_b2`, `_b4`, `_b8` (2, 4, 8 crop in un batch) |
 | `rep` | passata della misura: `rep=0,1,2` per la mediana di 3 passate |
-| `strategy` | `baseline`, `pit_standard`, `pit_duccio`, `pit_auto` |
-| `quantization` | `fp32`, `fp16`, `int8` (PTQ) |
-| `backend` | `onnxruntime`, `onnxruntime_py`, `tensorrt`, `openvino`, `axelera` |
+| `strategy` | `baseline`, `pit_latency` (DUCCIO sulla latenza stimata del Pi), `pit_standard`, `pit_duccio`, `pit_auto` |
+| `quantization` | `fp32`, `fp16`, `int8` (PTQ di Conv, Gemm e MatMul), `int8_full` (quasi tutti i nodi) |
+| `backend` | `onnxruntime`, `onnxruntime_py`, `tensorrt`, `openvino`, `openvino_qdq`, `ncnn`, `axelera` |
 | `hardware` | `wks4_rtx6000`, `jetson_orin`, `rpi5`, `rpi5_axelera` |
 | `freq_target` | profili della board (`maxn`, `w30`, `w15` sulla Jetson; `max`, `mid`, `low` sul Pi) |
 | `compute_target` | `gpu`, `cpu_1`, `cpu_2`, …, `axelera` (quelli dichiarati dalla board; vuoto = tutti) |
-| `train`, `finetune` | argomenti di training di Ultralytics: `default` è la ricetta unica, `random` salva i pesi casuali senza allenare |
+| `train`, `finetune` | argomenti di training di Ultralytics: `default` è la ricetta unica, `random` salva i pesi casuali senza allenare; `finetune=scratch` allena il potato da zero |
+| `target` | profilo di deploy: condizioni di misura, budget e LUT (`rpi5_640`), letto da `select` e `pit_latency` |
 
 `freq_target` e `compute_target` dipendono dalla board: un valore che la board non dichiara è
 un errore immediato. `freq_target` va sempre indicato sulle board.
@@ -64,7 +65,9 @@ Si lanciano in quest'ordine; ognuno salta quello che trova già in cache.
 
 | stadio | dove | cosa produce |
 |---|---|---|
+| `provision` | board | driver, runtime e dataset sulla board |
 | `train` | workstation | pesi allenati da zero (`pretrain_dataset`) in `artifacts/weights/` |
+| `select` | workstation | modello di partenza per il profilo `target`, in `results/select/` (non misura niente) |
 | `search` | workstation | solo strategie pit: ricerca dai pesi di `train`, modello potato in `artifacts/search/` |
 | `finetune` | workstation | solo strategie pit: fine-tuning del potato in `artifacts/finetune/` |
 | `probe` / `probe_edge` / `probe_p1` / `layers_b1` | board | N che premia l'hardware, in `results/probe/`; P1-1 e catene di strati B1-1 |
@@ -182,6 +185,23 @@ search:
 `hydra/launcher=joblib` va bene per training ed export, **mai** per benchmark, probe o
 roofline: misure in parallelo sullo stesso hardware non valgono niente.
 
+## Launcher
+
+`lab/launcher` (bash, dalla root) compone righe di comando di `run.py` e degli script senza modificare nessuno YAML:
+tutto è un override Hydra.
+
+- **ricette** (`lab/ricette/<nome>.ricetta`): step e override pronti. Prima riga `# descrizione`, poi `step a b c`
+  e una riga `set chiave=valore` per override. Si salvano anche dal launcher.
+- **step, modello, profilo, parametri**: una catena costruita a mano, con l'help di ogni campo da `docs/config/`.
+- **predict**: detector, Kalman o tracker con crop dal vivo su video o sequenze (`tools/predict_video.py`); i modelli
+  sono i `best.pt` in `artifacts/weights/` e `artifacts/finetune/`, più i pesi esterni in `artifacts/weights/test-*/`.
+- **storico**: i run lanciati, con log, esito, rilancio e stop. I log vanno in `runs/`.
+- **strumenti**: `scripts/*.sh`, `tools/*.py` e i `rifai.sh` degli esperimenti.
+- **utilità**: stato della macchina e del Pi, test, misure per esito, report, artefatti, split del dataset,
+  validazione di un modello, pulizia dei log di Hydra.
+
+Le misure sul Pi (lanciate dal launcher o dagli script) prendono il lock `runs/.pi.lock`: una alla volta.
+
 ## Risultati
 
 ```bash
@@ -214,19 +234,45 @@ N e complessità del modello.
 - **Caldo.** Il tool aspetta il raffreddamento prima di ogni misura e registra l'ordine di
   esecuzione, per vedere in analisi se la temperatura ha influito.
 
+## Tracker
+
+Per il deploy a 30 fps sul Pi c'è un tracker a due modi: SCAN cerca sul fotogramma intero con P-, TRACK guarda con S-
+solo un ritaglio attorno alla predizione del filtro di Kalman (`src/tracking.py`, `src/crop_tracker.py`). Prova dal
+vivo con `python -m tools.predict_video` o dal launcher. Progetto, latenza e risultati in
+[`docs/tracker.md`](docs/tracker.md); taratura in `experiments/tracking/`.
+
+Demo sul Pi 5 (`scripts/demo_pi.sh`, o dal launcher: utilita' -> demo-pi): lo stesso tracker tarato con gli export
+OpenVINO fp16 di P- (640) e S- (crop 256), 4 core, sui video del val, a schermo intero sul monitor del Pi; `fine` spegne
+il desktop e libera il Pi per i benchmark.
+
 ## Struttura
 
 ```
-conf/        un gruppo per asse (stage, model, deploy, train, strategy, finetune, dataset,
-             quantization, backend, hardware, eval, logging)
-docs/config/ riferimento di ogni campo, per gruppo
+conf/         un gruppo per asse (stage, model, deploy, train, strategy, finetune, target, dataset,
+              quantization, backend, hardware, eval, logging)
 src/models.py architetture YOLO26 per larghezza e profondità
-src/stages/  train, search, finetune, probe, roofline, export, benchmark
-src/probe/   reti dummy e scelta di N
-src/backends/, src/remote/, src/measure/, src/validation/
-tools/       aggregate, roofline, report, artifacts
-lab/         launcher (lab/launcher), ricette, template del report
+src/stages/   train, select, search, finetune, probe, roofline, export, benchmark
+src/lut/      LUT di latenza del Pi 5, reti B4-R e fit dello stimatore (scripts/build_lut.sh)
+src/tracking.py, src/crop_tracker.py   Kalman e tracker con crop
+src/probe/, src/backends/, src/remote/, src/measure/, src/validation/
+tools/        report, aggregate, roofline, artifacts, figure, predict_video
+scripts/      provision delle board, requirements, catene e code di run lunghi
+lab/          launcher (lab/launcher), ricette, template del report (report.md.j2)
+experiments/  un esperimento per cartella (README, rifai.sh, risultati); indice in experiments/README.md
+docs/         piano e documentazione (sotto)
 ```
+
+## Documentazione
+
+| file | cosa contiene |
+|---|---|
+| [`docs/NEW_MASTERPLAN.md`](docs/NEW_MASTERPLAN.md) | il piano della tesi: domande, regole fisse, fasi, decisioni |
+| [`docs/todo.md`](docs/todo.md) | cose da fare e decisioni in sospeso |
+| [`docs/stato-lavori-2026-11-16.md`](docs/stato-lavori-2026-11-16.md) | resoconto dei risultati al 16/11/2026 |
+| [`docs/stimatore-latenza.md`](docs/stimatore-latenza.md) | lo stimatore di latenza del Pi (LUT e fit), con una sintesi divulgativa in fondo |
+| [`docs/tracker.md`](docs/tracker.md) | il tracker con Kalman e crop |
+| [`docs/tools.md`](docs/tools.md) | opzioni e output dei tool in `tools/` |
+| [`docs/config/`](docs/config/) | riferimento di ogni campo di configurazione, per gruppo (usato anche dal launcher) |
 
 ## Test
 

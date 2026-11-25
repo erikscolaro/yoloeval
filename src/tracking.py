@@ -1,7 +1,8 @@
 """Tracker con filtro di Kalman per migliorare la classe e la box delle detection su video (docs/tracker.md).
 
 Un filtro per oggetto, stato [cx, cy, w, h, vx, vy, vw, vh] a velocita' costante, dt in secondi. Associazione a due
-soglie come ByteTrack: le detection sicure (conf >= hi) fanno nascere e aggiornano i track, quelle deboli
+soglie come ByteTrack, con la distanza di Mahalanobis fra misura e predizione (come DeepSORT) e non con l'IoU: un
+oggetto piccolo e veloce si sposta piu' della sua dimensione fra due fotogrammi e l'IoU con la predizione e' zero. le detection sicure (conf >= hi) fanno nascere e aggiornano i track, quelle deboli
 (lo <= conf < hi) aggiornano solo track gia' esistenti. L'associazione ignora la classe, cosi' uno scambio di classe
 non spezza il track; la classe del track e' il voto pesato con la confidenza sulla sua storia (EMA). R e Q scalano
 con l'altezza della box, come DeepSORT e ByteTrack. Tutti i parametri sono da scegliere sui dati.
@@ -18,16 +19,18 @@ from scipy.optimize import linear_sum_assignment
 class Params:
     hi: float = 0.4          # nascita e aggiornamento
     lo: float = 0.1          # solo aggiornamento di track esistenti
-    iou_min: float = 0.2     # sotto, la coppia non si associa
+    gate: float = 9.49       # distanza di Mahalanobis al quadrato oltre cui la coppia non si associa (chi2, 4 gradi, 95%)
     iou_dup: float = 0.5     # sopra, due detection dello stesso fotogramma sono lo stesso oggetto (NMS senza classe), e
                              # una detection non associata non fa nascere un track nuovo sopra uno esistente
     min_hits: int = 3        # aggiornamenti prima che il track si mostri
-    max_age: int = 5         # fotogrammi senza detection prima di cancellarlo (e di mostrarlo predetto)
+    max_age: int = 5         # fotogrammi senza detection prima di cancellarlo
+    show_age: int = 99       # un track solo predetto si mostra per al massimo show_age fotogrammi (99: fino a max_age)
     vote: float = 0.9        # memoria del voto di classe: 0 = solo l'ultima detection
     r_pos: float = 1 / 20    # deviazione della misura, in altezze di box
     r_size: float = 1 / 20
     q_pos: float = 4.0       # accelerazione tipica, in altezze di box al s^2 (h/160 per fotogramma^2 a 25 fps = 3,9 h/s^2)
     q_size: float = 2.0
+    v0: float = 10.0         # deviazione iniziale della velocita', in altezze di box al s (track nuovo, velocita' ignota)
     fps: float = 25.0        # per il dt quando non si passa
 
 
@@ -111,19 +114,29 @@ class KalmanTracker:
         z = xyxy2cxcywh(det[:4])
         h = max(z[3], 1.0)
         P = np.diag(np.r_[np.array([self.p.r_pos, self.p.r_pos, self.p.r_size, self.p.r_size]) * h * 2,
-                          np.array([10.0, 10.0, 5.0, 5.0]) * h]) ** 2   # velocita' iniziale ignota: P0 larga
+                          np.array([1.0, 1.0, 0.5, 0.5]) * self.p.v0 * h]) ** 2   # velocita' iniziale ignota: P0 larga
         v = np.zeros(self.nc)
         v[int(det[5])] = det[4]
         self.tracks.append(Track(self._next, np.r_[z, np.zeros(4)], P, v, float(det[4])))
         self._next += 1
 
     # --- un fotogramma ------------------------------------------------------------------------------------------
+    def _maha(self, tracks, dets):
+        """Distanza di Mahalanobis al quadrato fra ogni track (gia' predetto) e ogni detection, sulla misura cx, cy, w, h."""
+        z = np.array([xyxy2cxcywh(d[:4]) for d in dets])
+        D = np.empty((len(tracks), len(dets)))
+        for i, t in enumerate(tracks):
+            y = z - self.H @ t.x
+            Si = np.linalg.inv(self.H @ t.P @ self.H.T + self._R(max(t.x[3], 1.0)))
+            D[i] = np.einsum("ni,ij,nj->n", y, Si, y)
+        return D
+
     def _match(self, tracks, dets):
         if not tracks or not len(dets):
             return [], list(range(len(tracks))), list(range(len(dets)))
-        m = iou(np.array([t.box for t in tracks]), dets[:, :4])
-        r, c = linear_sum_assignment(-m)
-        pairs = [(i, j) for i, j in zip(r, c) if m[i, j] >= self.p.iou_min]
+        D = self._maha(tracks, dets)
+        r, c = linear_sum_assignment(np.where(D > self.p.gate, 1e6, D))
+        pairs = [(i, j) for i, j in zip(r, c) if D[i, j] <= self.p.gate]
         ti, dj = {i for i, _ in pairs}, {j for _, j in pairs}
         return pairs, [i for i in range(len(tracks)) if i not in ti], [j for j in range(len(dets)) if j not in dj]
 
@@ -156,4 +169,4 @@ class KalmanTracker:
             if not len(boxes) or iou(hi[j:j + 1, :4], boxes).max() < self.p.iou_dup:
                 self._new(hi[j])
         self.tracks = [t for t in self.tracks if t.age <= self.p.max_age]
-        return [t for t in self.tracks if t.hits >= self.p.min_hits]
+        return [t for t in self.tracks if t.hits >= self.p.min_hits and t.age <= self.p.show_age]

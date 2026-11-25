@@ -1,0 +1,3 @@
+detector da solo (conf 0.02): svanstrom F2 0.428 aerei 0.0324  anti_uav F2 0.775 aerei 0.0000  totale F2 0.666 aerei 0.0324
+migliore (prova 805): svanstrom F2 0.461 aerei 0.0013 TRACK 68%  anti_uav F2 0.837 aerei 0.0000 TRACK 68%  totale F2 0.718 aerei 0.0013 TRACK 68%
+parametri: hi=0.0501 max_age=10 lo=0.001 min_hits=1 show_age=1 gate=197 v0=357 iou_dup=0.211 vote=0.507 hi_track=0.197 lo_track=0.179 k=2.62 ctx=0.0853 fill=0.665 rescan=60 max_side=464

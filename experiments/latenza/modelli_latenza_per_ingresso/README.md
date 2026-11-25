@@ -5,7 +5,9 @@ Latenza delle reti intere della griglia larghezza × profondità (F..M × D101/D
 sceglie il budget `B`.
 
 - `rifai.sh`: train (pesi casuali), export e benchmark, poi la figura in `report/`. Idempotente.
-- Misure: i JSON in `results/` (uno per cella), letti da `tools/figure_sintesi.py`.
+- Misure: i JSON in `results/` della radice del repo (uno per cella), letti da `tools/figure_sintesi.py`.
 - 4/11/2026: righe 480p, 720p, 1080p, 512², 256², 128² (testa one-to-one a k=300).
 - 13/11/2026: riga 640 (k=64, come LUT e B4-R), F..SM; M aggiunto dopo. Controlli: N D126 56,5 ms (B4-R 56,1),
   S D126 143,9 ms (pavimento_s 142,7). Il Pi si è riavviato da solo una volta (SM D126, rep 0); la ripresa è andata.
+- 20/11/2026: N a 640 rimisurato (vedi `../scan_modelli_640x384`): N- 53,3 ms, N 56,6 ms, N+ 70,5 ms. La riga 640 di
+  `report/latenza_640.csv` è ancora del 13/11 (N 53,4, 56,5 e 70,9 ms).

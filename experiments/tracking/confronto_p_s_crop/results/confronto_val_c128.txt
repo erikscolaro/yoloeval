@@ -1,0 +1,46 @@
+gruppo                     modo             F2 recall   prec aerei->drone  droni
+totale 1ogg                P-            0.667  0.649  0.748       0.0417  22401
+totale 1ogg                S-            0.671  0.637  0.857       0.0057  22401
+totale 1ogg                Kalman P-     0.705  0.688  0.781       0.0333  22401
+totale 1ogg                Kalman crop   0.715  0.699  0.789       0.0053  22401
+totale 2+ogg               P-            0.649  0.612  0.863       0.0000   1640
+totale 2+ogg               S-            0.780  0.755  0.901       0.0000   1640
+totale 2+ogg               Kalman P-     0.659  0.620  0.877       0.0000   1640
+totale 2+ogg               Kalman crop   0.654  0.615  0.882       0.0000   1640
+totale tutti               P-            0.666  0.647  0.755       0.0324  24041
+totale tutti               S-            0.679  0.645  0.860       0.0044  24041
+totale tutti               Kalman P-     0.702  0.684  0.786       0.0259  24041
+totale tutti               Kalman crop   0.711  0.693  0.794       0.0041  24041
+totale video_1ogg          P-            0.666  0.648  0.749       0.0417  22313
+totale video_1ogg          S-            0.671  0.636  0.861       0.0057  22313
+totale video_1ogg          Kalman P-     0.704  0.687  0.781       0.0333  22313
+totale video_1ogg          Kalman crop   0.715  0.698  0.790       0.0053  22313
+anti_uav 1ogg              P-            0.775  0.783  0.744       0.0000  15849
+anti_uav 1ogg              S-            0.750  0.725  0.867       0.0000  15849
+anti_uav 1ogg              Kalman P-     0.830  0.842  0.782       0.0000  15849
+anti_uav 1ogg              Kalman crop   0.825  0.834  0.788       0.0000  15849
+anti_uav tutti             P-            0.775  0.783  0.744       0.0000  15849
+anti_uav tutti             S-            0.750  0.725  0.867       0.0000  15849
+anti_uav tutti             Kalman P-     0.830  0.842  0.782       0.0000  15849
+anti_uav tutti             Kalman crop   0.825  0.834  0.788       0.0000  15849
+anti_uav video_1ogg        P-            0.775  0.783  0.744       0.0000  15849
+anti_uav video_1ogg        S-            0.750  0.725  0.867       0.0000  15849
+anti_uav video_1ogg        Kalman P-     0.830  0.842  0.782       0.0000  15849
+anti_uav video_1ogg        Kalman crop   0.825  0.834  0.788       0.0000  15849
+svanstrom 1ogg             P-            0.369  0.326  0.776       0.0417   6552
+svanstrom 1ogg             S-            0.468  0.423  0.816       0.0057   6552
+svanstrom 1ogg             Kalman P-     0.358  0.316  0.774       0.0333   6552
+svanstrom 1ogg             Kalman crop   0.416  0.372  0.792       0.0053   6552
+svanstrom 2+ogg            P-            0.649  0.612  0.863       0.0000   1640
+svanstrom 2+ogg            S-            0.780  0.755  0.901       0.0000   1640
+svanstrom 2+ogg            Kalman P-     0.659  0.620  0.877       0.0000   1640
+svanstrom 2+ogg            Kalman crop   0.654  0.615  0.882       0.0000   1640
+svanstrom tutti            P-            0.428  0.384  0.802       0.0324   8192
+svanstrom tutti            S-            0.534  0.489  0.840       0.0044   8192
+svanstrom tutti            Kalman P-     0.421  0.377  0.805       0.0259   8192
+svanstrom tutti            Kalman crop   0.466  0.420  0.816       0.0041   8192
+svanstrom video_1ogg       P-            0.362  0.319  0.785       0.0417   6464
+svanstrom video_1ogg       S-            0.463  0.416  0.839       0.0057   6464
+svanstrom video_1ogg       Kalman P-     0.350  0.308  0.776       0.0333   6464
+svanstrom video_1ogg       Kalman crop   0.409  0.364  0.802       0.0053   6464
+soglie: P- 0.02, S- 0.01; Kalman crop in TRACK: {'anti_uav tutti': 0.636, 'anti_uav 1ogg': 0.636, 'totale tutti': 0.643, 'totale 1ogg': 0.667, 'anti_uav video_1ogg': 0.636, 'totale video_1ogg': 0.669, 'svanstrom tutti': 0.651, 'svanstrom 1ogg': 0.715, 'svanstrom video_1ogg': 0.72, 'svanstrom 2+ogg': 0.202, 'totale 2+ogg': 0.202}

@@ -3,7 +3,7 @@
 #   ./rifai.sh [gen|measure|fit]      senza argomenti: tutto. Idempotente: gen salta le traiettorie gia' fatte.
 #   systemd-run --user --unit=fit-pit --working-directory=$PWD ./rifai.sh      # staccato; log in runs/
 # Variabili: STEPS (default 1500 passi di ottimizzazione per traiettoria), SHARDS (default 3 processi di gen in parallelo).
-# Le reti costruite con pesi finti (yaml) del primo tentativo stanno in results_yaml/ e runs/nets_yaml/ (non rifatte).
+# Le reti costruite con pesi finti (yaml) del primo tentativo stanno in results_yaml/ (runs/nets_yaml/ cancellata il 25/11/2026, 1,4 GB).
 set -euo pipefail
 ulimit -n 65536 2>/dev/null || ulimit -n $(ulimit -Hn)   # gen apre molti file: senza, "Too many open files"
 SHARDS=${SHARDS:-3}

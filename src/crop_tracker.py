@@ -17,6 +17,8 @@ Ultralytics e' `yolo_detect(model)`, nei test una funzione finta.
 """
 from __future__ import annotations
 
+from dataclasses import replace
+
 import cv2
 import numpy as np
 
@@ -31,9 +33,13 @@ def yolo_detect(model):
 
 class CropTracker:
     def __init__(self, detect, nc: int, p: Params | None = None, scan_imgsz=640, crop: int = 256, rescan: int = 30,
-                 k: float = 3.0, ctx: float = 0.2, fill: float = 0.6, max_up: float = 1.0, max_crops: int = 4,
-                 max_side: float | None = 512):
+                 k: float = 3.0, ctx: float = 0.2, fill: float = 0.6, max_up: float = 1.0, max_crops: int = 1,
+                 max_side: float | None = 512, track: dict | None = None):
+        """track: Params diversi nei fotogrammi TRACK (modello dei crop), per esempio {"hi": .3, "lo": .1, "r_pos": .02}:
+        il modello dei crop ha un'altra scala di confidenza e un altro errore. Il ciclo di vita resta quello di p."""
         self.detect, self.tr = detect, KalmanTracker(nc, p)
+        self.p_scan = self.tr.p
+        self.p_track = replace(self.p_scan, **(track or {}))
         self.scan_imgsz, self.crop, self.rescan, self.k, self.ctx = scan_imgsz, crop, rescan, k, ctx
         self.fill, self.max_up, self.max_crops, self.max_side = fill, max_up, max_crops, max_side
         self.n, self.need_scan = 0, True
@@ -70,7 +76,7 @@ class CropTracker:
 
     def step(self, frame, dt: float):
         """Un fotogramma: (track da mostrare, info) con info = {mode, rois [(x0, y0, lato, id, box predetta xyxy)], dets}."""
-        p = self.tr.p
+        p = self.tr.p = self.p_scan
         confirmed = [t for t in self.tr.tracks if t.hits >= p.min_hits]
         scan = (self.need_scan or not confirmed or len(confirmed) > self.max_crops
                 or (self.rescan and self.n % self.rescan == 0))
@@ -83,6 +89,7 @@ class CropTracker:
             dets = np.array(self.detect([img], self.scan_imgsz, p.lo)[0], float).reshape(-1, 6)
             dets[:, :4] /= r
         else:
+            p = self.tr.p = self.p_track          # soglie e R del modello dei crop per detect e aggiornamento
             crops, orig = [], []
             for t, g in zip(confirmed, geo):
                 img, o, sc = self.cut(frame, *g)

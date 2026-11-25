@@ -1,0 +1,395 @@
+{
+ "conf": {
+  "P-": 0.02,
+  "S-": 0.01
+ },
+ "quota_track": {
+  "anti_uav tutti": 0.636,
+  "anti_uav 1ogg": 0.636,
+  "totale tutti": 0.643,
+  "totale 1ogg": 0.667,
+  "anti_uav video_1ogg": 0.636,
+  "totale video_1ogg": 0.669,
+  "svanstrom tutti": 0.651,
+  "svanstrom 1ogg": 0.715,
+  "svanstrom video_1ogg": 0.72,
+  "svanstrom 2+ogg": 0.202,
+  "totale 2+ogg": 0.202
+ },
+ "gruppi": {
+  "totale 1ogg": {
+   "P-": {
+    "f2": 0.6668898345500569,
+    "recall": 0.6492120887460381,
+    "precisione": 0.7484046932894195,
+    "aerei_come_drone": 0.04165278240586471,
+    "aerei": 3001,
+    "droni": 22401
+   },
+   "S-": {
+    "f2": 0.6711620990814636,
+    "recall": 0.6367126467568412,
+    "precisione": 0.8565337496997357,
+    "aerei_come_drone": 0.005664778407197601,
+    "aerei": 3001,
+    "droni": 22401
+   },
+   "Kalman P-": {
+    "f2": 0.7049769534679543,
+    "recall": 0.6882282040980313,
+    "precisione": 0.7810030395136778,
+    "aerei_come_drone": 0.03332222592469177,
+    "aerei": 3001,
+    "droni": 22401
+   },
+   "Kalman crop": {
+    "f2": 0.7152319695945328,
+    "recall": 0.6989420115173429,
+    "precisione": 0.7887657430730478,
+    "aerei_come_drone": 0.005331556147950683,
+    "aerei": 3001,
+    "droni": 22401
+   }
+  },
+  "totale 2+ogg": {
+   "P-": {
+    "f2": 0.6494431494431494,
+    "recall": 0.6115853658536585,
+    "precisione": 0.8631669535283993,
+    "aerei_come_drone": 0.0,
+    "aerei": 861,
+    "droni": 1640
+   },
+   "S-": {
+    "f2": 0.7801865389463071,
+    "recall": 0.7548780487804878,
+    "precisione": 0.901018922852984,
+    "aerei_come_drone": 0.0,
+    "aerei": 861,
+    "droni": 1640
+   },
+   "Kalman P-": {
+    "f2": 0.6587640886125146,
+    "recall": 0.6201219512195122,
+    "precisione": 0.8774805867126834,
+    "aerei_come_drone": 0.0,
+    "aerei": 861,
+    "droni": 1640
+   },
+   "Kalman crop": {
+    "f2": 0.6542905361547449,
+    "recall": 0.6146341463414634,
+    "precisione": 0.8818897637795275,
+    "aerei_come_drone": 0.0,
+    "aerei": 861,
+    "droni": 1640
+   }
+  },
+  "totale tutti": {
+   "P-": {
+    "f2": 0.6657359667003546,
+    "recall": 0.6466453142548146,
+    "precisione": 0.7548800621540255,
+    "aerei_come_drone": 0.03236664940445365,
+    "aerei": 3862,
+    "droni": 24041
+   },
+   "S-": {
+    "f2": 0.6787371923986338,
+    "recall": 0.6447735119171415,
+    "precisione": 0.8599245534228337,
+    "aerei_come_drone": 0.004401864319005696,
+    "aerei": 3862,
+    "droni": 24041
+   },
+   "Kalman P-": {
+    "f2": 0.7019297301453064,
+    "recall": 0.6835822137182314,
+    "precisione": 0.7863534140389492,
+    "aerei_come_drone": 0.02589331952356292,
+    "aerei": 3862,
+    "droni": 24041
+   },
+   "Kalman crop": {
+    "f2": 0.7112251081881578,
+    "recall": 0.6931907990516202,
+    "precisione": 0.7938360405849569,
+    "aerei_come_drone": 0.004142931123770067,
+    "aerei": 3862,
+    "droni": 24041
+   }
+  },
+  "totale video_1ogg": {
+   "P-": {
+    "f2": 0.6662122077491387,
+    "recall": 0.6482319723927755,
+    "precisione": 0.749352398715159,
+    "aerei_come_drone": 0.04165278240586471,
+    "aerei": 3001,
+    "droni": 22313
+   },
+   "S-": {
+    "f2": 0.6708822444404506,
+    "recall": 0.6357280509120243,
+    "precisione": 0.8614198093156009,
+    "aerei_come_drone": 0.005664778407197601,
+    "aerei": 3001,
+    "droni": 22313
+   },
+   "Kalman P-": {
+    "f2": 0.704307494489346,
+    "recall": 0.6873571460583516,
+    "precisione": 0.7813837375178316,
+    "aerei_come_drone": 0.03332222592469177,
+    "aerei": 3001,
+    "droni": 22313
+   },
+   "Kalman crop": {
+    "f2": 0.7147511494938557,
+    "recall": 0.6980683906242997,
+    "precisione": 0.79029884824192,
+    "aerei_come_drone": 0.005331556147950683,
+    "aerei": 3001,
+    "droni": 22313
+   }
+  },
+  "anti_uav 1ogg": {
+   "P-": {
+    "f2": 0.7745432293032608,
+    "recall": 0.7826361284623635,
+    "precisione": 0.7437788571085927,
+    "aerei_come_drone": 0.0,
+    "aerei": 0,
+    "droni": 15849
+   },
+   "S-": {
+    "f2": 0.7497325645106583,
+    "recall": 0.7252192567354407,
+    "precisione": 0.866948257655755,
+    "aerei_come_drone": 0.0,
+    "aerei": 0,
+    "droni": 15849
+   },
+   "Kalman P-": {
+    "f2": 0.8295117010302873,
+    "recall": 0.8422613414095527,
+    "precisione": 0.7821526923302279,
+    "aerei_come_drone": 0.0,
+    "aerei": 0,
+    "droni": 15849
+   },
+   "Kalman crop": {
+    "f2": 0.8245603093426469,
+    "recall": 0.8341851220897217,
+    "precisione": 0.7881840944318589,
+    "aerei_come_drone": 0.0,
+    "aerei": 0,
+    "droni": 15849
+   }
+  },
+  "anti_uav tutti": {
+   "P-": {
+    "f2": 0.7745432293032608,
+    "recall": 0.7826361284623635,
+    "precisione": 0.7437788571085927,
+    "aerei_come_drone": 0.0,
+    "aerei": 0,
+    "droni": 15849
+   },
+   "S-": {
+    "f2": 0.7497325645106583,
+    "recall": 0.7252192567354407,
+    "precisione": 0.866948257655755,
+    "aerei_come_drone": 0.0,
+    "aerei": 0,
+    "droni": 15849
+   },
+   "Kalman P-": {
+    "f2": 0.8295117010302873,
+    "recall": 0.8422613414095527,
+    "precisione": 0.7821526923302279,
+    "aerei_come_drone": 0.0,
+    "aerei": 0,
+    "droni": 15849
+   },
+   "Kalman crop": {
+    "f2": 0.8245603093426469,
+    "recall": 0.8341851220897217,
+    "precisione": 0.7881840944318589,
+    "aerei_come_drone": 0.0,
+    "aerei": 0,
+    "droni": 15849
+   }
+  },
+  "anti_uav video_1ogg": {
+   "P-": {
+    "f2": 0.7745432293032608,
+    "recall": 0.7826361284623635,
+    "precisione": 0.7437788571085927,
+    "aerei_come_drone": 0.0,
+    "aerei": 0,
+    "droni": 15849
+   },
+   "S-": {
+    "f2": 0.7497325645106583,
+    "recall": 0.7252192567354407,
+    "precisione": 0.866948257655755,
+    "aerei_come_drone": 0.0,
+    "aerei": 0,
+    "droni": 15849
+   },
+   "Kalman P-": {
+    "f2": 0.8295117010302873,
+    "recall": 0.8422613414095527,
+    "precisione": 0.7821526923302279,
+    "aerei_come_drone": 0.0,
+    "aerei": 0,
+    "droni": 15849
+   },
+   "Kalman crop": {
+    "f2": 0.8245603093426469,
+    "recall": 0.8341851220897217,
+    "precisione": 0.7881840944318589,
+    "aerei_come_drone": 0.0,
+    "aerei": 0,
+    "droni": 15849
+   }
+  },
+  "svanstrom 1ogg": {
+   "P-": {
+    "f2": 0.36926423367745054,
+    "recall": 0.32646520146520147,
+    "precisione": 0.7764065335753176,
+    "aerei_come_drone": 0.04165278240586471,
+    "aerei": 3001,
+    "droni": 6552
+   },
+   "S-": {
+    "f2": 0.4677048848050807,
+    "recall": 0.4226190476190476,
+    "precisione": 0.8158515026517383,
+    "aerei_come_drone": 0.005664778407197601,
+    "aerei": 3001,
+    "droni": 6552
+   },
+   "Kalman P-": {
+    "f2": 0.3580208441535958,
+    "recall": 0.3156288156288156,
+    "precisione": 0.7736625514403292,
+    "aerei_come_drone": 0.03332222592469177,
+    "aerei": 3001,
+    "droni": 6552
+   },
+   "Kalman crop": {
+    "f2": 0.4159267859582024,
+    "recall": 0.3717948717948718,
+    "precisione": 0.7919375812743823,
+    "aerei_come_drone": 0.005331556147950683,
+    "aerei": 3001,
+    "droni": 6552
+   }
+  },
+  "svanstrom 2+ogg": {
+   "P-": {
+    "f2": 0.6494431494431494,
+    "recall": 0.6115853658536585,
+    "precisione": 0.8631669535283993,
+    "aerei_come_drone": 0.0,
+    "aerei": 861,
+    "droni": 1640
+   },
+   "S-": {
+    "f2": 0.7801865389463071,
+    "recall": 0.7548780487804878,
+    "precisione": 0.901018922852984,
+    "aerei_come_drone": 0.0,
+    "aerei": 861,
+    "droni": 1640
+   },
+   "Kalman P-": {
+    "f2": 0.6587640886125146,
+    "recall": 0.6201219512195122,
+    "precisione": 0.8774805867126834,
+    "aerei_come_drone": 0.0,
+    "aerei": 861,
+    "droni": 1640
+   },
+   "Kalman crop": {
+    "f2": 0.6542905361547449,
+    "recall": 0.6146341463414634,
+    "precisione": 0.8818897637795275,
+    "aerei_come_drone": 0.0,
+    "aerei": 861,
+    "droni": 1640
+   }
+  },
+  "svanstrom tutti": {
+   "P-": {
+    "f2": 0.4282404252419245,
+    "recall": 0.383544921875,
+    "precisione": 0.8021444983405668,
+    "aerei_come_drone": 0.03236664940445365,
+    "aerei": 3862,
+    "droni": 8192
+   },
+   "S-": {
+    "f2": 0.533754262574595,
+    "recall": 0.4891357421875,
+    "precisione": 0.8403942953020134,
+    "aerei_come_drone": 0.004401864319005696,
+    "aerei": 3862,
+    "droni": 8192
+   },
+   "Kalman P-": {
+    "f2": 0.421448087431694,
+    "recall": 0.3765869140625,
+    "precisione": 0.805062630480167,
+    "aerei_come_drone": 0.02589331952356292,
+    "aerei": 3862,
+    "droni": 8192
+   },
+   "Kalman crop": {
+    "f2": 0.46556898369697464,
+    "recall": 0.42041015625,
+    "precisione": 0.8163071817966343,
+    "aerei_come_drone": 0.004142931123770067,
+    "aerei": 3862,
+    "droni": 8192
+   }
+  },
+  "svanstrom video_1ogg": {
+   "P-": {
+    "f2": 0.36164460517538005,
+    "recall": 0.3186881188118812,
+    "precisione": 0.7847619047619048,
+    "aerei_come_drone": 0.04165278240586471,
+    "aerei": 3001,
+    "droni": 6464
+   },
+   "S-": {
+    "f2": 0.4629279201789093,
+    "recall": 0.4163056930693069,
+    "precisione": 0.8385789965721409,
+    "aerei_come_drone": 0.005664778407197601,
+    "aerei": 3001,
+    "droni": 6464
+   },
+   "Kalman P-": {
+    "f2": 0.3497906182918675,
+    "recall": 0.30754950495049505,
+    "precisione": 0.7762592737212026,
+    "aerei_come_drone": 0.03332222592469177,
+    "aerei": 3001,
+    "droni": 6464
+   },
+   "Kalman crop": {
+    "f2": 0.4089819735333958,
+    "recall": 0.36432549504950495,
+    "precisione": 0.8023850085178875,
+    "aerei_come_drone": 0.005331556147950683,
+    "aerei": 3001,
+    "droni": 6464
+   }
+  }
+ }
+}

@@ -1,0 +1,2 @@
+# P- in SCAN e P- anche sui crop 256 in TRACK, parametri di Optuna (soglie e R del TRACK tarate per S-), rescan spento
+PESI_SCAN/best.pt --kalman-crop --max-crops 1 --track-model PESI_SCAN/best.pt --preset experiments/tracking/taratura_kalman_crop/results/kalman_crop_f2_val.json --par rescan=0

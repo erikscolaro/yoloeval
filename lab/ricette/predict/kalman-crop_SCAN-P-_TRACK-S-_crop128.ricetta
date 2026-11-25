@@ -1,0 +1,2 @@
+# come il tracker del deploy, con il crop a 128 (stessi parametri del 256), rescan spento
+PESI_SCAN/best.pt --kalman-crop --max-crops 1 --crop-size 128 --track-model PESI_TRACK/best.pt --preset experiments/tracking/taratura_kalman_crop/results/kalman_crop_f2_val.json --par rescan=0

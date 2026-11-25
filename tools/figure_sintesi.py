@@ -1,4 +1,4 @@
-"""Figure di sintesi del blocco 1 (NEW_MASTERPLAN.md, sezione 13), una per dispositivo, a piccoli multipli:
+"""Figure di sintesi del blocco 1 (docs/NEW_MASTERPLAN.md, sezione 13), una per dispositivo, a piccoli multipli:
 righe = precisione (fp16, int8), colonne = profondità (101, 126, 170 conv), in ogni pannello la griglia
 discreta larghezza × ingresso: i ritagli quadrati del tracking (128, 256, 512) e la camera 16:9 (480p, 720p,
 1080p), in ordine di pixel.

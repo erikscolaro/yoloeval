@@ -37,6 +37,9 @@ systemd-run --user --unit=maschere-lr --working-directory=$PWD experiments/pruni
 tail -f experiments/pruning/maschere_lr/runs/diario.log
 ```
 
+Varianti, stesso lancio con lo script al posto di `rifai.sh`: `rifai_temp.sh` (temperatura 0,1) e `rifai_riempi.sh`
+(strada 3: budget riempito con `riempi.py`, chiave `+strategy.search.riempi=30.3`, in `runs/X_riempi.txt`).
+
 ## Risultati
 
 ### Ricerca (17/11, `c0d7cb3f`, 47 min)

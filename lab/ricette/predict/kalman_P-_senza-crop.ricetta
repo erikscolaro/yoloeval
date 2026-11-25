@@ -1,0 +1,2 @@
+# P- con il Kalman tarato da Optuna sulla stessa fonte (F2 droni), senza crop
+PESI_SCAN/best.pt --kalman --preset experiments/tracking/taratura_kalman/results/kalman_f2_STUDIO_val.json

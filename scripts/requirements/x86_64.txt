@@ -51,3 +51,4 @@ pytest>=8
 # opzionali
 hydra-joblib-launcher
 wandb
+optuna==5.1.0              # taratura del tracker (experiments/tracking/taratura_kalman)

@@ -68,3 +68,23 @@ mAP50 media sulle classi per T (le altre colonne nel json):
 - Un seed, un errore di centratura (10%), un solo modello; la fascia <8 ha 19 oggetti, i suoi numeri sono rumore.
 - Le immagini del val sono già ritagli 640×512 attorno agli oggetti: non c'è il caso di un oggetto piccolo in un
   fotogramma 1080p, dove il crop rende di più rispetto a un fit che riduce.
+
+## S- a crop 128 contro 256 (24/11/2026)
+
+S- (`yolo26w0.5_D101`, `21d2b4bd`), stessi crop e stesso seme; a 128 T fino a 96 (`rifai.sh`, ultima riga). Classe
+drone, mAP50 / mAP50-95 al T migliore per la mAP50-95 (`results/crop_map_*21d2b4bd_c{128,256}.json`):
+
+| fascia | 640 | crop 256 | crop 128 |
+|---|---|---|---|
+| <8 | 0,257 / 0,180 | 1,000 / 0,701 (T24) | 0,752 / 0,407 (T24) |
+| 8–16 | 0,725 / 0,405 | 0,805 / 0,452 (T16) | 0,750 / 0,402 (T16) |
+| 16–32 | 0,850 / 0,520 | 0,765 / 0,489 (T24) | 0,837 / 0,445 (T24) |
+| 32–64 | 0,710 / 0,465 | 0,778 / 0,490 (T128) | 0,730 / 0,468 (T48) |
+| 64–128 | 0,929 / 0,600 | 0,968 / 0,650 (T160) | 0,926 / 0,578 (T96) |
+| 128–256 | 0,960 / 0,764 | 0,956 / 0,755 (T160) | 0,899 / 0,626 (T96) |
+| >256 | 0,918 / 0,739 | 0,954 / 0,729 (T128) | 0,883 / 0,645 (T64) |
+
+- Il crop 128 perde in mAP50-95 in tutte le fasce rispetto al 256, anche sui droni piccoli (8–16: 0,402 contro 0,452),
+  dove lo zoom è lo stesso: a 128 resta meno contesto intorno all'oggetto.
+- Da 64 px in su il crop 128 è sotto anche il fotogramma intero a 640 (mAP50-95 0,626 contro 0,764 in 128–256).
+- La fascia <8 ha pochi droni (19 oggetti in tutto): il numero ballerà.

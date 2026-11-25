@@ -29,10 +29,10 @@ Le parti misurate:
 
 | crop (N) | ritaglio | tracker | pre | post | totale | p99 del totale | budget del modello |
 |---|---|---|---|---|---|---|---|
-| 1 | 0,27 ms | 0,67 ms | 0,30 ms | 0,01 ms | 0,99 ms | 1,09 ms | 32,3 ms |
-| 2 | 0,55 ms | 1,25 ms | 0,63 ms | 0,02 ms | 1,90 ms | 1,99 ms | 31,4 ms |
-| 4 | 1,12 ms | 2,38 ms | 1,30 ms | 0,04 ms | 3,72 ms | 3,89 ms | 29,6 ms |
-| 8 | 2,31 ms | 4,68 ms | 2,63 ms | 0,08 ms | 7,39 ms | 7,77 ms | 25,9 ms |
+| 1 | 0,27 ms | 0,67 ms | 0,30 ms | 0,01 ms | 0,99 ms | 1,08 ms | 32,3 ms |
+| 2 | 0,55 ms | 1,25 ms | 0,63 ms | 0,02 ms | 1,90 ms | 1,95 ms | 31,4 ms |
+| 4 | 1,12 ms | 2,38 ms | 1,30 ms | 0,04 ms | 3,72 ms | 3,77 ms | 29,6 ms |
+| 8 | 2,31 ms | 4,68 ms | 2,63 ms | 0,08 ms | 7,39 ms | 7,59 ms | 25,9 ms |
 
 - Il costo fuori dal modello è lineare: circa 0,93 ms per crop. Le passate differiscono di meno di 0,15 ms.
 - Le stime usate prima (circa 1 ms di ritaglio e 0,1–0,2 ms di Kalman in tutto) erano sotto il vero da N = 2 in su.

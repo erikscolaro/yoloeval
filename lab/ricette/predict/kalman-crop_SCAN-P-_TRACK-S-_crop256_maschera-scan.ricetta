@@ -1,0 +1,2 @@
+# come il deploy, ma in SCAN nasconde track e box sotto la soglia F1 per classe di P- (solo grafica, tasto m), rescan spento
+PESI_SCAN/best.pt --kalman-crop --max-crops 1 --track-model PESI_TRACK/best.pt --preset experiments/tracking/taratura_kalman_crop/results/kalman_crop_f2_val.json --maschera-scan --par rescan=0

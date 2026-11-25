@@ -3,7 +3,7 @@
 Lo stimatore `latenza = C_arch + Σ_f a_f · LUT_f` era fittato su reti B4-R potate a caso (765 reti, 15 architetture). Sulle
 reti prodotte da PIT (canali molto bassi) sottostimava di 0,5–1 ms (livello 0: +0,75 ms, −2,8 %). Qui si generano reti PIT,
 si misurano sul Pi e si rifà il fit con B4-R + PIT. **Esito: migliora, il nuovo fit è il default** (`artifacts/lut/rpi5/fit.json`;
-il vecchio è `fit_b4r.json` accanto; il candidato `fit_pit.json`, uguale al nuovo default).
+il vecchio è `fit_b4r.json` accanto). Dalla seconda tornata (sotto) il default è `fit_pit2.json`; `fit_pit.json` è la prima versione.
 
     ./rifai.sh              # tutto: gen (CPU, 3 processi), measure (Pi), l0, fit. Idempotente, riprende da dove era
     ./rifai.sh fit          # solo il fit e il confronto (10 s)
@@ -32,7 +32,7 @@ Codice: `run.py` (`gen`, `measure`, `l0`, `fit`), `fit_eval.py` (valutazione). R
 
 ### Perché i pesi veri e non lo yaml
 
-Il primo tentativo (`results_yaml/`, `runs/nets_yaml/`) costruiva le reti dallo yaml dell'architettura, come B4-R. A parità di
+Il primo tentativo (`results_yaml/`; le reti in `runs/nets_yaml/` sono state cancellate il 25/11/2026) costruiva le reti dallo yaml dell'architettura, come B4-R. A parità di
 canali per layer l'IR è diverso: con i pesi veri restano le BN come nodi `Add` (nets.csv, `nonconv_elems`: 7,7 M contro 2,3 M)
 e la rete misura circa 0,3 ms in più (22,3 contro 22,6–22,7 ms per la stessa rete del livello 0). Con lo yaml il vecchio fit
 sottostimava di +0,37 ms (−0,97 %), con i pesi veri di +0,76 ms (−1,97 %), cioè quanto il livello 0: le reti che contano per
@@ -120,9 +120,8 @@ reti invece di 76), `w0.125_D101` (−0,92 → +1,05 %: ora sovrastima di 0,19 m
   −0,49 → −0,89 %, +0,10 ms) e il fit in-sample di B4-R (bias +1,3 %, p99 3,7 %; C è stata alzata di 0,1–0,5 ms per le reti PIT):
   il leave-one-out ricalibra C sulla rete intera e non lo vede. Il fit congiunto (`nuovo x10`) non migliora abbastanza: il
   p99 di B4-R sale a 4,03 % (+0,5 punti sull'attuale).
-- **Non applicato**: mentre scrivo gira una ricerca `pit_latency` (unità `pilota-lr001s5`) che usa il fit e non va cambiato in
-  corsa; `pendenze-l1*` non ci sono. `./applica.sh` fa lo scambio (default = `fit_pit2.json`, il precedente resta
-  `fit_pit.json`, `fit_b4r.json` il primo) e si rifiuta finché una ricerca `pit_latency` è in corso.
+- **Applicato** il 13/11/2026 alle 22:57 con `./applica.sh`: il default è `fit_pit2.json` (`artifacts/lut/rpi5/fit.json` e
+  yolopit). Il precedente resta `fit_pit.json`, `fit_b4r.json` il primo. Lo script si rifiuta se una ricerca `pit_latency` è in corso.
 - Resta aperto: i residui dipendono dal livello di potatura (le PIT di test di `w0.125_D101` stanno dall'altra parte delle
   sue PIT di train), quindi una C per architettura non basta; il fit congiunto che lo coglierebbe costa B4-R. Con poche PIT per
   architettura le stime di C hanno un'incertezza di circa ±0,5 %.

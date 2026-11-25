@@ -1,0 +1,2 @@
+# S- da solo sul fotogramma a 640, conf 0,25 (fuori budget sul Pi)
+PESI_TRACK/best.pt --conf 0.25
